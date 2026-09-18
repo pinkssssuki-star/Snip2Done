@@ -98,6 +98,9 @@ namespace RemeberEr
         /// <summary>跑一遍贴边隐藏的几何判定并打印结果后退出（免权限）。</summary>
         public static bool DockTest;
 
+        /// <summary>热键自检：核对注册与派发（免权限）。</summary>
+        public static bool HotkeyTest;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -197,11 +200,17 @@ namespace RemeberEr
             // 端到端链路自检：喂一张合成位图走完 框选 → 归类 → 落盘 → 刷新
             if (Flow == "chain") { RunFlowChain(); return; }
 
+            // 实时端到端：从**真实屏幕**走完整条链路（需要屏幕录制权限）
+            if (Flow == "live") { RunFlowLive(); return; }
+
             // 把面板自身渲染成 PNG（免权限）
             if (ShotPanel != null) { RunShotPanel(); return; }
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 热键自检（免权限）
+            if (HotkeyTest) { RunHotkeyTest(); return; }
 
             // 贴边隐藏几何自检（免权限）
             if (DockTest) { RunDockTest(); return; }
@@ -255,6 +264,89 @@ namespace RemeberEr
         /// 走 RenderTargetBitmap 直接抓视觉树，不经系统抓屏 —— 因此不需要任何权限，
         /// 在授权之前就能验证排版。
         /// </summary>
+        /// <summary>
+        /// 实时端到端：从真实屏幕抓图，走完 框选 → 归类 → 落盘 → 刷新。
+        ///
+        /// 与 --flow=chain 的区别只有一点：不喂合成位图，真的去抓屏。
+        /// 这是目标里「在本机实际运行验证核心流程」那一句的正面回答。
+        /// 用法：--flow=live --autoregion=WxH --autochoose=today|soon|want
+        /// </summary>
+        static void RunFlowLive()
+        {
+            Log("=== 实时端到端（真实屏幕）===");
+            if (!Program.Platform.HasScreenCapturePermission())
+            {
+                Log("!! 缺少「屏幕录制」权限，无法做实时验证");
+                Log("   系统设置 → 隐私与安全性 → 屏幕录制 → 勾选本程序 → 重启");
+                Environment.Exit(1);
+            }
+            if (AutoRegionW <= 0) { AutoRegionW = 1200; AutoRegionH = 800; }
+            if (AutoChoose == null) AutoChoose = "today";
+            Log(string.Format("  选区 = {0}x{1}，归类 = {2}",
+                AutoRegionW, AutoRegionH, AutoChoose));
+
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var store = new Store(DataDir);
+                    int before = store.Items.Count;
+
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(500);
+                    Log("  面板已就绪，落盘前条目数 = " + before);
+
+                    // 真的去抓屏、真的走框选层与归类窗
+                    var controller = new CaptureController(store, panel);
+                    controller.LiveCapture("实时验收");
+
+                    PumpUi(3000);
+
+                    var after = new Store(DataDir);
+                    Log(string.Format("  落盘后条目数 = {0}（新增 {1}）",
+                        after.Items.Count, after.Items.Count - before));
+
+                    // 校验「最新那条」的图片是不是真有一块内容（不是全黑）
+                    string newestId = null; double newestTs = -1;
+                    foreach (var o in after.Items)
+                    {
+                        var it = J.Obj(o);
+                        double ts = J.Num(it, "createdAt", 0);
+                        if (ts > newestTs) { newestTs = ts; newestId = J.Str(it, "id", null); }
+                    }
+                    if (newestId != null)
+                    {
+                        var it = after.Get(newestId);
+                        Log(string.Format("  最新条目：room={0} bucket={1} title=「{2}」 source=「{3}」",
+                            J.Str(it, "room", ""), J.Str(it, "dueBucket", "—"),
+                            J.Str(it, "title", ""), J.Str(it, "source", "")));
+                        string rel = J.Str(it, "image", null);
+                        if (!string.IsNullOrEmpty(rel))
+                        {
+                            string abs = System.IO.Path.Combine(DataDir, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                            if (System.IO.File.Exists(abs))
+                                Log(string.Format("  图片 = {0} 字节", new System.IO.FileInfo(abs).Length));
+                            else Log("  !! 图片文件不存在");
+                        }
+                    }
+                    Log("=== 实时端到端结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 实时端到端失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
         /// <summary>
         /// 端到端链路自检（**不需要屏幕录制权限**）。
         ///
@@ -546,6 +638,36 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>热键自检（免权限）。</summary>
+        static void RunHotkeyTest()
+        {
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(400);
+                    // 面板 Opened 里已注册热键，这里核对注册与派发
+                    var store = new Store(DataDir);
+                    var ctl = new CaptureController(store, panel);
+                    ctl.HotkeySelfTest();
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 热键自检异常：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -970,6 +1092,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
                 else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
                 else if (a == "--dock-test") DockTest = true;
+                else if (a == "--hotkey-test") HotkeyTest = true;
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

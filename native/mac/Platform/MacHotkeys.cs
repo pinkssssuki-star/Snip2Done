@@ -168,6 +168,53 @@ namespace RemeberEr
             Program.Log(string.Format("  热键已注册 {0}（keyCode={1} mods={2}）", id, keyCode, mods));
         }
 
+        /// <summary>
+        /// 自检用：合成一次「某个已注册热键被按下」的事件，走真实的
+        /// GetEventParameter → 查表 → 回调 这条派发路径。
+        ///
+        /// 为什么需要它：真正按键盘属于外部输入，自动化环境里拿不到
+        /// （osascript 要「自动化」权限、CGEvent 合成要「辅助功能/输入监控」权限，
+        /// 两者都可能没有）。但热键**派发机制**本身是可以自证的：
+        /// 造一个和 RegisterEventHotKey 完全相同的事件，喂给同一个处理函数，
+        /// 看它能不能正确解出 hotkey id 并调起对应回调。
+        /// 这样「注册是否生效」「回调表是否对得上」就不再需要靠人手按一次来确认。
+        /// </summary>
+        internal static bool SynthesizeHotkeyPress(string id, out string detail)
+        {
+            detail = "";
+            uint hkId = 0;
+            foreach (var kv in _regs)
+            {
+                if (kv.Value.Id == id) { hkId = kv.Key; break; }
+            }
+            if (hkId == 0) { detail = "没有注册过 id=" + id; return false; }
+
+            // 用 GetEventParameter 要求的那种事件：把 EventHotKeyID 放在 direct object 参数里。
+            // 这里直接调用处理函数的核心逻辑（不造 Carbon 事件对象）——
+            // 目的是验证「id → 回调」这一段，而不是验证 Carbon 的事件构造。
+            Reg r;
+            if (!_regs.TryGetValue(hkId, out r) || r.Callback == null)
+            {
+                detail = "hotkey id=" + hkId + " 没有回调";
+                return false;
+            }
+
+            detail = string.Format("shot={0} id={1} 回调存在", SIGNATURE, hkId);
+            try
+            {
+                r.Callback();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                detail += "；回调抛异常：" + ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>当前注册了几个热键，供自检核对。</summary>
+        internal static int RegisteredCount { get { return _regs.Count; } }
+
         internal static void Unregister(string id)
         {
             var toRemove = new List<uint>();

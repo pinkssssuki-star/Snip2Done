@@ -50,6 +50,24 @@ namespace RemeberEr
                 () => { Program.Log("  [热键] 退出"); Program.Platform.UnregisterAllHotkeys(); _panel.Close(); });
         }
 
+        /// <summary>
+        /// 热键自检：核对注册数量，并合成一次派发，确认「热键 → 回调」这条线是通的。
+        /// </summary>
+        public void HotkeySelfTest()
+        {
+            Program.Log("=== 全局热键自检 ===");
+            Program.Log("  已注册热键数 = " + MacHotkeys.RegisteredCount + "（期望 3：capture / toggle / quit）");
+
+            foreach (var id in new[] { "capture", "toggle", "quit" })
+            {
+                string detail;
+                bool ok = MacHotkeys.SynthesizeHotkeyPress(id, out detail);
+                Program.Log(string.Format("  {0,-8} → {1}　{2}",
+                    id, ok ? "派发成功" : "派发失败", detail));
+            }
+            Program.Log("=== 热键自检结束 ===");
+        }
+
         void TogglePanel()
         {
             Program.Log("  [热键] 显示/隐藏面板");
@@ -73,6 +91,17 @@ namespace RemeberEr
                 return;
             }
 
+            LiveCapture(why);
+        }
+
+        /// <summary>
+        /// 从**真实屏幕**走一次完整采集：探测窗口 → 抓屏 → 框选 → 归类 → 落盘。
+        ///
+        /// 与 RunFromScreenshot 的分工：那个是「喂一张现成位图」的自动化入口
+        /// （用于免权限验收），这个是真的去抓屏。两者从这里开始合流。
+        /// </summary>
+        public void LiveCapture(string why)
+        {
             // ⚠️ 必须在浮层出现**之前**探测窗口，否则只会探到自己
             var disp = PickDisplayUnderCursor();
             var fg = Program.Platform.ProbeForegroundWindow();
