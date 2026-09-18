@@ -23,7 +23,9 @@
     <DataTemplate x:Key="TodoCardTpl">
       <Border Classes="TodoCard"
               Classes.done="{Binding IsDone}"
-              PointerReleased="OnTodoCardClick">
+              PointerReleased="OnTodoCardClick"
+              PointerEntered="OnCardHoverIn"
+              PointerExited="OnCardHoverOut">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
 
           <!-- 勾选框：先只标记完成，留在原地让你能反悔 -->
@@ -64,7 +66,8 @@
 
     <!-- ================================================ Wantdo 磁贴 -->
     <DataTemplate x:Key="WantTileTpl">
-      <Border Classes="Tile" PointerReleased="OnWantTileClick">
+      <Border Classes="Tile" PointerReleased="OnWantTileClick"
+              PointerEntered="OnCardHoverIn" PointerExited="OnCardHoverOut">
         <!--
           布局分三层，生命条用「贴底叠加」而不是参与流式排版：
             · 图片区固定 60px
@@ -116,10 +119,11 @@
     </DataTemplate>
   </Window.Resources>
 
-  <Border CornerRadius="14" BorderThickness="1"
-          Background="{Binding PanelBackground}"
-          BorderBrush="{StaticResource ShellBorder}"
-          ClipToBounds="True">
+  <Grid>
+    <Border CornerRadius="14" BorderThickness="1"
+            Background="{Binding PanelBackground}"
+            BorderBrush="{StaticResource ShellBorder}"
+            ClipToBounds="True">
     <Grid RowDefinitions="Auto,Auto,*,Auto">
 
       <!-- ============================================ 顶栏（可拖动） -->
@@ -400,5 +404,25 @@
         </Grid>
       </Border>
     </Grid>
-  </Border>
+    </Border>
+
+    <!--
+      贴边隐藏时露在外面的那条窄边 + 一个看得见的抓手。
+      它是当前这个窗口的客户区内容，所以会跟着窗口一起被挪到屏幕外 ——
+      只留最右边（或最下边）那 5px 在屏幕内，用户就靠这条紫边把窗口拉回来。
+    -->
+    <Border x:Name="DockGrip" Width="5" Height="46" CornerRadius="3"
+            Background="{StaticResource Accent}"
+            IsVisible="False"
+            HorizontalAlignment="Left" VerticalAlignment="Center" Margin="1,0,0,0"
+            BoxShadow="0 0 10 0 #b38b5cf6"/>
+
+    <!-- 贴边隐藏期间的说明条 -->
+    <Border x:Name="DockHintBar" IsVisible="False"
+            Background="#CC1A1720" CornerRadius="8" Padding="10,6"
+            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8">
+      <TextBlock Text="{Binding DockHint}" FontSize="10" Foreground="#FFF2EFF7"
+                 TextWrapping="Wrap" MaxWidth="280"/>
+    </Border>
+  </Grid>
 </Window>

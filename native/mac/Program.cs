@@ -95,6 +95,9 @@ namespace RemeberEr
         /// <summary>把详情窗渲染成 PNG 后退出（免权限）。</summary>
         public static string ShotDetail;
 
+        /// <summary>跑一遍贴边隐藏的几何判定并打印结果后退出（免权限）。</summary>
+        public static bool DockTest;
+
         /// <summary>把完成记录窗渲染成 PNG 后退出（免权限）。值形如 "write:/path" 或 "view:/path"。</summary>
         public static string ShotRecord;
 
@@ -193,6 +196,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 贴边隐藏几何自检（免权限）
+            if (DockTest) { RunDockTest(); return; }
 
             // 把详情窗渲染成 PNG（免权限）
             if (ShotDetail != null) { RunShotDetail(); return; }
@@ -534,6 +540,33 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>贴边隐藏几何自检（免权限）。</summary>
+        static void RunDockTest()
+        {
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(400);
+                    panel.DockSelfTest();
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 贴边自检异常：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -930,6 +963,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shot-panel=")) ShotPanel = a.Substring(13);
                 else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
                 else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
+                else if (a == "--dock-test") DockTest = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
