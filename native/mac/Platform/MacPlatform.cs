@@ -21,6 +21,69 @@ namespace RemeberEr
     {
         public string Name { get { return "macOS"; } }
 
+        // ============================================================ ScreenCaptureKit 桥接层
+
+        /*
+         * 抓屏走 ScreenCaptureKit（经 Platform/sck_bridge.m 的纯 C 接口），
+         * **不再用 CGDisplayCreateImage**。
+         *
+         * 原因（这是移植途中修正的一个方向性错误）：
+         *   CGDisplayCreateImage / CGWindowListCreateImage 在 SDK 里标着
+         *   SCREEN_CAPTURE_OBSOLETE(10.6, 14.4, 15.0) —— 也就是
+         *   availability(macos, deprecated=14.4, obsoleted=15.0)，
+         *   头文件原话是 "Please use ScreenCaptureKit instead."。
+         *   本项目的目标系统是 macOS 26，继续用 CG 那条路是拿已移除的 API 赌运气。
+         *
+         * 桥接层的错误码与 sck_bridge.m 里的 enum 一一对应，改一处要改两处。
+         */
+        const string SckLib = "libremeber_sck";
+
+        const int SckOK = 0;
+        const int SckTimeout = 1;
+        const int SckNoContent = 2;
+        const int SckNoDisplay = 3;
+        const int SckCaptureFailed = 4;
+        const int SckBadArgs = 5;
+
+        [DllImport(SckLib)]
+        static extern int remeber_sck_preflight();
+
+        [DllImport(SckLib)]
+        static extern IntPtr remeber_sck_capture_display(uint displayID, out int w, out int h, out int err);
+
+        [DllImport(SckLib, CharSet = CharSet.Ansi)]
+        static extern IntPtr remeber_sck_error_text(int code);
+
+        static string SckErrorText(int code)
+        {
+            try
+            {
+                var p = remeber_sck_error_text(code);
+                return p == IntPtr.Zero ? ("错误码 " + code) : (Marshal.PtrToStringAnsi(p) ?? ("错误码 " + code));
+            }
+            catch (Exception) { return "错误码 " + code; }
+        }
+
+        /// <summary>桥接库是否可用。第一次调用时探一次，结果缓存。</summary>
+        static int _bridgeOk = -1;
+        static bool BridgeAvailable()
+        {
+            if (_bridgeOk >= 0) return _bridgeOk == 1;
+            try
+            {
+                // 能调到就说明 dylib 加载成功
+                remeber_sck_error_text(SckOK);
+                _bridgeOk = 1;
+            }
+            catch (Exception ex)
+            {
+                _bridgeOk = 0;
+                Program.Log("!! ScreenCaptureKit 桥接层加载失败：" + ex.GetType().Name);
+                Program.Log("   请先跑 build.sh 生成并拷贝 libremeber_sck.dylib");
+            }
+            return _bridgeOk == 1;
+        }
+
         // ============================================================ 显示器
 
         public IReadOnlyList<DisplayInfo> GetDisplays()
@@ -97,28 +160,51 @@ namespace RemeberEr
 
         // ============================================================ 权限
 
+        /// <summary>
+        /// 是否已授予「屏幕录制」权限。
+        ///
+        /// 用 ScreenCaptureKit 能不能拿到可共享内容来判定，而不是 CGPreflightScreenCaptureAccess：
+        /// 后者判的是 CoreGraphics 那条已被移除的抓屏路径，在 macOS 15+ 上语义已经不对了
+        /// （它可能报「已授权」，但真正抓的时候 SCK 依然拿不到内容）。
+        /// 用「实际能不能拿到内容」来判，和后面真正抓屏走的是同一条路，不会自相矛盾。
+        /// </summary>
         public bool HasScreenCapturePermission()
         {
-            try { return MacInterop.CGPreflightScreenCaptureAccess(); }
+            if (!BridgeAvailable()) return false;
+            try { return remeber_sck_preflight() == 1; }
             catch (Exception ex)
             {
-                Program.Log("!! CGPreflightScreenCaptureAccess 调用失败：" + ex.Message);
+                Program.Log("!! SCK preflight 调用失败：" + ex.Message);
                 return false;
             }
         }
 
         public void RequestScreenCapturePermission()
         {
+            // 用「真去抓一次」来触发系统授权。这也是官方推荐的路径：
+            // 第一次调用 ScreenCaptureKit 时，系统会弹出授权引导并登记本程序。
+            //
+            // 不用 CGRequestScreenCaptureAccess，理由同上：那是已被移除的
+            // CoreGraphics 抓屏路径的 API，登记的是另一条路。
+            //
+            // ⚠️ 授权后**必须重启本进程**才生效（macOS 的既定行为），
+            // 所以流程上必须引导用户重启，不能假设立刻可用。
             try
             {
-                // 这个调用会触发系统弹窗，并把本程序登记进「屏幕录制」列表。
-                // 注意：用户授权后**必须重启本进程**才会生效（macOS 的既定行为），
-                // 所以授权流程必须引导用户重启，不能假设立刻可用。
-                MacInterop.CGRequestScreenCaptureAccess();
+                var ds = GetDisplays();
+                if (ds.Count == 0) { Program.Log("  没有可用显示器，无法触发授权"); return; }
+                var d = ds[0];
+                foreach (var x in ds) if (x.IsPrimary) { d = x; break; }
+
+                Program.Log("  正在触发「屏幕录制」授权（首次会弹系统引导）…");
+                int w = 0, h = 0, err = -1;
+                IntPtr img = remeber_sck_capture_display(d.Id, out w, out h, out err);
+                if (img != IntPtr.Zero) MacInterop.CFRelease(img);
+                Program.Log("  触发结果：" + SckErrorText(err));
             }
             catch (Exception ex)
             {
-                Program.Log("!! CGRequestScreenCaptureAccess 调用失败：" + ex.Message);
+                Program.Log("!! 触发屏幕录制授权失败：" + ex.Message);
             }
         }
 
@@ -175,46 +261,47 @@ namespace RemeberEr
         /// <summary>
         /// 抓一块屏的原始位图（BGRA）。
         ///
-        /// 实现要点：
-        ///   1. 用 CGDisplayCreateImage 直接抓这块屏，而不是抓整个虚拟屏再裁 ——
-        ///      多屏时省掉一次大图裁切，也和 Win32 版按屏 BitBlt 的口径一致。
-        ///   2. 抓到的 CGImage **不直接读像素**，而是画进自己建的
-        ///      CGBitmapContext。原因是 provider 的格式/字节序不透明，
-        ///      自己建上下文能指定 kCGImageAlphaPremultipliedFirst +
-        ///      ByteOrder32Little，结果确定地是 BGRA。
-        ///   3. 未授权时 CGDisplayCreateImage 会返回**成功但全黑**的图，
-        ///      不报错。所以必须自己做一次「整图是否全黑」的检测并明确报错，
-        ///      否则用户只会看到黑图，无从排查。
+        /// 走 ScreenCaptureKit（经 sck_bridge.m），不再用 CGDisplayCreateImage ——
+        /// 后者在 macOS 15 已被 obsoleted，见本文件顶部那段说明。
+        ///
+        /// 处理链：SCK 给 CGImage（BGRA）→ 画进自建的 CGBitmapContext 拿到确定的
+        /// 像素布局 → 交给上层做选区裁剪与压暗。
+        /// 自己建上下文这一步保留着：SCK 返回图的像素格式虽然实际是 BGRA，
+        /// 但那是实现细节，自己建上下文能把它钉死成我们约定的格式。
         /// </summary>
         Screenshot GrabDisplay(uint displayId)
         {
+            if (!BridgeAvailable()) return null;
+
             var sw = Stopwatch.StartNew();
             IntPtr img = IntPtr.Zero, ctx = IntPtr.Zero, cs = IntPtr.Zero;
 
             try
             {
-                if (!HasScreenCapturePermission())
-                {
-                    Program.Log("!! 抓屏失败：没有「屏幕录制」权限（系统设置 → 隐私与安全性 → 屏幕录制）");
-                    return null;
-                }
-
-                img = MacInterop.CGDisplayCreateImage(displayId);
+                int w = 0, h = 0, err = -1;
+                img = remeber_sck_capture_display(displayId, out w, out h, out err);
                 if (img == IntPtr.Zero)
                 {
-                    Program.Log("!! CGDisplayCreateImage 返回空（displayId=" + displayId + "）");
+                    Program.Log("!! 抓屏失败：" + SckErrorText(err));
+                    if (err == SckNoContent)
+                    {
+                        Program.Log("   这通常就是缺少「屏幕录制」权限 —— ");
+                        Program.Log("   系统设置 → 隐私与安全性 → 屏幕录制，勾选本程序后**重启它**。");
+                    }
                     return null;
                 }
-
-                int w = (int)MacInterop.CGImageGetWidth(img);
-                int h = (int)MacInterop.CGImageGetHeight(img);
                 if (w <= 0 || h <= 0)
                 {
                     Program.Log("!! 抓到的图尺寸非法：" + w + "x" + h);
                     return null;
                 }
 
-                var bgra = new byte[w * h * 4];
+                var bgra = new byte[(long)w * h * 4 > int.MaxValue ? 0 : w * h * 4];
+                if (bgra.Length == 0)
+                {
+                    Program.Log("!! 图太大，超过单个托管数组上限：" + w + "x" + h);
+                    return null;
+                }
 
                 cs = MacInterop.CGColorSpaceCreateDeviceRGB();
                 uint info = MacInterop.kCGImageAlphaPremultipliedFirst | MacInterop.kCGBitmapByteOrder32Little;
@@ -229,25 +316,22 @@ namespace RemeberEr
                         Program.Log("!! CGBitmapContextCreate 失败");
                         return null;
                     }
-
-                    var rect = new MacInterop.CGRect(0, 0, w, h);
-                    MacInterop.CGContextDrawImage(ctx, rect, img);
+                    MacInterop.CGContextDrawImage(ctx, new MacInterop.CGRect(0, 0, w, h), img);
                 }
-                finally
-                {
-                    handle.Free();
-                }
+                finally { handle.Free(); }
 
                 var shot = new Screenshot { Width = w, Height = h, Bgra = bgra };
 
+                // SCK 在没权限时通常直接报错（不会给黑图），但 CG 那条老路会给黑图，
+                // 保留这道检测作为第二层保险：把「没权限」和「真抓到一张黑图」区分开。
                 if (IsAllBlack(shot))
                 {
-                    Program.Log("!! 抓到的图是全黑的 —— 几乎肯定是缺少「屏幕录制」权限。"
-                              + "请到 系统设置 → 隐私与安全性 → 屏幕录制 勾选本程序，然后重启它。");
+                    Program.Log("!! 抓到的图是全黑的 —— 大概率仍是无权限或系统拒绝了共享");
                     return null;
                 }
 
-                Program.Log(string.Format("  抓屏 {0}x{1} 用时 {2}ms", w, h, sw.ElapsedMilliseconds));
+                Program.Log(string.Format("  抓屏 {0}x{1} 用时 {2}ms（ScreenCaptureKit）",
+                    w, h, sw.ElapsedMilliseconds));
                 return shot;
             }
             catch (Exception ex)
