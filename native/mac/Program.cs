@@ -185,6 +185,9 @@ namespace RemeberEr
             // 数据 → ViewModel 链路自检
             if (VmSelfTest) { RunVmSelfTest(); return; }
 
+            // 端到端链路自检：喂一张合成位图走完 框选 → 归类 → 落盘 → 刷新
+            if (Flow == "chain") { RunFlowChain(); return; }
+
             // 把面板自身渲染成 PNG（免权限）
             if (ShotPanel != null) { RunShotPanel(); return; }
 
@@ -240,6 +243,101 @@ namespace RemeberEr
         /// 走 RenderTargetBitmap 直接抓视觉树，不经系统抓屏 —— 因此不需要任何权限，
         /// 在授权之前就能验证排版。
         /// </summary>
+        /// <summary>
+        /// 端到端链路自检（**不需要屏幕录制权限**）。
+        ///
+        /// 做法：自己造一张合成位图喂给 CaptureController.RunFromScreenshot，
+        /// 于是「框选层 → 归类窗 → 落盘 → 面板刷新」这整段都被真实驱动一遍，
+        /// 只有「从屏幕抓图」那一步被换掉 —— 而那是整条链路里唯一需要权限的步骤。
+        ///
+        /// 用法：--flow=chain --autoregion=900x560 --autochoose=soon
+        /// 之后用 --dumpsnap 复查落盘结果即可。
+        /// </summary>
+        static void RunFlowChain()
+        {
+            Log("=== 端到端链路自检（合成位图，免权限）===");
+            if (AutoRegionW <= 0) { AutoRegionW = 900; AutoRegionH = 560; }
+            if (AutoChoose == null) AutoChoose = "soon";
+            Log(string.Format("  选区 = {0}x{1}，归类 = {2}", AutoRegionW, AutoRegionH, AutoChoose));
+
+            var app = AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                int before = -1;
+                try
+                {
+                    var store = new Store(DataDir);
+                    before = store.Items.Count;
+
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(600);
+                    Log("  面板已就绪，落盘前条目数 = " + before);
+
+                    // 合成一张「屏幕」位图：渐变 + 几个色块，便于肉眼确认裁出来的确实是选区
+                    var disp = panel.Vm != null
+                        ? new DisplayInfo { Id = 1, X = 0, Y = 0, W = 2560, H = 1440, Scale = 1, IsPrimary = true }
+                        : null;
+                    var shot = MakeSyntheticShot((int)disp.W, (int)disp.H);
+
+                    var fg = new ForegroundInfo { Source = "自检应用", Title = "自检窗口标题" };
+
+                    // 走真实链路：框选层 → 归类窗 → 落盘
+                    var controller = new CaptureController(store, panel);
+                    controller.RunFromScreenshot(shot, disp, fg, "自检");
+
+                    // 让框选层的自动选区、归类窗的自动选择都跑完
+                    PumpUi(2500);
+
+                    var after = new Store(DataDir);
+                    Log(string.Format("  落盘后条目数 = {0}（新增 {1}）",
+                        after.Items.Count, after.Items.Count - before));
+
+                    // 打印最新那条，核对 room / dueBucket / 标题 / 图片来源
+                    string newestId = null;
+                    double newestTs = -1;
+                    foreach (var o in after.Items)
+                    {
+                        var it = J.Obj(o);
+                        double ts = J.Num(it, "createdAt", 0);
+                        if (ts > newestTs) { newestTs = ts; newestId = J.Str(it, "id", null); }
+                    }
+                    if (newestId != null)
+                    {
+                        var it = after.Get(newestId);
+                        Log(string.Format("  最新条目：room={0} bucket={1} state={2}",
+                            J.Str(it, "room", ""), J.Str(it, "dueBucket", "—"), J.Str(it, "state", "")));
+                        Log(string.Format("             title=「{0}」 source=「{1}」 image={2}",
+                            J.Str(it, "title", ""), J.Str(it, "source", ""), J.Str(it, "image", "—")));
+
+                        // 图片真的写出来了吗？大小对不对？
+                        string rel = J.Str(it, "image", null);
+                        if (!string.IsNullOrEmpty(rel))
+                        {
+                            string abs = System.IO.Path.Combine(DataDir, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                            if (System.IO.File.Exists(abs))
+                            {
+                                var fi = new System.IO.FileInfo(abs);
+                                Log(string.Format("  图片文件 = {0}（{1} 字节）", abs, fi.Length));
+                            }
+                            else Log("  !! 图片文件不存在：" + abs);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 链路自检失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
         static void RunShotPanel()
         {
             Log("=== 面板渲染自检 ===");
@@ -510,6 +608,38 @@ namespace RemeberEr
             });
 
             Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 造一张合成的「屏幕截图」（BGRA 缓冲），用于免权限的链路自检。
+        ///
+        /// 图里画了明显的参考物：左上角一个红块、右上角一个蓝块、中间一条白线。
+        /// 这样把裁出来的选区存成 PNG 之后，一眼就能确认裁的位置对不对 ——
+        /// 纯渐变看不出坐标偏移。
+        /// </summary>
+        static Screenshot MakeSyntheticShot(int w, int h)
+        {
+            var bgra = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    int o = (y * w + x) * 4;
+                    // 背景：斜向渐变
+                    bgra[o] = (byte)(120 + 90 * x / Math.Max(1, w));       // B
+                    bgra[o + 1] = (byte)(110 + 70 * y / Math.Max(1, h));   // G
+                    bgra[o + 2] = (byte)(190 - 70 * x / Math.Max(1, w));   // R
+                    bgra[o + 3] = 255;
+
+                    // 左上角红块（BGR 顺序：蓝=0 绿=0 红=255）
+                    if (x < w / 8 && y < h / 8) { bgra[o] = 0; bgra[o + 1] = 0; bgra[o + 2] = 255; }
+                    // 右上角蓝块
+                    if (x >= w - w / 8 && y < h / 8) { bgra[o] = 255; bgra[o + 1] = 0; bgra[o + 2] = 0; }
+                    // 正中间一条白线
+                    if (Math.Abs(y - h / 2) < 3) { bgra[o] = 255; bgra[o + 1] = 255; bgra[o + 2] = 255; }
+                }
+            }
+            return new Screenshot { Width = w, Height = h, Bgra = bgra };
         }
 
         /// <summary>造一张渐变占位图，用于免权限的渲染自检。</summary>

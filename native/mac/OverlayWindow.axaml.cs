@@ -93,8 +93,13 @@ namespace RemeberEr
 
             var bmp = BitmapUtil.ToBitmap(shotImg);
             _shot.Source = bmp;
+
+            // 底图与 Canvas 的尺寸都等窗口真正显示出来之后再按实际客户区设置，
+            // 见 Opened：那时候才知道窗口被夹成了多大。
             _shot.Width = Width;
             _shot.Height = Height;
+            _root.Width = Width;
+            _root.Height = Height;
 
             _confirmBtn.Click += (_, __) => Confirm();
 
@@ -103,13 +108,33 @@ namespace RemeberEr
             _root.PointerReleased += OnPointerReleased;
             _root.PointerWheelChanged += (_, e) => e.Handled = true;   // 别让滚轮穿透
             KeyDown += OnKeyDown;
+            Program.Log(string.Format(
+                "  [框选层] 构造后：Width/Height 设为 {0}x{1}，Position={2}",
+                Width, Height, Position));
+
             Opened += (_, __) =>
             {
+                // 以窗口**实际**客户区为准，把底图和 Canvas 对齐上去。
+                // 这样「画出来的东西」和「坐标换算用的比例」永远一致。
+                double cw = ClientSize.Width > 0 ? ClientSize.Width : Width;
+                double ch = ClientSize.Height > 0 ? ClientSize.Height : Height;
+                _root.Width = cw;
+                _root.Height = ch;
+                _shot.Width = cw;
+                _shot.Height = ch;
+
                 PlaceHint();
                 Paint(default(Rect));
                 Program.Log(string.Format(
                     "  框选层已显示：屏={0} 物理={1}x{2} 布局={3}x{4} 缩放={5}",
                     display.Id, _mw, _mh, Width, Height, s));
+                // 尺寸到底是设置值还是被系统改了？把两套口径都打出来。
+                // 不这么做就只能猜「窗口为什么比我设的矮了 120px」。
+                Program.Log(string.Format(
+                    "  [框选层] 实测：Bounds={0}x{1} 客户区={2}x{3} Canvas={4}x{5}",
+                    Bounds.Width, Bounds.Height,
+                    ClientSize.Width, ClientSize.Height,
+                    _root.Bounds.Width, _root.Bounds.Height));
             };
         }
 
@@ -130,7 +155,13 @@ namespace RemeberEr
         /// 因此这条自检路径在授权之前就能跑通 —— 可以把「渲染/坐标不对」
         /// 和「没权限」两类问题分开排查，否则它们都表现为「截图是黑的/空的」。
         /// </summary>
-        public void SetSelectionForTest(int ix, int iy, int iw, int ih, string verifyPngPath)
+        /// <param name="confirm">
+        /// 是否顺手确认掉（走完 Picked 那条真实出口）。
+        /// 单独做渲染自检时传 false；走端到端链路时必须传 true，
+        /// 否则选区只是画出来、流程并不会往下走 —— 这个参数是补上的，
+        /// 最初漏了它，导致链路自检一直停在框选层「没有任何反应」。
+        /// </param>
+        public void SetSelectionForTest(int ix, int iy, int iw, int ih, string verifyPngPath, bool confirm = false)
         {
             _sel = FromImagePixels(ix, iy, iw, ih);
             _last = new Point(_sel.Right, _sel.Bottom);
@@ -150,6 +181,8 @@ namespace RemeberEr
                 Canvas.GetLeft(_confirmBtn), Canvas.GetTop(_confirmBtn)));
 
             if (!string.IsNullOrEmpty(verifyPngPath)) SaveSelfPng(verifyPngPath);
+
+            if (confirm) Confirm();
         }
 
         /// <summary>把本窗口渲染成 PNG（不依赖系统抓屏权限）。</summary>
@@ -178,9 +211,37 @@ namespace RemeberEr
 
         // ============================================================ 坐标换算
 
-        /// <summary>布局单位 / 物理像素。渲染时用这个比例把物理选区折回布局坐标。</summary>
-        double KX { get { return Width > 0 ? Width / _mw : 1.0; } }
-        double KY { get { return Height > 0 ? Height / _mh : 1.0; } }
+        /// <summary>
+        /// 布局单位 / 物理像素。
+        ///
+        /// 关键：分母用**截图的物理尺寸**，分子用窗口**实际**的客户区尺寸，
+        /// 而不是我们设置的 Width/Height。
+        ///
+        /// 原因（实测踩到）：macOS 会把无边框窗口夹进「工作区」，
+        /// 我们设 2560x1440，实际拿到 2560x1320（菜单栏+程序坞那 120px 被吃掉）。
+        /// 如果继续拿设置值当分母，就会算出 KY=1.0 而实际是 0.9167，
+        /// 选区坐标整体偏移 —— 表现为「截出来的图不是用户框的那块」。
+        ///
+        /// 把「视觉缩放」和「坐标换算」绑成同一个来源之后，
+        /// 无论窗口最终被夹成多大，框选结果都是对的（底图会等比拉伸，仅此而已）。
+        /// </summary>
+        double KX
+        {
+            get
+            {
+                double w = ClientSize.Width > 0 ? ClientSize.Width : Width;
+                return w > 0 && _mw > 0 ? w / _mw : 1.0;
+            }
+        }
+
+        double KY
+        {
+            get
+            {
+                double h = ClientSize.Height > 0 ? ClientSize.Height : Height;
+                return h > 0 && _mh > 0 ? h / _mh : 1.0;
+            }
+        }
 
         /// <summary>鼠标位置（布局坐标）。取平台层物理像素再折算，不信 UI 框架的换算。</summary>
         Point CursorInLayout()
@@ -478,13 +539,26 @@ namespace RemeberEr
 
         void Confirm()
         {
-            if (!_settled || _sel.Width <= 0) return;
+            // 这条路径是「一框 → 归类」的唯一出口，出问题必须能看见原因，
+            // 否则表现为「点了没反应」，只能靠猜。
+            Program.Log(string.Format("  [框选层] Confirm: settled={0} 选区={1}",
+                _settled, _sel));
+            if (!_settled || _sel.Width <= 0)
+            {
+                Program.Log("  [框选层] Confirm 被拒：还没定下来或选区为空");
+                return;
+            }
 
             int ix, iy, iw, ih;
             ToImagePixels(_sel, out ix, out iy, out iw, out ih);
-            if (iw < 6 || ih < 6) return;
+            if (iw < 6 || ih < 6)
+            {
+                Program.Log(string.Format("  [框选层] Confirm 被拒：选区太小 {0}x{1}", iw, ih));
+                return;
+            }
 
             var h = Picked;
+            Program.Log("  [框选层] Confirm 通过，订阅数 = " + (h == null ? 0 : h.GetInvocationList().Length));
             if (h != null) h(ix, iy, iw, ih);
         }
 

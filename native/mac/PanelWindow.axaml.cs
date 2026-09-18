@@ -29,6 +29,7 @@ namespace RemeberEr
 
         Store _store;
         PanelViewModel _vm;
+        CaptureController _capture;
         TextBlock _diag;
 
         /// <summary>诊断视图是否打开。普通属性即可 —— 它不参与数据绑定到 VM。</summary>
@@ -46,11 +47,12 @@ namespace RemeberEr
             _vm.ImageRefreshNeeded += OnImageRefreshNeeded;
             _vm.TopmostChanged += on => Topmost = on;
 
-            _vm.SnipRequested += () => Program.Log("  [面板] 请求截图（P3 待接热键与归类窗）");
+            _capture = new CaptureController(_store, this);
+            _vm.SnipRequested += () => _capture.Trigger("面板 ✂ 按钮");
             _vm.QuitRequested += () => { Program.Platform.UnregisterAllHotkeys(); Close(); };
             _vm.CollapseRequested += ToggleCollapse;
-            _vm.OpenDetailRequested += id => Program.Log("  [面板] 打开详情：" + id + "（P4 待做）");
-            _vm.OpenRecordRequested += id => Program.Log("  [面板] 打开完成记录：" + id + "（P4 待做）");
+            _vm.OpenDetailRequested += OpenDetail;
+            _vm.OpenRecordRequested += OpenRecord;
 
             DataContext = _vm;
             Opened += OnOpened;
@@ -65,6 +67,7 @@ namespace RemeberEr
             _vm.Refresh();
             Topmost = _vm.AlwaysOnTop;
             UpdateDiag();
+            _capture.RegisterHotkeys();
 
             Program.Log("  [t=" + Program.Boot.ElapsedMilliseconds + "ms] 面板已显示");
             Program.Log("    位置(物理) = " + Position + " 尺寸(逻辑) = " + Width + "x" + Height);
@@ -184,6 +187,53 @@ namespace RemeberEr
             });
         }
 
+        // ============================================================ 打开子窗口
+
+        readonly System.Collections.Generic.List<Window> _kids = new System.Collections.Generic.List<Window>();
+
+        /// <summary>
+        /// 打开详情窗。详情窗里对 Wantdo 点 Get Done 会请求打开完成记录窗 ——
+        /// 那条链路（先写心得，再算完成）就是在这里接起来的。
+        /// </summary>
+        void OpenDetail(string id)
+        {
+            var d = new DetailWindow(_store, id);
+            d.RecordRequested += rid => OpenRecord(rid);
+            Track(d);
+            d.Show();
+            Program.Log("  [面板] 打开详情窗：" + id);
+        }
+
+        /// <summary>
+        /// 打开完成记录窗。
+        /// mode 判断与原版一致：已完成的看回看（view），未完成的看写心得（write）；
+        /// write 模式下点 Get Done 才真正落 Done。
+        /// </summary>
+        void OpenRecord(string id)
+        {
+            var it = _store.Get(id);
+            bool done = it != null && J.Str(it, "state", "") == "done";
+            var w = new RecordWindow(_store, id, done ? "view" : "write");
+
+            w.Committed += (rid, reflection) =>
+            {
+                // 写心得点 Get Done：带着心得完成，然后收进完成列表（file=true）
+                _store.Done(rid, reflection != null && reflection.Length > 0, reflection, true);
+                Program.Log("  [面板] 已带着心得完成：" + rid);
+                _vm.Refresh();
+            };
+
+            Track(w);
+            w.Show();
+            Program.Log("  [面板] 打开完成记录窗：" + id + "（" + (done ? "view" : "write") + "）");
+        }
+
+        void Track(Window w)
+        {
+            _kids.Add(w);
+            w.Closed += (_, __) => { _kids.Remove(w); _vm.Refresh(); };
+        }
+
         // ============================================================ 诊断
 
         void UpdateDiag()
@@ -258,6 +308,12 @@ namespace RemeberEr
         protected override void OnClosed(EventArgs e)
         {
             Program.Platform.UnregisterAllHotkeys();
+            // 子窗口是独立顶层窗，主窗关掉不会带走它们 —— 不显式关会留下孤儿窗口
+            foreach (var w in _kids.ToArray())
+            {
+                try { w.Close(); } catch (Exception) { }
+            }
+            _kids.Clear();
             base.OnClosed(e);
         }
     }

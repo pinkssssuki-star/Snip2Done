@@ -7,14 +7,32 @@
         TransparencyLevelHint="Transparent"
         Background="Transparent"
         Topmost="True"
-        Title="框选">
+        Title="框选"
+
+        SizeToContent="Manual">
 
   <!--
     框选层：铺一张整屏截图，把选区之外压暗，拖出一个框。
     与原版 WPF 版行为逐条对齐：松手后选区不消失、可拖角微调、可拖内部平移、
     确认键是选区外侧的 ✓（快速模式下松手即定，不显示 ✓）。
   -->
-  <Canvas x:Name="Root">
+  <!--
+    SizeToContent 必须显式写成 Manual。
+    不写的话窗口会按内容自适应尺寸，于是被「工作区」夹掉菜单栏+程序坞那一块：
+    实测窗口变成 2560x1320 而不是 2560x1440，而 Canvas 仍是 1440 ——
+    布局和截图比例不一致，选区坐标算出来就是错的。
+    （先加了 Canvas 显式尺寸，发现窗口仍被夹；打出 Bounds/ClientSize/Canvas
+     三套口径才定位到是窗口自己没听 Height。）
+
+    另外框选层是整屏覆盖，绝不能出现滚动条：
+    Canvas 的默认宿主是 ScrollViewer，它会按内容尺寸决定是否出条 ——
+    实测窗口因此变成 2560x1320 而不是 2560x1440（底部被吃掉十几像素），
+    于是换算比例 KX/KY 不再是 1:1，选区坐标算出来是错的。
+    所以：横向纵向滚动全部禁用 + Canvas 尺寸显式铺满。
+  -->
+  <Canvas x:Name="Root"
+          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+          ClipToBounds="True">
 
     <!-- 整屏截图（底图） -->
     <Image x:Name="Shot" Canvas.Left="0" Canvas.Top="0" Stretch="Fill" />

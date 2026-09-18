@@ -1,0 +1,275 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using Avalonia.Controls;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
+
+namespace RemeberEr
+{
+    /// <summary>
+    /// 采集流程的编排：热键 → 抓屏 → 框选 → 归类 → 落盘 → 刷新面板。
+    ///
+    /// 为什么单独拎一个类而不是塞进 PanelWindow：
+    ///   · 这条链路横跨平台层（抓屏/热键/窗口探测）和三个窗口（框选层/归类窗/面板），
+    ///     放在面板里会让 PanelWindow 同时管 UI 和业务流程；
+    ///   · 更重要的是它**可以被独立驱动**：RunFromScreenshot 接收一张现成的位图，
+    ///     因此「框选 → 归类 → 落盘 → 刷新」这一段不需要屏幕录制权限就能验证。
+    ///     抓屏是整条链路里唯一需要权限的一步，把它隔离在 Trigger 里。
+    ///
+    /// 顺序上有一处关键约束（原版注释里也记着）：
+    /// 取「鼠标下窗口标题」必须在**自己的浮层出现之前**完成，
+    /// 否则探到的只会是浮层自己。
+    /// </summary>
+    public class CaptureController
+    {
+        readonly Store _store;
+        readonly PanelWindow _panel;
+
+        OverlayWindow _overlay;
+        ChooserWindow _chooser;
+        bool _busy;
+
+        public CaptureController(Store store, PanelWindow panel)
+        {
+            _store = store;
+            _panel = panel;
+        }
+
+        public bool Busy { get { return _busy; } }
+
+        /// <summary>注册全局热键。原版是 Ctrl+Shift+*，mac 上换成 ⌘⇧*。</summary>
+        public void RegisterHotkeys()
+        {
+            // Carbon 虚拟键码：A=0, H=4, Q=12（不是字符码，是物理键位）
+            Program.Platform.RegisterHotkey("capture", HotkeyModifiers.Win | HotkeyModifiers.Shift, 0,
+                () => Trigger("hotkey"));
+            Program.Platform.RegisterHotkey("toggle", HotkeyModifiers.Win | HotkeyModifiers.Shift, 4,
+                TogglePanel);
+            Program.Platform.RegisterHotkey("quit", HotkeyModifiers.Win | HotkeyModifiers.Shift, 12,
+                () => { Program.Log("  [热键] 退出"); Program.Platform.UnregisterAllHotkeys(); _panel.Close(); });
+        }
+
+        void TogglePanel()
+        {
+            Program.Log("  [热键] 显示/隐藏面板");
+            if (_panel.IsVisible) _panel.Hide();
+            else _panel.Show();
+        }
+
+        // ============================================================ 抓屏（需要权限）
+
+        /// <summary>从真实屏幕开始一次采集。这是唯一需要「屏幕录制」权限的一步。</summary>
+        public void Trigger(string why)
+        {
+            if (_busy) { Program.Log("  [采集] 已有一次采集在进行，忽略 " + why); return; }
+
+            Program.Log("  [采集] 触发（" + why + "）");
+
+            if (!Program.Platform.HasScreenCapturePermission())
+            {
+                Program.Log("  [采集] 没有「屏幕录制」权限，无法抓屏。");
+                Program.Log("         请到 系统设置 → 隐私与安全性 → 屏幕录制 勾选本程序（终端），然后重启。");
+                return;
+            }
+
+            // ⚠️ 必须在浮层出现**之前**探测窗口，否则只会探到自己
+            var disp = PickDisplayUnderCursor();
+            var fg = Program.Platform.ProbeForegroundWindow();
+            Program.Log(string.Format("  [采集] 目标屏 = {0}；来源 = {1} / 标题 = {2}",
+                disp, fg.Source, fg.Title));
+
+            var shot = Program.Platform.CaptureDisplay(disp);
+            if (shot == null) { Program.Log("  [采集] 抓屏失败（见上面原因）"); return; }
+
+            RunFromScreenshot(shot, disp, fg, why);
+        }
+
+        /// <summary>光标所在的那块屏；取不到就用主屏。</summary>
+        DisplayInfo PickDisplayUnderCursor()
+        {
+            var ds = Program.Platform.GetDisplays();
+            if (ds.Count == 0) return null;
+            if (Program.PrimaryOnly) foreach (var d in ds) if (d.IsPrimary) return d;
+
+            var c = Program.Platform.GetCursorPosition();
+            foreach (var d in ds)
+            {
+                if (c.X >= d.X && c.X < d.X + d.W && c.Y >= d.Y && c.Y < d.Y + d.H) return d;
+            }
+            foreach (var d in ds) if (d.IsPrimary) return d;
+            return ds[0];
+        }
+
+        // ============================================================ 框选 → 归类 → 落盘
+
+        /// <summary>
+        /// 用一张现成的位图走完「框选 → 归类 → 落盘 → 刷新面板」。
+        ///
+        /// 分开成公开方法是为了让这一段能**脱离权限**被验证 ——
+        /// 自动化验收（--flow=chain）喂一张合成位图进来即可覆盖全过程。
+        /// </summary>
+        public void RunFromScreenshot(Screenshot shot, DisplayInfo disp, ForegroundInfo fg, string why)
+        {
+            _busy = true;
+
+            // 压暗要作用在**传进来的这张**上，不能再调一次抓屏。
+            // 之前这里写的是 CaptureDisplayDimmed(...)，它在 mac 实现里会重新抓一次屏 ——
+            // 于是「喂一张现成位图」的自动化路径照样会因为没权限而失败，
+            // 合成位图被整个丢掉。这是链路自检抓出来的真实缺陷。
+            var dimmed = shot;
+
+            _overlay = new OverlayWindow(dimmed, disp, Program.ForceQuick || _panel.Vm.QuickCapture);
+            _overlay.Picked += (ix, iy, iw, ih) =>
+            {
+                // 回调里任何异常都可能被 UI 框架吞掉，从而表现为「点了没反应」。
+                // 采集链路是核心流程，这里必须自己接住并留痕。
+                try
+                {
+                    Program.Log(string.Format("  [采集] 选定区域（物理像素，相对本屏）= ({0},{1}) {2}x{3}", ix, iy, iw, ih));
+                    CloseOverlay();
+                    ShowChooser(shot, disp, fg, ix, iy, iw, ih);
+                }
+                catch (Exception ex)
+                {
+                    Program.Log("  !! [采集] 选区回调异常：" + ex.GetType().Name + " " + ex.Message);
+                    Program.Log("     " + ex.StackTrace);
+                    _busy = false;
+                }
+            };
+            _overlay.Cancelled += () =>
+            {
+                Program.Log("  [采集] 已取消");
+                CloseOverlay();
+                _busy = false;
+            };
+
+            _overlay.Show();
+            // 自动验收：不等人拖拽，直接给一个居中的选区
+            if (Program.AutoRegionW > 0)
+            {
+                int w = Program.AutoRegionW, h = Program.AutoRegionH;
+                int x = Math.Max(0, ((int)shot.Width - w) / 2);
+                int y = Math.Max(0, ((int)shot.Height - h) / 2);
+                Program.Log(string.Format("  [采集] 自动验收选区 = ({0},{1}) {2}x{3}", x, y, w, h));
+                // confirm: true —— 走完 Picked 这条真实出口，链路才会继续到归类窗
+                _overlay.SetSelectionForTest(x, y, w, h, Program.OverlayShot, true);
+            }
+        }
+
+        void CloseOverlay()
+        {
+            if (_overlay == null) return;
+            try { _overlay.Dismiss(); } catch (Exception) { }
+            _overlay = null;
+        }
+
+        void ShowChooser(Screenshot shot, DisplayInfo disp, ForegroundInfo fg,
+                         int ix, int iy, int iw, int ih)
+        {
+            // 裁选区 → PNG（落库用）+ 预览位图
+            var crop = CropBgra(shot, ix, iy, iw, ih);
+            byte[] png = null;
+            Bitmap preview = null;
+            try { png = EncodePng(crop); } catch (Exception ex) { Program.Log("  裁图/编码失败：" + ex.Message); }
+            preview = BitmapUtil.ToBitmap(crop);
+
+            _chooser = new ChooserWindow(new ChooserWindow.Payload
+            {
+                Png = png,
+                Preview = preview,
+                App = fg != null ? fg.Source : "",
+                Title = fg != null ? fg.Title : "",
+            }, disp, ix, iy, iw, ih);
+
+            _chooser.Decided += (choice, typed) =>
+            {
+                Program.Log(string.Format("  [采集] 归类结果 = {0}，标题 = {1}",
+                    choice ?? "(取消)", typed));
+                if (choice != null) Save(choice, typed, png, fg);
+                _chooser = null;
+                _busy = false;
+            };
+
+            _chooser.Show();
+        }
+
+        /// <summary>按归类结果落盘：room / dueBucket / 标题 / 来源 / 图片。</summary>
+        void Save(string choice, string typed, byte[] png, ForegroundInfo fg)
+        {
+            string room, bucket;
+            if (choice == "want") { room = "want"; bucket = null; }
+            else if (choice == "today") { room = "todo"; bucket = "today"; }
+            else { room = "todo"; bucket = "soon"; }
+
+            // 标题留空则回落到截图时的窗口标题（原版规则）
+            string title = typed;
+            if (string.IsNullOrWhiteSpace(title) && fg != null) title = fg.Title;
+            string source = fg != null ? fg.Source : "";
+
+            var item = _store.Add(room, title ?? "", source, null, bucket);
+            string id = J.Str(item, "id", null);
+
+            if (png != null && id != null)
+            {
+                // 直接改条目对象上的 image 字段，**不要**走 Update(id, patch)。
+                //
+                // 原因：Store.Update 只认 title / note / reflection 三个键，
+                // 传 image 进去会被静默忽略（踩过：PNG 明明写出来了，
+                // data.json 里 image 还是 null，条目显示成「没有截图」）。
+                // 原版 Windows 也是这么写的（PanelWindow.xaml.cs: item["image"] = rel），
+                // 这里保持一致，顺带把 Store.Update 的这个局限记在这一处。
+                string rel = _store.SaveImage(id, png);
+                item["image"] = rel;
+
+                // Add 已经存过一次，这里把带 image 的状态落盘
+                _store.Update(id, new Dictionary<string, object> { { "title", title ?? "" } });
+            }
+
+            Program.Log(string.Format("  [采集] 已落盘：id={0} room={1} bucket={2} 图片={3}",
+                id, room, bucket ?? "—", png != null ? (png.Length / 1024) + "KB" : "无"));
+
+            // 面板刷新（如果这次采集是 Wantdo，还顺手把它当作"被碰过"）
+            _panel.Vm.Refresh();
+        }
+
+        // ============================================================ 位图工具
+
+        /// <summary>从整屏位图里裁一块（物理像素，相对该屏左上角）。</summary>
+        static Screenshot CropBgra(Screenshot src, int x, int y, int w, int h)
+        {
+            x = Math.Max(0, Math.Min(x, src.Width - 1));
+            y = Math.Max(0, Math.Min(y, src.Height - 1));
+            w = Math.Max(1, Math.Min(w, src.Width - x));
+            h = Math.Max(1, Math.Min(h, src.Height - y));
+
+            var dst = new Screenshot { Width = w, Height = h, Bgra = new byte[w * h * 4] };
+            for (int row = 0; row < h; row++)
+            {
+                int srcOff = ((y + row) * src.Width + x) * 4;
+                int dstOff = row * w * 4;
+                Buffer.BlockCopy(src.Bgra, srcOff, dst.Bgra, dstOff, w * 4);
+            }
+            return dst;
+        }
+
+        /// <summary>BGRA → PNG 字节。走平台层（mac 上是 ImageIO，无第三方依赖）。</summary>
+        static byte[] EncodePng(Screenshot s)
+        {
+            string tmp = Path.Combine(Path.GetTempPath(), "remeber-crop-" + Guid.NewGuid().ToString("N") + ".png");
+            try
+            {
+                if (!MacInterop.WritePng(tmp, s.Width, s.Height, s.Bgra))
+                {
+                    Program.Log("  !! WritePng 返回失败");
+                    return null;
+                }
+                return File.ReadAllBytes(tmp);
+            }
+            finally
+            {
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception) { }
+            }
+        }
+    }
+}
