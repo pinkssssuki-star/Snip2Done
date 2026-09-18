@@ -14,7 +14,7 @@ namespace RemeberEr
     public static class Program
     {
         /// <summary>发布版本号。pack.ps1 会从这里读，别在两处各写一份。</summary>
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.1";
 
         public static string Root;
         public static string DataDir;

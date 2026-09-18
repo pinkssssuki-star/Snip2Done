@@ -6,6 +6,8 @@
 
 一个常驻桌面的半透明小面板。**截图不是待办，是记忆钩子。**
 
+当前版本 **v0.9.1**。改过什么、为什么改、怎么验的，都在 [`CHANGELOG.md`](./CHANGELOG.md)。
+
 ---
 
 ## 仓库结构
@@ -16,11 +18,12 @@ legacy/      ← 旧版本，留着存档，不再改动
 docs/        ← 设计稿、打包说明、给朋友的话、实测报告
 ```
 
-| 目录 | 是什么 | 状态 |
+| 目录 / 文件 | 是什么 | 状态 |
 |---|---|---|
 | **`native/`** | 纯原生 WPF/XAML。1 进程 / ~110 MB / 0.14 MB 分发 | **★ 主版本，后续只改这里** |
 | `legacy/electron/` | 最初的 Electron 版（HTML/CSS/JS） | 存档。功能最全的上一版，参考用 |
 | `legacy/wpf-webview2/` | 中间实验：WPF 套 WebView2 复用 HTML UI | 存档。结论是这条路不划算，见实测报告 |
+| [`CHANGELOG.md`](./CHANGELOG.md) | **改过什么、为什么改、怎么验的** | 每次改动都往里加 |
 
 一次技术选型的结论（完整数据见 [`docs/WPF-WebView2实测.md`](./docs/WPF-WebView2实测.md)）：
 
