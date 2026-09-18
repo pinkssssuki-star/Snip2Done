@@ -135,12 +135,78 @@ namespace RemeberEr
             else if (Program.Flow == "dissolve") ScheduleFlowDissolve();
             else if (Program.Flow == "synthdrag") ScheduleFlowSynthDrag();
             else if (Program.Flow == "ui") ScheduleFlowUi();
+            else if (Program.Flow == "trash") ScheduleFlowTrash();
+        }
+
+        /// <summary>
+        /// 验收「倒垃圾」和四个标签页。倒垃圾是整个程序里唯一的不可逆操作，
+        /// 必须实测它只动使命 Todo，初心 Wantdo 一条都不能少。
+        /// </summary>
+        void ScheduleFlowTrash()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                _vm.View = "bin";
+                _vm.BinTab = "todo";
+                Program.Log(string.Format("  倒垃圾前：使命 Todo {0} 条，初心 Wantdo {1} 条",
+                    _vm.TodoBins.Count, _vm.WantBins.Count));
+                Shot("bin-todo");
+            }));
+            steps.Add(Tuple.Create<int, Action>(450, () =>
+            {
+                _vm.BinTab = "want";
+                foreach (var b in _vm.WantBins) Program.Log("    初心 · " + b.Caption);
+                Shot("bin-want");
+            }));
+            steps.Add(Tuple.Create<int, Action>(450, () =>
+            {
+                _vm.BinTab = "todo";
+                _vm.EmptyTrashCmd.Execute(null);
+                Program.Log(string.Format("  点第 1 下 -> ConfirmingEmpty={0} 按钮文字=\"{1}\"（此时不该删任何东西）",
+                    _vm.ConfirmingEmpty, _vm.EmptyTrashText));
+                Shot("bin-confirm");
+            }));
+            steps.Add(Tuple.Create<int, Action>(450, () =>
+            {
+                _vm.EmptyTrashCmd.Execute(null);
+                Program.Log(string.Format("  点第 2 下 -> 使命 Todo {0} 条，初心 Wantdo {1} 条",
+                    _vm.TodoBins.Count, _vm.WantBins.Count));
+                foreach (var b in _vm.WantBins) Program.Log("    初心仍在 · " + b.Caption);
+                Shot("bin-after");
+            }));
+            steps.Add(Tuple.Create<int, Action>(450, () =>
+            {
+                _vm.View = "done";
+                _vm.DoneTab = "todo";
+                Program.Log(string.Format("  Done：Todo {0} 组，WD {1} 组",
+                    _vm.TodoDoneGroups.Count, _vm.WantDoneGroups.Count));
+                Shot("done-todo");
+            }));
+            steps.Add(Tuple.Create<int, Action>(450, () =>
+            {
+                _vm.DoneTab = "want";
+                Shot("done-want");
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                Program.Log("  倒垃圾 / 标签页流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         // ------------------------------------------------------------ UI 验收流程
 
         void Shot(string name)
         {
+            // 先把 WPF 的布局+渲染跑完，再等 DWM 合成一帧。
+            // 不然切完标签页立刻抓屏，抓到的是上一帧 —— 验收流程会「慢半拍」，
+            // 截出来的图和日志对不上，比没有证据更糟。
+            UpdateLayout();
+            Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+            System.Threading.Thread.Sleep(180);
+
             Interop.RECT r;
             Interop.GetWindowRect(_hwnd, out r);
             Capture.SaveRegion(Path.Combine(Program.Root, ".guide", "native-" + name + ".png"), r, Program.ShotPad);
@@ -739,8 +805,13 @@ namespace RemeberEr
         void OnBinCardClick(object sender, MouseButtonEventArgs e)
         {
             HidePreview();
-            string id = IdOf((sender as FrameworkElement).DataContext);
-            if (id != null) _vm.RestoreCmd.Execute(id);
+            var fe = sender as FrameworkElement;
+            if (fe == null) return;
+            // 使命 Todo 不能捡回来 —— 舍弃就是舍弃，只能靠「倒垃圾」一次清空。
+            // 初心 Wantdo 才有这一下。
+            var b = fe.DataContext as BinVm;
+            if (b == null || !b.CanRestore) return;
+            _vm.RestoreCmd.Execute(b.Id);
         }
 
         void OnDoneItemClick(object sender, MouseButtonEventArgs e)

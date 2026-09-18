@@ -305,6 +305,19 @@
                     <Setter TargetName="tile" Property="BorderBrush" Value="#8c8b5cf6"/>
                     <Setter TargetName="pick" Property="Opacity" Value="1"/>
                 </Trigger>
+                <!--
+                    只有初心 Wantdo 能捡回来。使命 Todo 直接把这个提示 Collapsed 掉 ——
+                    用 Visibility 门控而不是 MultiDataTrigger：后者在 DataTemplate 里写
+                    <Condition SourceName=...> 会踩 XAML 的解析顺序坑（Property 先于 SourceName
+                    被设置，Condition.Binding 还是 null，直接抛「Binding 必须具有非 null 值」）。
+                -->
+                <DataTrigger Binding="{Binding CanRestore}" Value="False">
+                    <Setter TargetName="tile" Property="Cursor" Value="Arrow"/>
+                    <Setter TargetName="pick" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding CanRestore}" Value="True">
+                    <Setter TargetName="tile" Property="Cursor" Value="Hand"/>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -603,6 +616,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="1,0,1,6">
@@ -614,30 +628,109 @@
                     <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
                             BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
                         <TextBlock FontSize="11" LineHeight="17.6" Foreground="{StaticResource Tx3}" TextWrapping="Wrap">
-                            梦想纸飞机的废纸篓。<LineBreak/>这里不是删除，是被你暂时放下的想法 —— 点一下就能捡回来。
+                            这里分开摆两种「没做成」。<LineBreak/>
+                            <Run FontWeight="SemiBold" Foreground="{StaticResource Red}">使命 Todo</Run> 是你主动舍弃的 —— 可以倒垃圾一次清空。<LineBreak/>
+                            <Run FontWeight="SemiBold" Foreground="{StaticResource AccentDeep}">初心 Wantdo</Run> 是慢慢淡掉的 —— 永远留着，点一下就能捡回来。
                         </TextBlock>
                     </Border>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+
+                    <!-- ==== 两个标签页 ==== -->
+                    <Border Grid.Row="2" Background="#12000000" CornerRadius="9" Padding="3" Margin="0,0,0,10">
+                        <UniformGrid Columns="2">
+                            <Button Content="使命 Todo"
+                                    Command="{Binding BinTabCmd}" CommandParameter="todo">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding BinTab}" Value="todo">
+                                                <Setter Property="Tag" Value="on"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="初心 Wantdo"
+                                    Command="{Binding BinTabCmd}" CommandParameter="want">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding BinTab}" Value="want">
+                                                <Setter Property="Tag" Value="on"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </UniformGrid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   Padding="0,0,4,0">
                         <Grid>
-                            <ItemsControl ItemsSource="{Binding Bins}" ItemTemplate="{StaticResource BinCardTpl}"
-                                          Visibility="{Binding HasBins, Converter={StaticResource BoolToVis}}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Columns="2"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                            </ItemsControl>
-                            <Border Style="{StaticResource EmptyBox}"
-                                    Visibility="{Binding HasBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="纸篓是空的。" FontSize="11" Foreground="{StaticResource Tx4}"
-                                               HorizontalAlignment="Center"/>
-                                    <TextBlock Text="说明你的注意力都还在。" FontSize="10"
-                                               Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
-                                               HorizontalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
+
+                            <!-- 使命 Todo：不能捡回，只能倒垃圾 -->
+                            <StackPanel Visibility="{Binding IsBinTodo, Converter={StaticResource BoolToVis}}">
+                                <Grid Margin="1,0,1,6">
+                                    <TextBlock Text="主动舍弃的，倒掉就不再回来" FontSize="10"
+                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                    <Button HorizontalAlignment="Right" Content="{Binding EmptyTrashText}"
+                                            Command="{Binding EmptyTrashCmd}"
+                                            Visibility="{Binding HasTodoBins, Converter={StaticResource BoolToVis}}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ConfirmingEmpty}" Value="True">
+                                                        <Setter Property="Tag" Value="danger"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding TodoBins}" ItemTemplate="{StaticResource BinCardTpl}"
+                                              Visibility="{Binding HasTodoBins, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <Border Style="{StaticResource EmptyBox}" Height="86"
+                                        Visibility="{Binding HasTodoBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="没有舍弃的 Todo。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="丢掉的会落到这里，攒着一起倒。" FontSize="10"
+                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- 初心 Wantdo：能捡回，永不删 -->
+                            <StackPanel Visibility="{Binding IsBinWant, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="慢慢淡掉的，点一下就能捡回来" FontSize="10"
+                                           Foreground="{StaticResource Tx5}" Margin="1,0,1,6"/>
+                                <ItemsControl ItemsSource="{Binding WantBins}" ItemTemplate="{StaticResource BinCardTpl}"
+                                              Visibility="{Binding HasWantBins, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <Border Style="{StaticResource EmptyBox}" Height="86"
+                                        Visibility="{Binding HasWantBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="还没有淡掉的念想。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="说明你的注意力都还在。" FontSize="10"
+                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                         </Grid>
                     </ScrollViewer>
                 </Grid>
@@ -645,6 +738,7 @@
                 <!-- ============================================ Done -->
                 <Grid Visibility="{Binding IsDoneView, Converter={StaticResource BoolToVis}}">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -661,11 +755,40 @@
                             按完成日期排的。<LineBreak/>点任意一条看当时的心得与小结。
                         </TextBlock>
                     </Border>
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+
+                    <!-- 完成列表也分两个标签，但不用「使命/初心」那套抒情命名 -->
+                    <Border Grid.Row="2" Background="#12000000" CornerRadius="9" Padding="3" Margin="0,0,0,10">
+                        <UniformGrid Columns="2">
+                            <Button Content="Todo" Command="{Binding DoneTabCmd}" CommandParameter="todo">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DoneTab}" Value="todo">
+                                                <Setter Property="Tag" Value="on"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="WD" Command="{Binding DoneTabCmd}" CommandParameter="want">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource TabBtn}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DoneTab}" Value="want">
+                                                <Setter Property="Tag" Value="on"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </UniformGrid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   Padding="0,0,4,0">
                         <Grid>
-                            <ItemsControl ItemsSource="{Binding DoneGroups}"
-                                          Visibility="{Binding HasDoneGroups, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl ItemsSource="{Binding TodoDoneGroups}"
+                                          Visibility="{Binding IsDoneTodo, Converter={StaticResource BoolToVis}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
@@ -692,6 +815,36 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+
+                            <ItemsControl ItemsSource="{Binding WantDoneGroups}"
+                                          Visibility="{Binding IsDoneWant, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <Grid Margin="2,8,2,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Bold"
+                                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                                    <Border Background="#0f000000" CornerRadius="7" Padding="5,0,5,0"
+                                                            Margin="6,0,6,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Count}" FontSize="9.5" FontWeight="SemiBold"
+                                                                   Foreground="#8a8a8e"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Height="1" Background="{StaticResource Hair}"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Items}"
+                                                          ItemTemplate="{StaticResource DoneItemTpl}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                             <Border Style="{StaticResource EmptyBox}"
                                     Visibility="{Binding HasDoneGroups, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">

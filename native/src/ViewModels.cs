@@ -237,6 +237,13 @@ namespace RemeberEr
         public string ImagePath { get; set; }
         public bool HasThumb { get { return Thumb != null; } }
         public string FirstChar { get; set; }
+
+        /// <summary>
+        /// 能不能点一下捡回来。
+        /// 使命 Todo 不行 —— 舍弃就是舍弃，只留一个「倒垃圾」一次清空；
+        /// 初心 Wantdo 可以，而且永远不会被删。
+        /// </summary>
+        public bool CanRestore { get; set; }
     }
 
     public class DoneVm : ObservableObject
@@ -273,7 +280,13 @@ namespace RemeberEr
         public ObservableCollection<TodoVm> Todos { get; private set; }
         public ObservableCollection<WantVm> Wants { get; private set; }
         public ObservableCollection<BinVm> Bins { get; private set; }
+        /// <summary>纸篓的两个分区：使命 Todo（可全清，不能捡回）/ 初心 Wantdo（能捡回，永不删）</summary>
+        public ObservableCollection<BinVm> TodoBins { get; private set; }
+        public ObservableCollection<BinVm> WantBins { get; private set; }
         public ObservableCollection<DoneGroupVm> DoneGroups { get; private set; }
+        /// <summary>完成列表也按房间分两个标签：Todo / WD</summary>
+        public ObservableCollection<DoneGroupVm> TodoDoneGroups { get; private set; }
+        public ObservableCollection<DoneGroupVm> WantDoneGroups { get; private set; }
 
         public Dictionary<string, object> Raw { get; private set; }
 
@@ -283,7 +296,11 @@ namespace RemeberEr
             Todos = new ObservableCollection<TodoVm>();
             Wants = new ObservableCollection<WantVm>();
             Bins = new ObservableCollection<BinVm>();
+            TodoBins = new ObservableCollection<BinVm>();
+            WantBins = new ObservableCollection<BinVm>();
             DoneGroups = new ObservableCollection<DoneGroupVm>();
+            TodoDoneGroups = new ObservableCollection<DoneGroupVm>();
+            WantDoneGroups = new ObservableCollection<DoneGroupVm>();
 
             SnipCmd = new RelayCommand(() => { if (SnipRequested != null) SnipRequested(); });
             ToggleQuickCmd = new RelayCommand(ToggleQuick);
@@ -302,6 +319,9 @@ namespace RemeberEr
             ToggleDoneCmd = new RelayCommand(p => { _store.Done((string)p, false, null, false); Refresh(); });
             BinItemCmd = new RelayCommand(p => { _store.Bin((string)p); Refresh(); });
             RestoreCmd = new RelayCommand(p => { _store.Restore((string)p); Refresh(); });
+            EmptyTrashCmd = new RelayCommand(EmptyTrash);
+            BinTabCmd = new RelayCommand(p => SwitchBinTab((string)p));
+            DoneTabCmd = new RelayCommand(p => SwitchDoneTab((string)p));
             OpenCmd = new RelayCommand(p => Open((string)p));
             OpenDoneCmd = new RelayCommand(p => { if (OpenRecordRequested != null) OpenRecordRequested((string)p); });
         }
@@ -328,6 +348,57 @@ namespace RemeberEr
         public RelayCommand ToggleDoneCmd { get; private set; }
         public RelayCommand BinItemCmd { get; private set; }
         public RelayCommand RestoreCmd { get; private set; }
+        public RelayCommand EmptyTrashCmd { get; private set; }
+
+        // ---------------- 倒垃圾 ----------------
+
+        /// <summary>
+        /// 「倒垃圾」是**整个程序里唯一不可逆的操作** —— 别的都能反悔，这个不能。
+        /// 所以点第一下只把按钮变成「确定清空？」，点第二下才真清；4 秒不点自己缩回去。
+        /// </summary>
+        bool _confirmingEmpty;
+        public bool ConfirmingEmpty
+        {
+            get { return _confirmingEmpty; }
+            set
+            {
+                if (!Set(ref _confirmingEmpty, value, "ConfirmingEmpty")) return;
+                Raise("EmptyTrashText");
+            }
+        }
+        public string EmptyTrashText { get { return _confirmingEmpty ? "确定清空？" : "倒垃圾"; } }
+
+        System.Windows.Threading.DispatcherTimer _emptyConfirmTimer;
+        void EmptyTrash()
+        {
+            if (!_confirmingEmpty)
+            {
+                ConfirmingEmpty = true;
+                if (_emptyConfirmTimer == null)
+                {
+                    _emptyConfirmTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                    _emptyConfirmTimer.Tick += (s, e) =>
+                    {
+                        _emptyConfirmTimer.Stop();
+                        ConfirmingEmpty = false;
+                    };
+                }
+                _emptyConfirmTimer.Stop();
+                _emptyConfirmTimer.Start();
+                return;
+            }
+
+            if (_emptyConfirmTimer != null) _emptyConfirmTimer.Stop();
+            ConfirmingEmpty = false;
+
+            // 只清「使命 Todo」那一区；初心 Wantdo 永远不动
+            var ids = new List<string>();
+            foreach (var b in TodoBins) ids.Add(b.Id);
+            foreach (var id in ids) _store.Remove(id);
+
+            Program.Log("  倒垃圾：清掉 " + ids.Count + " 条使命 Todo（初心 Wantdo 未动）");
+            Refresh();
+        }
         public RelayCommand OpenCmd { get; private set; }
         public RelayCommand OpenDoneCmd { get; private set; }
 
@@ -340,6 +411,8 @@ namespace RemeberEr
             set
             {
                 if (!Set(ref _view, value, "View")) return;
+                ConfirmingEmpty = false;   // 离开这一页，「确定清空？」就作废
+                AutoPickTab();
                 Raise("IsMainView"); Raise("IsBinView"); Raise("IsDoneView"); Raise("IsSetView");
                 Raise("SettingsOn");
             }
@@ -390,6 +463,83 @@ namespace RemeberEr
         public bool HasTodos { get { return Todos.Count > 0; } }
         public bool HasWants { get { return Wants.Count > 0; } }
         public bool HasBins { get { return Bins.Count > 0; } }
+        public bool HasTodoBins { get { return TodoBins.Count > 0; } }
+        public bool HasWantBins { get { return WantBins.Count > 0; } }
+        /// <summary>按「今天 / 昨天 / 更早」把完成条目分组（已按 doneAt 倒序）。</summary>
+        void BuildDoneGroups(List<Dictionary<string, object>> src, ObservableCollection<DoneGroupVm> target)
+        {
+            string lastKey = null;
+            DoneGroupVm g = null;
+            foreach (var it in src)
+            {
+                double doneAt = J.Num(it, "doneAt", 0);
+                string k = Fmt.DayKey(doneAt);
+                if (k != lastKey)
+                {
+                    g = new DoneGroupVm { Label = Fmt.DayLabel(doneAt), Items = new ObservableCollection<DoneVm>() };
+                    target.Add(g);
+                    lastKey = k;
+                }
+                g.Items.Add(MakeDone(it));
+                g.Count = g.Items.Count;
+            }
+        }
+
+        // ---------------- 标签页 ----------------
+        //
+        // 纸篓和完成列表都按房间分两个标签。纸篓那两个有名字（使命 / 初心），
+        // 完成列表就用朴素的名字（Todo / WD）—— 完成了就是完成了，不用再抒情。
+
+        string _binTab = "todo";
+        public string BinTab
+        {
+            get { return _binTab; }
+            set
+            {
+                if (!Set(ref _binTab, value, "BinTab")) return;
+                Raise("IsBinTodo"); Raise("IsBinWant"); Raise("BinTodoTabTag"); Raise("BinWantTabTag");
+            }
+        }
+        public bool IsBinTodo { get { return _binTab == "todo"; } }
+        public bool IsBinWant { get { return _binTab == "want"; } }
+
+        string _doneTab = "todo";
+        public string DoneTab
+        {
+            get { return _doneTab; }
+            set
+            {
+                if (!Set(ref _doneTab, value, "DoneTab")) return;
+                Raise("IsDoneTodo"); Raise("IsDoneWant");
+            }
+        }
+        public bool IsDoneTodo { get { return _doneTab == "todo"; } }
+        public bool IsDoneWant { get { return _doneTab == "want"; } }
+
+        public void SwitchBinTab(string t) { if (!string.IsNullOrEmpty(t)) BinTab = t; }
+        public void SwitchDoneTab(string t) { if (!string.IsNullOrEmpty(t)) DoneTab = t; }
+
+        public RelayCommand BinTabCmd { get; private set; }
+        public RelayCommand DoneTabCmd { get; private set; }
+
+        /// <summary>
+        /// 进某个标签页视图时，如果首选那个标签是空的、另一个有东西，就自动切过去 ——
+        /// 免得点进去看到的是一片空白，以为东西丢了。
+        /// </summary>
+        void AutoPickTab()
+        {
+            if (_view == "bin")
+            {
+                if (TodoBins.Count == 0 && WantBins.Count > 0) BinTab = "want";
+                else if (WantBins.Count == 0 && TodoBins.Count > 0) BinTab = "todo";
+            }
+            else if (_view == "done")
+            {
+                if (TodoDoneGroups.Count == 0 && WantDoneGroups.Count > 0) DoneTab = "want";
+                else if (WantDoneGroups.Count == 0 && TodoDoneGroups.Count > 0) DoneTab = "todo";
+            }
+        }
+
         public bool HasDoneGroups { get { return DoneGroups.Count > 0; } }
 
         string _stats = "—";
@@ -670,27 +820,26 @@ namespace RemeberEr
             Wants.Clear();
             foreach (var it in want) Wants.Add(MakeWant(it));
             Bins.Clear();
-            foreach (var it in bin) Bins.Add(MakeBin(it));
+            TodoBins.Clear();
+            WantBins.Clear();
+            foreach (var it in bin)
+            {
+                var vm = MakeBin(it);
+                Bins.Add(vm);
+                // 按房间分到两个分区：使命 Todo 能全清但不能捡回，初心 Wantdo 能捡回但永不删
+                if (J.Str(it, "room", "") == "todo") { vm.CanRestore = false; TodoBins.Add(vm); }
+                else { vm.CanRestore = true; WantBins.Add(vm); }
+            }
             long t3 = Program.Boot.ElapsedMilliseconds;
             Program.Log(string.Format("  [t={0}ms]   · Refresh: Snapshot={1}ms Todo={2}ms Want+Bin={3}ms",
                 t3, t1 - t0, t2 - t1, t3 - t2));
 
             DoneGroups.Clear();
-            string lastKey = null;
-            DoneGroupVm g = null;
-            foreach (var it in done)
-            {
-                double doneAt = J.Num(it, "doneAt", 0);
-                string k = Fmt.DayKey(doneAt);
-                if (k != lastKey)
-                {
-                    g = new DoneGroupVm { Label = Fmt.DayLabel(doneAt), Items = new ObservableCollection<DoneVm>() };
-                    DoneGroups.Add(g);
-                    lastKey = k;
-                }
-                g.Items.Add(MakeDone(it));
-                g.Count = g.Items.Count;
-            }
+            TodoDoneGroups.Clear();
+            WantDoneGroups.Clear();
+            BuildDoneGroups(done, DoneGroups);
+            BuildDoneGroups(done.FindAll(o => J.Str(o, "room", "") == "todo"), TodoDoneGroups);
+            BuildDoneGroups(done.FindAll(o => J.Str(o, "room", "") != "todo"), WantDoneGroups);
 
             NTodo = CountActive(todo);
             NWant = want.Count;
@@ -701,7 +850,8 @@ namespace RemeberEr
             Stats = "本周完成 " + (long)J.Num(stats, "doneThisWeek", 0) + " 件 · 纸篓里 " + bin.Count + " 个想法";
             ShowSeedRow = items.Count == 0;
 
-            Raise("HasTodos"); Raise("HasWants"); Raise("HasBins"); Raise("HasDoneGroups");
+            Raise("HasTodos"); Raise("HasWants"); Raise("HasBins");
+            Raise("HasTodoBins"); Raise("HasWantBins"); Raise("HasDoneGroups");
         }
 
         static int CountActive(List<Dictionary<string, object>> list)

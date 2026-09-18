@@ -117,8 +117,40 @@
     </Style>
 
     <!-- ============================================================ 幽灵按钮（.ghost） -->
-    <Style x:Key="GhostBtn" TargetType="Button">
+    <!--
+        分段标签页按钮。放在一个浅色圆角容器里，选中那个变白底 + 深色字。
+        选中态用 Tag=on 表达（外面用 DataTrigger 绑到 VM 上的标签属性）。
+    -->
+    <Style x:Key="TabBtn" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+        <Setter Property="FontSize" Value="10.5"/>
+        <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="0,5,0,5"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" CornerRadius="7" Background="Transparent"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+                        </Trigger>
+                        <!-- 放在悬停之后：选中态要压过悬停 -->
+                        <Trigger Property="Tag" Value="on">
+                            <Setter TargetName="b" Property="Background" Value="#ffffff"/>
+                            <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GhostBtn" TargetType="Button">        <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
@@ -136,6 +168,13 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="b" Property="Background" Value="#ffffff"/>
                             <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+                        </Trigger>
+                        <!-- Tag=danger：不可逆的操作（倒垃圾）确认态，红底白字 -->
+                        <Trigger Property="Tag" Value="danger">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource Red}"/>
+                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Red}"/>
+                            <Setter Property="Foreground" Value="#ffffff"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
