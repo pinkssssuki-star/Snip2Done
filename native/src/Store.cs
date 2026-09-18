@@ -532,7 +532,16 @@ namespace RemeberEr
                 outItem["daysLeft"] = isWant && isActive ? (object)Decay.DaysLeftFor(it, now, cfg, scale, demoStart) : null;
 
                 object dueAt = J.Get(it, "dueAt");
-                outItem["overdue"] = J.Str(it, "room", "") == "todo" && isActive && dueAt is double && (double)dueAt < now;
+                // 照抄 store.js 那句 `... && it.dueAt && it.dueAt < now` 的**短路行为**：
+                // 条件都成立但 dueAt 是假值（手动记一笔的条目 dueAt 就是 null）时，
+                // JS 那个表达式的值是 dueAt 本身，不是 false。
+                // 功能上等价（两边 UI 都当布尔用），但写成严格布尔就会让
+                // verify-snapshot 报「JS=null CS=false」—— 那条「逐字段可对比」的
+                // 不变量比这点洁癖值钱，所以刻意保留这个怪癖，别去"顺手修好"。
+                if (J.Str(it, "room", "") == "todo" && isActive)
+                    outItem["overdue"] = dueAt is double ? (object)((double)dueAt < now) : dueAt;
+                else
+                    outItem["overdue"] = false;
 
                 outItem["binMs"] = binMs;
                 outItem["binCount"] = J.Num(it, "binCount", 0);

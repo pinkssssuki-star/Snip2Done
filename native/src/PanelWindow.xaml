@@ -936,16 +936,18 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
 
-                        <Border Background="{DynamicResource SurfaceBg}" Padding="10,10,10,2">
+                        <Border Background="{DynamicResource SurfaceBg}" Padding="12,12,12,2"
+                                CornerRadius="11,11,0,0" Margin="0,0,0,0">
                         <StackPanel>
 
                         <!-- ==== 背景颜色 ==== -->
-                        <StackPanel Margin="0,0,0,12">
+                        <StackPanel Margin="0,0,0,14">
                             <TextBlock Text="背景颜色" FontSize="11.5" FontWeight="Medium"
                                        Foreground="{DynamicResource Tx2}"/>
                             <TextBlock Text="不喜欢白色的话可以换。条目卡片不受影响，永远是白底黑字。" FontSize="10"
-                                       Foreground="{DynamicResource HintTx}" Margin="0,4,0,6"
+                                       Foreground="{DynamicResource HintTx}" Margin="0,4,0,9"
                                        TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left"/>
+                            <!-- 直接给色块，比三个写着「白/灰/黑」的按钮直观得多 -->
                             <ItemsControl ItemsSource="{Binding ThemeOptions}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -954,18 +956,34 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Content="{Binding Name}" Command="{Binding PickCmd}"
-                                                CommandParameter="{Binding Key}" Margin="0,0,7,0">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource RoomBtn}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding On}" Value="True">
-                                                            <Setter Property="Tag" Value="on"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+                                        <StackPanel Margin="0,0,14,0" Cursor="Hand"
+                                                    MouseLeftButtonUp="OnThemeSwatchClick"
+                                                    ToolTip="{Binding Name}">
+                                            <Grid Width="40" Height="40">
+                                                <!-- 选中圈：外面一圈紫色；没选中时是透明的 -->
+                                                <Ellipse Width="40" Height="40" StrokeThickness="2"
+                                                         Stroke="{DynamicResource Accent}"
+                                                         Visibility="{Binding On, Converter={StaticResource BoolToVis}}"/>
+                                                <!-- 描边必须跟着主题走：不然黑色主题下
+                                                     「黑」色块和底色一样，整个看不见 -->
+                                                <Ellipse Width="30" Height="30" Fill="{Binding Swatch}"
+                                                         Stroke="{DynamicResource SwatchRing}" StrokeThickness="1.5"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Name}" FontSize="10" Margin="0,5,0,0"
+                                                       HorizontalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Tx5}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding On}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource AccentDeep}"/>
+                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -1036,7 +1054,7 @@
                             这一行**故意不加不透明底** —— 用户拖这个滑块的时候，
                             要能直接看到面板当前有多透。
                         -->
-                        <StackPanel Margin="10,8,10,10">
+                        <StackPanel Margin="12,8,12,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="面板透明度" FontSize="11.5" FontWeight="Medium"
                                            Foreground="{DynamicResource Tx2}"/>
@@ -1049,7 +1067,8 @@
                                     ValueChanged="OnOpacityChanged"/>
                         </StackPanel>
 
-                        <Border Background="{DynamicResource SurfaceBg}" Padding="10,2,10,10">
+                        <Border Background="{DynamicResource SurfaceBg}" Padding="12,2,12,12"
+                                CornerRadius="0,0,11,11">
                         <StackPanel>
                         <StackPanel Margin="0,0,0,10">
                             <Grid Margin="0,0,0,5">

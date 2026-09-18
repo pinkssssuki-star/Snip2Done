@@ -1350,6 +1350,14 @@ namespace RemeberEr
             _vm.AddManualCmd.Execute(null);
         }
 
+        /// <summary>点色块换背景色。色块是 StackPanel 不是 Button（Button 的模板会套个框，很丑）。</summary>
+        void OnThemeSwatchClick(object sender, MouseButtonEventArgs e)
+        {
+            var fe = sender as FrameworkElement;
+            var opt = fe == null ? null : fe.DataContext as ThemeOptionVm;
+            if (opt != null) _vm.PanelTheme = opt.Key;
+        }
+
         // ------------------------------------------------------------ 设置页滑块
 
         void OnOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

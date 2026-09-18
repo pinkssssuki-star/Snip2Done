@@ -227,6 +227,8 @@ namespace RemeberEr
     {
         public string Key { get; set; }
         public string Name { get; set; }
+        /// <summary>色块本身要显示的颜色 —— 直接给色块比写「白/灰/黑」直观。</summary>
+        public Brush Swatch { get; set; }
         bool _on;
         public bool On { get { return _on; } set { Set(ref _on, value, "On"); } }
     }
@@ -320,7 +322,14 @@ namespace RemeberEr
 
             ThemeOptions = new ObservableCollection<ThemeOptionVm>();
             foreach (var e in Palette.All)
-                ThemeOptions.Add(new ThemeOptionVm { Key = e.Key, Name = e.Name, On = e.Key == _panelTheme });
+            {
+                var b = new SolidColorBrush(e.Panel);
+                b.Freeze();
+                ThemeOptions.Add(new ThemeOptionVm
+                {
+                    Key = e.Key, Name = e.Name, On = e.Key == _panelTheme, Swatch = b,
+                });
+            }
             SettingsCmd = new RelayCommand(() => { View = View == "set" ? "main" : "set"; OpacityPreview = null; });
             CollapseCmd = new RelayCommand(() => { if (CollapseRequested != null) CollapseRequested(); });
             ToggleTopmostCmd = new RelayCommand(ToggleTopmost);
