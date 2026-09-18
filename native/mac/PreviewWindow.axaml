@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemeberEr.PreviewWindow"
+        WindowDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        Title="预览">
+
+  <!--
+    长悬停时在面板旁边弹出的放大预览。
+    和原版一样是一扇独立无边框窗口：不抢焦点、不进任务栏、不接收鼠标。
+
+    投影：WPF 版用 DropShadowEffect（分层窗口 + 特效）；Avalonia 里改用
+    Border.BoxShadow 一条属性搞定 —— 不需要额外特效层，也不会踩到
+    「分层窗口在副屏销毁时分段消失」那个老问题。
+    鼠标穿透：WPF 版靠 ShowActivated=False + 不接收鼠标；
+    Avalonia 上由窗口自己设 IsHitTestVisible，见 code-behind 的说明。
+  -->
+  <Border CornerRadius="10" Background="#ffffff"
+          BorderBrush="#22000000" BorderThickness="1" Padding="4"
+          BoxShadow="0 6 24 0 #47000000">
+    <Image x:Name="Pic" MaxWidth="440" MaxHeight="440" Stretch="Uniform"/>
+  </Border>
+</Window>
