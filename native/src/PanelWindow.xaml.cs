@@ -31,8 +31,9 @@ namespace RemeberEr
 
         IntPtr _hwnd;
         PreviewWindow _preview;
-        DetailWindow _detail;
-        RecordWindow _record;
+        // 详情窗 / 记录窗都可以同时开好几扇，所以用列表而不是单个字段
+        readonly List<DetailWindow> _details = new List<DetailWindow>();
+        readonly List<RecordWindow> _records = new List<RecordWindow>();
         ChooserWindow _chooser;
         DispatcherTimer _hoverTimer;
         /// <summary>演示加速的节拍器（每秒一次，只在演示中真正干活）。</summary>
@@ -150,6 +151,54 @@ namespace RemeberEr
             else if (Program.Flow == "trash") ScheduleFlowTrash();
             else if (Program.Flow == "pos") ScheduleFlowPos();
             else if (Program.Flow == "accel") ScheduleFlowAccel();
+            else if (Program.Flow == "multi") ScheduleFlowMulti();
+        }
+
+        string RectOf(Window w)
+        {
+            Interop.RECT r;
+            Interop.GetWindowRect(new WindowInteropHelper(w).Handle, out r);
+            return string.Format("({0},{1}) {2}x{3}", r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+        }
+
+        /// <summary>验收：详情窗能同时开好几扇、错开摆放、同一条不重复开。</summary>
+        void ScheduleFlowMulti()
+        {
+            var ids = new List<string>();
+            var steps = new List<Tuple<int, Action>>();
+
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                foreach (var o in _store.Items)
+                {
+                    var it = J.Obj(o);
+                    if (J.IsNull(J.Get(it, "image"))) continue;
+                    ids.Add(J.Str(it, "id", ""));
+                    if (ids.Count >= 3) break;
+                }
+                Program.Log("  挑到 " + ids.Count + " 条有图的条目，依次打开");
+                foreach (var id in ids) OpenDetail(id);
+                Program.Log("  连开 " + ids.Count + " 扇 -> 实际 " + _details.Count + " 扇（应为 " + ids.Count + "）");
+                foreach (var w in _details) Program.Log("     窗口 " + w.ItemId.Substring(0, 8) + " @ " + RectOf(w));
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(900, () =>
+            {
+                if (ids.Count > 0)
+                {
+                    OpenDetail(ids[0]);
+                    Program.Log("  重复点第 1 条 -> 实际 " + _details.Count + " 扇（应保持不变）");
+                }
+                Capture.SaveFullScreen(Path.Combine(Program.Root, ".guide", "native-multi.png"));
+                Program.Log("  全屏截图 -> .guide\\native-multi.png");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Program.Log("  多窗流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         void DumpWants(string tag)
@@ -549,10 +598,10 @@ namespace RemeberEr
                 t2.Tick += (a, b) =>
                 {
                     t2.Stop();
-                    if (_record != null)
+                    if (_records.Count > 0)
                     {
                         Interop.RECT r;
-                        Interop.GetWindowRect(new WindowInteropHelper(_record).Handle, out r);
+                        Interop.GetWindowRect(new WindowInteropHelper(_records[0]).Handle, out r);
                         Capture.SaveRegion(Program.ShotPath, r, 60);
                         Program.Log(string.Format("  记录窗截图 -> {0}  尺寸 {1}x{2}",
                             Program.ShotPath, r.Right - r.Left, r.Bottom - r.Top));
@@ -596,10 +645,10 @@ namespace RemeberEr
                 t2.Tick += (a, b) =>
                 {
                     t2.Stop();
-                    if (_detail != null)
+                    if (_details.Count > 0)
                     {
                         Interop.RECT r;
-                        Interop.GetWindowRect(new WindowInteropHelper(_detail).Handle, out r);
+                        Interop.GetWindowRect(new WindowInteropHelper(_details[0]).Handle, out r);
                         Capture.SaveRegion(Program.ShotPath ?? Path.Combine(Program.Root, ".tmp", "flow-detail.png"), r, 60);
                         Program.Log(string.Format("  详情窗截图 -> {0}  尺寸 {1}x{2}",
                             Program.ShotPath, r.Right - r.Left, r.Bottom - r.Top));
@@ -1090,19 +1139,30 @@ namespace RemeberEr
 
         // ------------------------------------------------------------ 详情窗
 
-        /// <summary>同一个条目只开一扇详情窗，反复点就把它拉到前面。</summary>
+        /// <summary>
+        /// 每一条各开一扇详情窗，可以同时摆好几条对照着看。
+        ///
+        /// 之前这里是「只留一扇」：开着 A 的时候点 B，只把 A 拉到前面，**内容都不换**，
+        /// 看起来就像点了没反应。Electron 版至少还会把内容换成 B，所以这是个回归。
+        /// 同一条再点一次还是跳到已经开着的那扇，不开重复的。
+        /// </summary>
         void OpenDetail(string id)
         {
-            if (_detail != null && _detail.IsVisible)
+            foreach (var w in _details)
             {
-                _detail.Activate();
-                return;
+                if (w.ItemId == id && w.IsVisible) { w.Activate(); return; }
             }
+
             var d = new DetailWindow(_store, id);
-            d.RecordRequested += rid => OpenRecord(rid, "write");
-            d.Closed += (s, e) => { _detail = null; _vm.Refresh(); };
-            _detail = d;
+            d.RecordRequested += rid =>
+            {
+                OpenRecord(rid, "write");
+                d.Close();   // 写完就把它让出来，和原来的行为一致
+            };
+            d.Closed += (s, e) => { _details.Remove(d); _vm.Refresh(); };
+            _details.Add(d);
             d.Show();
+            Cascade(d, _details.Count - 1);
             d.Activate();
         }
 
@@ -1110,20 +1170,46 @@ namespace RemeberEr
 
         void OpenRecord(string id, string mode)
         {
-            if (_record != null && _record.IsVisible) { _record.Activate(); return; }
+            foreach (var w in _records)
+            {
+                if (w.ItemId == id && w.IsVisible) { w.Activate(); return; }
+            }
 
             var r = new RecordWindow(_store, id, mode);
             r.Committed += (rid, reflection) =>
             {
                 // 写完心得 = 完成并收走（和 record.js 的 commit 一致）
                 _store.Done(rid, true, reflection, true);
-                if (_detail != null) _detail.Close();
                 _vm.Refresh();
             };
-            r.Closed += (s, e) => { _record = null; _vm.Refresh(); };
-            _record = r;
+            r.Closed += (s, e) => { _records.Remove(r); _vm.Refresh(); };
+            _records.Add(r);
             r.Show();
+            Cascade(r, _records.Count - 1);
             r.Activate();
+        }
+
+        /// <summary>
+        /// 多扇窗别叠成一摞：每开一扇往下右各错开一点。
+        /// 错到快出屏了就绕回起点，免得第 8 扇开到屏幕外面去。
+        /// </summary>
+        static void Cascade(Window w, int index)
+        {
+            const double STEP = 26;
+            const int WRAP = 6;
+            double off = (index % WRAP) * STEP;
+            try
+            {
+                var wa = SystemParameters.WorkArea;
+                double width = w.Width > 0 ? w.Width : 420;
+                double height = w.Height > 0 ? w.Height : 520;
+                double x = wa.Right - width - 40 - off;
+                double y = wa.Bottom - height - 40 - off;
+                // 别撞到工作区左上角外面
+                w.Left = Math.Max(wa.Left + 12, x);
+                w.Top = Math.Max(wa.Top + 12, y);
+            }
+            catch (Exception) { }
         }
 
         // ------------------------------------------------------------ 快速记录

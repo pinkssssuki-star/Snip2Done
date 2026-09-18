@@ -24,6 +24,8 @@ namespace RemeberEr
 
         readonly Store _store;
         readonly string _id;
+        /// <summary>这一扇窗开的是哪一条。详情窗能同时开好几扇，靠它去重。</summary>
+        public string ItemId { get { return _id; } }
         Dictionary<string, object> _item;
 
         DispatcherTimer _saveTimer;
