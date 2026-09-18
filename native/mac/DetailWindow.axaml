@@ -1,0 +1,153 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemeberEr.DetailWindow"
+        Title="看它一眼"
+        Width="560" Height="560"
+        WindowDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True">
+
+  <Window.Styles>
+    <!--
+      标题框：平时隐形，鼠标悬停浅灰，聚焦变白带紫边。
+      原版为此写了一整份 ControlTemplate；Avalonia 里用 /template/ 选择器
+      改内层 Border 即可，不必重写模板（少一份要维护的模板代码）。
+    -->
+    <Style Selector="TextBox.TitleField">
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+      <Setter Property="Padding" Value="7,5"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="7"/>
+    </Style>
+    <Style Selector="TextBox.TitleField:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#0a000000"/>
+    </Style>
+    <Style Selector="TextBox.TitleField:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#ffffff"/>
+      <Setter Property="BorderBrush" Value="#8c8b5cf6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <!-- 备注框：白底，聚焦时紫边 -->
+    <Style Selector="TextBox.NoteField">
+      <Setter Property="FontSize" Value="11.5"/>
+      <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+      <Setter Property="Padding" Value="9,7"/>
+      <Setter Property="AcceptsReturn" Value="True"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="VerticalContentAlignment" Value="Top"/>
+      <Setter Property="Background" Value="#ffffff"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="#1c000000"/>
+    </Style>
+    <Style Selector="TextBox.NoteField:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="#8c8b5cf6"/>
+    </Style>
+
+    <!-- Get Done 按钮：绿色渐变 -->
+    <Style Selector="Button.GetDone">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Padding" Value="15,8"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="HorizontalAlignment" Value="Right"/>
+      <Setter Property="Background">
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="60%,100%">
+          <GradientStop Color="#10b981" Offset="0"/>
+          <GradientStop Color="#059669" Offset="1"/>
+        </LinearGradientBrush>
+      </Setter>
+    </Style>
+    <Style Selector="Button.GetDone:pointerover">
+      <Setter Property="Opacity" Value="0.92"/>
+    </Style>
+  </Window.Styles>
+
+  <Border CornerRadius="14" Background="#faffffff"
+          BorderBrush="#17000000" BorderThickness="1" ClipToBounds="True"
+          BoxShadow="0 16 44 0 #4d000000">
+    <Grid RowDefinitions="Auto,*,Auto,Auto,Auto">
+
+      <!-- ============================================ 标题栏（可拖动） -->
+      <Border Grid.Row="0" Padding="12,9,10,9"
+              BorderBrush="#0f000000" BorderThickness="0,0,0,1"
+              Background="Transparent" PointerPressed="OnHeaderDrag">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Border Grid.Column="0" CornerRadius="6" Padding="8,2"
+                  Background="#248b5cf6" VerticalAlignment="Center" Margin="0,0,8,0">
+            <TextBlock x:Name="TagText" Text="Wantdo" FontSize="10" FontWeight="Bold"
+                       Foreground="#6d28d9"/>
+          </Border>
+          <TextBox Grid.Column="1" x:Name="TitleField" Classes="TitleField"
+                   TextChanged="OnFieldChanged" LostFocus="OnFieldBlur"/>
+          <Button Grid.Column="2" Classes="IconBtn" Content="✕" ToolTip.Tip="关闭"
+                  Click="OnClose"/>
+        </Grid>
+      </Border>
+
+      <!-- ============================================ 图 -->
+      <Border Grid.Row="1" Background="#f4f4f5" Padding="12" MinHeight="120">
+        <Grid>
+          <Border CornerRadius="8" ClipToBounds="True"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Image x:Name="Pic" Stretch="Uniform"/>
+          </Border>
+          <TextBlock x:Name="NoImage" Text="这条没有截图" FontSize="12"
+                     Foreground="{StaticResource TxFaint}"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsVisible="False"/>
+        </Grid>
+      </Border>
+
+      <!-- ============================================ 元信息 -->
+      <StackPanel Grid.Row="2" Margin="14,9,14,4" Spacing="4">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="来源" FontSize="11" FontWeight="SemiBold"
+                     Foreground="#3a3a3c" Width="42"/>
+          <TextBlock x:Name="SrcText" FontSize="11" Foreground="#8a8a8e"
+                     TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="记于" FontSize="11" FontWeight="SemiBold"
+                     Foreground="#3a3a3c" Width="42"/>
+          <TextBlock x:Name="WhenText" FontSize="11" Foreground="#8a8a8e"/>
+        </StackPanel>
+        <StackPanel x:Name="LifeRow" Orientation="Horizontal">
+          <TextBlock Text="生命值" FontSize="11" FontWeight="SemiBold"
+                     Foreground="#3a3a3c" Width="42"/>
+          <TextBlock x:Name="LifeText" FontSize="11" Foreground="#8a8a8e"/>
+        </StackPanel>
+      </StackPanel>
+
+      <!-- ============================================ 备注 -->
+      <StackPanel Grid.Row="3" Margin="14,6,14,13" Spacing="5">
+        <Grid>
+          <TextBlock Text="备注" FontSize="10" Foreground="{StaticResource TxFaint}"/>
+          <TextBlock x:Name="SavedText" Text="已保存" FontSize="10" FontWeight="SemiBold"
+                     Foreground="{StaticResource Green}"
+                     HorizontalAlignment="Right" Opacity="0"/>
+        </Grid>
+        <TextBox x:Name="NoteField" Classes="NoteField" Height="58"/>
+      </StackPanel>
+
+      <!-- ============================================ 底部动作 -->
+      <Grid Grid.Row="4" Margin="14,0,14,13">
+        <TextBlock x:Name="DoneHint" FontSize="10" Foreground="#b0b0b6"
+                   VerticalAlignment="Center"/>
+        <Button x:Name="GetDoneBtn" Classes="GetDone" Click="OnGetDone">
+          <TextBlock Text="✓ Get Done" FontSize="12" FontWeight="Bold" Foreground="#ffffff"/>
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

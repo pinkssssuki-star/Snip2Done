@@ -92,6 +92,9 @@ namespace RemeberEr
         /// <summary>把归类窗渲染成 PNG 后退出（免权限）。</summary>
         public static string ShotChooser;
 
+        /// <summary>把详情窗渲染成 PNG 后退出（免权限）。</summary>
+        public static string ShotDetail;
+
         /// <summary>
         /// 只跑数据 → ViewModel 这条链路并打印结果后退出，不起窗口。
         /// 用途：把「JSON 解析出来的分组/排序/文案对不对」和「窗口画得对不对」分开验证。
@@ -184,6 +187,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 把详情窗渲染成 PNG（免权限）
+            if (ShotDetail != null) { RunShotDetail(); return; }
 
             // 灌演示数据后退出（配合 --data= 指到临时目录，别污染真实数据）
             if (Seed)
@@ -299,6 +305,68 @@ namespace RemeberEr
                     Log(string.Format("  内容：Todo {0} / Wantdo {1} / 纸篓 {2} / 完成组 {3}",
                         panel.Vm.Todos.Count, panel.Vm.Wants.Count,
                         panel.Vm.Bins.Count, panel.Vm.DoneGroups.Count));
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>取数据里第一条条目的 id，给详情窗自检用。</summary>
+        static string FirstItemId()
+        {
+            try
+            {
+                var st = new Store(DataDir);
+                foreach (var o in st.Items)
+                {
+                    var it = J.Obj(o);
+                    var id = J.Str(it, "id", null);
+                    if (!string.IsNullOrEmpty(id)) return id;
+                }
+            }
+            catch (Exception) { }
+            return null;
+        }
+
+        /// <summary>
+        /// 把详情窗渲染成 PNG（免权限）。
+        /// 需要一个真实条目 —— 用 --data= 指向 --seed 造出来的演示数据即可。
+        /// </summary>
+        static void RunShotDetail()
+        {
+            Log("=== 详情窗渲染自检 ===");
+            var id = FirstItemId();
+            if (id == null) { Log("!! 数据里没有条目，先用 --seed 造一份"); Environment.Exit(1); }
+            Log("  用条目 id = " + id);
+
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var win = new DetailWindow(new Store(DataDir), id);
+                    win.Show();
+                    PumpUi(500);
+
+                    int w = (int)Math.Ceiling(win.Bounds.Width);
+                    int h = (int)Math.Ceiling(win.Bounds.Height);
+                    var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new PixelSize(w, h), new Vector(96, 96));
+                    rtb.Render(win);
+                    using (var fs = System.IO.File.Create(ShotDetail))
+                        rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+                    Log(string.Format("  已写出 {0}（{1}x{2}）", ShotDetail, w, h));
+                    Log(string.Format("  按图片比例算出的窗口尺寸 = {0}x{1}（逻辑）", win.Width, win.Height));
                 }
                 catch (Exception ex)
                 {
@@ -529,6 +597,8 @@ namespace RemeberEr
                         App = "测试应用",
                         Title = "测试窗口标题",
                     }, disp, 100, 100, 900, 560); });
+                Check("PreviewWindow", () => { var w = new PreviewWindow(); });
+                Check("DetailWindow", () => { var w = new DetailWindow(new Store(DataDir), FirstItemId()); });
 
                 Log(string.Format("=== XAML 自检结果：成功 {0} / 失败 {1} ===", ok, fail));
                 Environment.ExitCode = fail == 0 ? 0 : 1;
@@ -663,6 +733,7 @@ namespace RemeberEr
                 else if (a == "--seed") Seed = true;
                 else if (a.StartsWith("--shot-panel=")) ShotPanel = a.Substring(13);
                 else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
+                else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
         }
