@@ -84,10 +84,13 @@ namespace RemeberEr
             _vm.TopmostChanged += v =>
             {
                 Topmost = v;
-                // 关掉置顶时把 Z 序压下去，否则 Topmost=false 之后它可能还赖在最上面
+                // 关掉置顶时把 Z 序压下去，否则 Topmost=false 之后它可能还赖在最上面。
+                // SWP_NOMOVE 不能省 —— 只写 SWP_NOSIZE 的话，传进去的 0,0 会把面板
+                // 直接搬到屏幕左上角（这就是「点置顶会跳到奇怪位置」的根因）。
                 if (_hwnd != IntPtr.Zero)
                     Interop.SetWindowPos(_hwnd, v ? Interop.HWND_TOPMOST : Interop.HWND_NOTOPMOST,
-                        0, 0, 0, 0, Interop.SWP_NOSIZE | Interop.SWP_NOACTIVATE);
+                        0, 0, 0, 0,
+                        Interop.SWP_NOSIZE | Interop.SWP_NOMOVE | Interop.SWP_NOACTIVATE);
             };
 
             // 贴边隐藏：鼠标碰到那条窄边就滑出来，移开再滑回去
@@ -136,6 +139,78 @@ namespace RemeberEr
             else if (Program.Flow == "synthdrag") ScheduleFlowSynthDrag();
             else if (Program.Flow == "ui") ScheduleFlowUi();
             else if (Program.Flow == "trash") ScheduleFlowTrash();
+            else if (Program.Flow == "pos") ScheduleFlowPos();
+        }
+
+        string Pos()
+        {
+            Interop.RECT r;
+            Interop.GetWindowRect(_hwnd, out r);
+            return string.Format("物理 ({0},{1}) {2}x{3}", r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+        }
+
+        /// <summary>
+        /// 验收「点置顶 / 点折叠会不会把面板挪走」。
+        /// 先把它摆到一个既不是右下角也不是原点的地方 —— 一动就能看出来。
+        /// </summary>
+        void ScheduleFlowPos()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Interop.RECT work, wr;
+                WindowWorkArea(out work, out wr);
+                SetWindowPhysical(work.Left + 120, work.Top + 90);
+                UpdateLayout();
+                Program.Log("  摆到 " + Pos());
+                Shot("pos-start");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                Program.Log("  点置顶 前 " + Pos());
+                _vm.ToggleTopmost();
+                Program.Log("  点置顶 后 " + Pos() + "   置顶=" + Topmost);
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                _vm.ToggleTopmost();
+                Program.Log("  再点置顶后 " + Pos() + "   置顶=" + Topmost);
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                Program.Log("  折叠 前 " + Pos());
+                ToggleCollapse();
+                Program.Log("  折叠 后 " + Pos());
+                Shot("pos-collapsed");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                ToggleCollapse();
+                Program.Log("  展开 后 " + Pos());
+                Shot("pos-expanded");
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                _vm.HideCollapseButton = true;
+                Program.Log(string.Format("  打开「隐藏折叠按钮」-> 未折叠时 ShowCollapseButton={0}（应为 False）",
+                    _vm.ShowCollapseButton));
+                Shot("pos-nobtn");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                ToggleCollapse();
+                Program.Log(string.Format("  折叠着的时候 ShowCollapseButton={0}（应为 True，否则展不开）",
+                    _vm.ShowCollapseButton));
+                Shot("pos-nobtn-collapsed");
+                ToggleCollapse();
+                _vm.HideCollapseButton = false;
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                Program.Log("  位置流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>
@@ -731,10 +806,35 @@ namespace RemeberEr
                 h = PANEL_H;
             }
 
-            var wa = SystemParameters.WorkArea;
+            // 原地缩放：只改尺寸，Left/Top 一个像素都不动。
+            //
+            // 原来这里会 `Left = wa.Right - w - MARGIN; Top = wa.Bottom - h - MARGIN;`
+            // 也就是每次折叠/展开都把面板甩到右下角 —— 用户拖到别处再折叠就被拽回去了。
+            // 而且 SystemParameters.WorkArea 是**主屏**的工作区，面板在副屏上时
+            // 一折叠会被直接跨屏拽回主屏。
             Width = w; Height = h;
-            Left = wa.Right - w - MARGIN;
-            Top = wa.Bottom - h - MARGIN;
+            UpdateLayout();          // 让新尺寸立刻生效，下面读 GetWindowRect 才是准的
+            ClampIntoWorkArea();
+        }
+
+        /// <summary>
+        /// 把窗口拉回它**当前所在那块屏**的工作区里。尺寸变化后可能超出屏幕边界，
+        /// 但位置本身不该被改动 —— 只做「拉回来」，不做「摆到某处」。
+        /// </summary>
+        void ClampIntoWorkArea()
+        {
+            Interop.RECT work, wr;
+            if (!WindowWorkArea(out work, out wr)) return;
+            int w = wr.Right - wr.Left, h = wr.Bottom - wr.Top;
+            if (w <= 0 || h <= 0) return;
+
+            int x = Clamp(wr.Left, work.Left, work.Right - w);
+            int y = Clamp(wr.Top, work.Top, work.Bottom - h);
+            if (x != wr.Left || y != wr.Top)
+            {
+                Program.Log(string.Format("  尺寸变了超出屏幕，拉回 ({0},{1}) -> ({2},{3})", wr.Left, wr.Top, x, y));
+                SetWindowPhysical(x, y);
+            }
         }
 
         // ------------------------------------------------------------ 卡片交互

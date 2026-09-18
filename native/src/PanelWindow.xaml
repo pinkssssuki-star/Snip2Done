@@ -476,7 +476,8 @@
                             </Viewbox>
                         </Button>
                         <Button Style="{StaticResource IconBtn}" ToolTip="折叠"
-                                Content="{Binding CollapseGlyph}" Command="{Binding CollapseCmd}"/>
+                                Content="{Binding CollapseGlyph}" Command="{Binding CollapseCmd}"
+                                Visibility="{Binding ShowCollapseButton, Converter={StaticResource BoolToVis}}"/>
                         <Button Style="{StaticResource IconBtn}" Content="✕" Tag="danger"
                                 ToolTip="退出（Ctrl+Shift+Q）" Command="{Binding QuitCmd}"/>
                     </StackPanel>
@@ -894,6 +895,19 @@
                             <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
                                           VerticalAlignment="Top" Margin="0,2,0,0"
                                           IsChecked="{Binding AutoStartOn, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="隐藏折叠按钮" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="把顶栏的 ▾ 收起来。有侧边收起了，折叠基本多余。已经折叠着的时候它还会留着，不然你就展不开了。" FontSize="10"
+                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
+                                          VerticalAlignment="Top" Margin="0,2,0,0"
+                                          IsChecked="{Binding HideCollapseButton, Mode=TwoWay}"/>
                         </Grid>
 
                         <StackPanel Margin="0,0,0,10">

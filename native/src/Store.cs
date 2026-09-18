@@ -92,6 +92,8 @@ namespace RemeberEr
                 { "quickCapture", false },
                 // 是否一直压在别的窗口上面。单屏用户不需要一直压着，所以给了开关
                 { "alwaysOnTop", true },
+                // 把顶栏的折叠按钮藏掉。有了侧边收起，折叠基本是多余的
+                { "hideCollapseButton", false },
             };
         }
 

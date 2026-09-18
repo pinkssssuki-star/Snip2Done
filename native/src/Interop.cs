@@ -159,6 +159,8 @@ namespace RemeberEr
         public const uint SWP_NOACTIVATE = 0x0010;
         public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint SWP_NOSIZE = 0x0001;
+        /// <summary>忽略 x/y。**只传 SWP_NOSIZE 是不够的** —— 位置还是会按传进去的坐标生效。</summary>
+        public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOZORDER = 0x0004;
 
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);

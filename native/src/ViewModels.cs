@@ -428,9 +428,30 @@ namespace RemeberEr
         public bool Collapsed
         {
             get { return _collapsed; }
-            set { if (Set(ref _collapsed, value, "Collapsed")) Raise("CollapseGlyph"); }
+            set
+            {
+                if (!Set(ref _collapsed, value, "Collapsed")) return;
+                Raise("CollapseGlyph"); Raise("ShowCollapseButton");
+            }
         }
         public string CollapseGlyph { get { return _collapsed ? "▸" : "▾"; } }
+
+        /// <summary>
+        /// 设置里可以把顶栏那个折叠按钮藏掉 —— 有了侧边收起，折叠基本是多余的。
+        /// 但**已经折叠着的时候必须还留着它**，否则用户没法再展开，面板就永远只剩一条了。
+        /// </summary>
+        bool _hideCollapseButton;
+        public bool HideCollapseButton
+        {
+            get { return _hideCollapseButton; }
+            set
+            {
+                if (!Set(ref _hideCollapseButton, value, "HideCollapseButton")) return;
+                _store.SetSetting("hideCollapseButton", value);
+                Raise("ShowCollapseButton");
+            }
+        }
+        public bool ShowCollapseButton { get { return !_hideCollapseButton || _collapsed; } }
 
         bool _quickOpen;
         public bool QuickOpen { get { return _quickOpen; } set { Set(ref _quickOpen, value, "QuickOpen"); } }
@@ -764,6 +785,8 @@ namespace RemeberEr
             if (qc != _quickCapture) { _quickCapture = qc; Raise("QuickCapture"); }
             bool aot = J.Bool(settings, "alwaysOnTop", true);
             if (aot != _alwaysOnTop) { _alwaysOnTop = aot; Raise("AlwaysOnTop"); }
+            bool hcb = J.Bool(settings, "hideCollapseButton", false);
+            if (hcb != _hideCollapseButton) { _hideCollapseButton = hcb; Raise("HideCollapseButton"); Raise("ShowCollapseButton"); }
             bool settingsDirty = false;
             if (OpacityPreview == null)
             {
