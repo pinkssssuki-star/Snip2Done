@@ -89,6 +89,9 @@ namespace RemeberEr
         /// </summary>
         public static string ShotPanel;
 
+        /// <summary>把归类窗渲染成 PNG 后退出（免权限）。</summary>
+        public static string ShotChooser;
+
         /// <summary>
         /// 只跑数据 → ViewModel 这条链路并打印结果后退出，不起窗口。
         /// 用途：把「JSON 解析出来的分组/排序/文案对不对」和「窗口画得对不对」分开验证。
@@ -178,6 +181,9 @@ namespace RemeberEr
 
             // 把面板自身渲染成 PNG（免权限）
             if (ShotPanel != null) { RunShotPanel(); return; }
+
+            // 把归类窗渲染成 PNG（免权限）
+            if (ShotChooser != null) { RunShotChooser(); return; }
 
             // 灌演示数据后退出（配合 --data= 指到临时目录，别污染真实数据）
             if (Seed)
@@ -318,6 +324,90 @@ namespace RemeberEr
         }
 
         /// <summary>
+        /// 把归类窗渲染成 PNG。
+        /// 用一个纯色小图当预览占位 —— 归类窗的排版跟截图内容无关，
+        /// 免权限自检不该依赖抓屏。
+        /// </summary>
+        static void RunShotChooser()
+        {
+            Log("=== 归类窗渲染自检 ===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var disp = new DisplayInfo
+                    {
+                        Id = 1, X = 0, Y = 0, W = 2560, H = 1440, Scale = 1, IsPrimary = true,
+                    };
+
+                    // 造一张渐变占位图，让缩略图那一格有东西可看
+                    var placeholder = MakePlaceholder(96, 64);
+
+                    var win = new ChooserWindow(new ChooserWindow.Payload
+                    {
+                        Preview = placeholder,
+                        App = "Google Chrome",
+                        Title = "定价页文案 · 修改建议",
+                    }, disp, 700, 400, 900, 560);
+
+                    win.Show();
+                    PumpUi(400);
+
+                    int w = (int)Math.Ceiling(win.Bounds.Width);
+                    int h = (int)Math.Ceiling(win.Bounds.Height);
+                    var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new PixelSize(w, h), new Vector(96, 96));
+                    rtb.Render(win);
+                    using (var fs = System.IO.File.Create(ShotChooser))
+                        rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+                    Log(string.Format("  已写出 {0}（{1}x{2}）", ShotChooser, w, h));
+                    Log(string.Format("  摆放位置(物理) = {0}", win.Position));
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>造一张渐变占位图，用于免权限的渲染自检。</summary>
+        static Avalonia.Media.Imaging.Bitmap MakePlaceholder(int w, int h)
+        {
+            var wb = new Avalonia.Media.Imaging.WriteableBitmap(
+                new PixelSize(w, h), new Vector(96, 96),
+                Avalonia.Platform.PixelFormat.Bgra8888, Avalonia.Platform.AlphaFormat.Opaque);
+            using (var fb = wb.Lock())
+            {
+                unsafe
+                {
+                    var basePtr = (byte*)fb.Address;
+                    for (int y = 0; y < h; y++)
+                    {
+                        var row = basePtr + y * fb.RowBytes;
+                        for (int x = 0; x < w; x++)
+                        {
+                            var px = row + x * 4;
+                            px[0] = (byte)(120 + 100 * x / Math.Max(1, w));   // B
+                            px[1] = (byte)(90 + 60 * y / Math.Max(1, h));     // G
+                            px[2] = (byte)(200 - 60 * x / Math.Max(1, w));    // R
+                            px[3] = 255;
+                        }
+                    }
+                }
+            }
+            return wb;
+        }
+
+        /// <summary>
         /// 在当前线程上把 UI 任务队列排空指定的毫秒数。
         /// 自检专用：没有消息循环时，这是唯一能让绑定求值、布局、异步回填跑起来的方式。
         /// </summary>
@@ -434,6 +524,11 @@ namespace RemeberEr
                     {
                         Width = 8, Height = 8, Bgra = new byte[8 * 8 * 4],
                     }, disp, false); });
+                Check("ChooserWindow", () => { var w = new ChooserWindow(new ChooserWindow.Payload
+                    {
+                        App = "测试应用",
+                        Title = "测试窗口标题",
+                    }, disp, 100, 100, 900, 560); });
 
                 Log(string.Format("=== XAML 自检结果：成功 {0} / 失败 {1} ===", ok, fail));
                 Environment.ExitCode = fail == 0 ? 0 : 1;
@@ -567,6 +662,7 @@ namespace RemeberEr
                 else if (a == "--xaml-selftest") XamlSelfTest = true;
                 else if (a == "--seed") Seed = true;
                 else if (a.StartsWith("--shot-panel=")) ShotPanel = a.Substring(13);
+                else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
         }
