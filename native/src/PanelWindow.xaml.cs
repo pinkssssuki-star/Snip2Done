@@ -156,6 +156,63 @@ namespace RemeberEr
             else if (Program.Flow == "multi") ScheduleFlowMulti();
             else if (Program.Flow == "add") ScheduleFlowAdd();
             else if (Program.Flow == "theme") ScheduleFlowTheme();
+            else if (Program.Flow == "manual") ScheduleFlowManual();
+        }
+
+        /// <summary>
+        /// 验收「手动记一笔」：点 + 之后应该弹出**选时间**的面板（不是直接落库），
+        /// 而且那个面板里没有截图、没有标题框，第三个按钮叫「无期限」。
+        /// </summary>
+        void ScheduleFlowManual()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            int before = 0;
+
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                before = _store.Items.Count;
+                _vm.QuickOpen = true;
+                _vm.QuickRoom = "todo";
+                _vm.QuickText = "周五前把合同发出去";
+                UpdateLayout();
+                Shot("manual-quick");
+                Program.Log("  记一笔前条目数 = " + before);
+
+                StartManualAdd();
+                Program.Log("  点了 + 之后：面板出现了吗 = " + (_chooser != null && _chooser.IsVisible)
+                    + "，条目数还是 " + _store.Items.Count + "（应等于 " + before + "，还没落库）");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(800, () =>
+            {
+                if (_chooser != null && _chooser.IsVisible)
+                {
+                    ShotWindow(_chooser, "manual-when");
+                }
+                else { Program.Log("  !! 时间面板没出现"); }
+                if (_chooser != null && _chooser.IsVisible)
+                {
+                    _chooser.AutoPickWithDays("soon", 5);
+                    Program.Log("  在时间面板里选：Soon + 5 天");
+                }
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Program.Log("  选完之后条目数 = " + _store.Items.Count + "（应等于 " + (before + 1) + "）");
+                foreach (var o in _store.Items)
+                {
+                    var it = J.Obj(o);
+                    if (J.Str(it, "title", "") != "周五前把合同发出去") continue;
+                    Program.Log(string.Format("  新条目：room={0} dueBucket={1} dueDays={2} 距现在={3:0.0} 小时",
+                        J.Str(it, "room", ""), J.Str(it, "dueBucket", ""), J.Num(it, "dueDays", 0),
+                        (J.Num(it, "dueAt", 0) - Store.Now()) / 3600000.0));
+                }
+                Shot("manual-after");
+                Program.Log("  手动记一笔流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>
@@ -236,6 +293,18 @@ namespace RemeberEr
             {
                 _vm.QuickOpen = true;
                 _vm.QuickText = "手动记的一笔";
+                UpdateLayout();
+                Program.Log(string.Format(
+                    "  【量尺寸】窗口={0:0}x{1:0}  QuickBar 实际={2:0} 期望={3:0}x{4:0}  Body 实际={5:0}  底栏={6:0}",
+                    ActualWidth, ActualHeight,
+                    QuickBar.ActualHeight, QuickBar.DesiredSize.Width, QuickBar.DesiredSize.Height,
+                    Body.ActualHeight, FooterBar.ActualHeight));
+                var pt = QuickTodoBtn.TranslatePoint(new System.Windows.Point(0, 0), this);
+                Program.Log(string.Format(
+                    "  【量尺寸】Todo 按钮 实际高={0:0} 期望高={1:0}  顶部在窗口 y={2:0}，底部在 y={3:0}（窗口高 {4:0}）",
+                    QuickTodoBtn.ActualHeight, QuickTodoBtn.DesiredSize.Height,
+                    pt.Y, pt.Y + QuickTodoBtn.ActualHeight, ActualHeight));
+                Shot("add-quick");   // 先看清「记一笔」这一块有没有被切
                 Program.Log("  加之前 QuickOpen=" + _vm.QuickOpen);
                 _vm.AddManualCmd.Execute(null);
                 Program.Log(string.Format("  加之后 QuickOpen={0}（应为 False）· QuickText=\"{1}\"（应清空）",
@@ -529,9 +598,24 @@ namespace RemeberEr
 
         // ------------------------------------------------------------ UI 验收流程
 
-        void Shot(string name)
+        /// <summary>抓某个别的窗口（归类窗 / 时间面板）自己那块。</summary>
+        void ShotWindow(Window w, string name)
         {
-            // 先把 WPF 的布局+渲染跑完，再等 DWM 合成一帧。
+            try
+            {
+                UpdateLayout();
+                Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+                System.Threading.Thread.Sleep(180);
+                Interop.RECT r;
+                Interop.GetWindowRect(new WindowInteropHelper(w).Handle, out r);
+                Capture.SaveRegion(Path.Combine(Program.Root, ".guide", "native-" + name + ".png"), r, 14);
+                Program.Log("  截图（" + name + "）-> .guide\\native-" + name + ".png");
+            }
+            catch (Exception ex) { Program.Log("  !! 截窗口失败：" + ex.Message); }
+        }
+
+        void Shot(string name)
+        {            // 先把 WPF 的布局+渲染跑完，再等 DWM 合成一帧。
             // 不然切完标签页立刻抓屏，抓到的是上一帧 —— 验收流程会「慢半拍」，
             // 截出来的图和日志对不上，比没有证据更糟。
             UpdateLayout();
@@ -540,6 +624,8 @@ namespace RemeberEr
 
             Interop.RECT r;
             Interop.GetWindowRect(_hwnd, out r);
+            Program.Log(string.Format("  [Shot {0}] 窗口物理 ({1},{2})-({3},{4}) pad={5}",
+                name, r.Left, r.Top, r.Right, r.Bottom, Program.ShotPad));
             Capture.SaveRegion(Path.Combine(Program.Root, ".guide", "native-" + name + ".png"), r, Program.ShotPad);
             Program.Log("  截图 -> .guide\\native-" + name + ".png");
         }
@@ -1347,7 +1433,56 @@ namespace RemeberEr
 
         void OnQuickAdd(object sender, RoutedEventArgs e)
         {
-            _vm.AddManualCmd.Execute(null);
+            StartManualAdd();
+        }
+
+        /// <summary>
+        /// 「手动记一笔」的加号。
+        ///
+        /// Todo 是有 DDL 的东西，**没期限的 Todo 是自相矛盾的**（它永远不会逾期、也不会变红）。
+        /// 所以选了 Todo 就让用户挑个时间 —— 复用归类窗那三个按钮，只是没有截图和标题框。
+        /// Wantdo 本来就没有期限，直接落库。
+        /// </summary>
+        void StartManualAdd()
+        {
+            string title = (_vm.QuickText ?? "").Trim();
+            if (title.Length == 0) return;
+
+            if (_vm.QuickRoom != "todo")
+            {
+                _vm.AddManualCmd.Execute(null);
+                return;
+            }
+
+            Interop.RECT cur;
+            double sc;
+            if (!Interop.MonitorUnderCursor(out cur, out sc))
+            {
+                cur = new Interop.RECT
+                {
+                    Left = 0, Top = 0,
+                    Right = Interop.GetSystemMetrics(0),
+                    Bottom = Interop.GetSystemMetrics(1),
+                };
+                sc = 1.0;
+            }
+
+            var p = new ChooserWindow.Payload { Title = title, App = "", Manual = true };
+            var w = new ChooserWindow(p, cur, sc, 0, 0, 0, 0);
+            _chooser = w;   // 验收流程要能驱动它
+            w.Decided += (choice, typed, days) =>
+            {
+                if (choice == null) return;   // 取消：什么都不做，输入框里的字留着
+                string room = choice == "want" ? "want" : "todo";
+                string bucket = choice == "today" ? "today" : (choice == "soon" ? "soon" : null);
+                _store.Add(room, title, "", null, bucket, null, days);
+                _vm.QuickText = "";
+                _vm.QuickOpen = false;
+                _vm.Refresh();
+                Program.Log(string.Format("  手动记一笔：room={0} bucket={1} days={2}", room, bucket, days));
+            };
+            w.Show();
+            w.Activate();
         }
 
         /// <summary>点色块换背景色。色块是 StackPanel 不是 Button（Button 的模板会套个框，很丑）。</summary>

@@ -47,6 +47,8 @@
     <SolidColorBrush x:Key="HoverBg" Color="#14000000"/>
     <!-- 色块描边：黑色主题下「黑」色块和底色一样，描边不给足就整个看不见 -->
     <SolidColorBrush x:Key="SwatchRing" Color="#33000000"/>
+    <!-- 房间按钮（Todo / Wantdo）的描边：面板半透明时全靠它撑轮廓，太淡会像被切掉一截 -->
+    <SolidColorBrush x:Key="RoomBorder" Color="#33000000"/>
     <SolidColorBrush x:Key="Accent" Color="#8b5cf6"/>
     <SolidColorBrush x:Key="AccentDeep" Color="#7c3aed"/>
     <SolidColorBrush x:Key="Green" Color="#10b981"/>

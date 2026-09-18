@@ -970,6 +970,8 @@ namespace RemeberEr
         {
             string v = (_quickText ?? "").Trim();
             if (v.Length == 0) return;
+            // 这里只处理「Wantdo」那条路径。Todo 由 PanelWindow.StartManualAdd()
+            // 先弹一个时间面板再调 Store.Add —— 没期限的 Todo 是自相矛盾的。
             _store.Add(_quickRoom, v, "", null, null);
             QuickText = "";
             // 加完就收起来 —— 没人会连着录好几条，留着这个框只会挡住列表

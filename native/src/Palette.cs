@@ -34,6 +34,7 @@ namespace RemeberEr
             public Color BtnBg, BtnBgHover, BtnBorder, InputBg;
             public Color TrackBg, ThumbBg, EmptyBg, EmptyBorder, HoverBg;
             public Color SwatchRing;
+            public Color RoomBorder;
         }
 
         static Color C(string hex)
@@ -54,7 +55,7 @@ namespace RemeberEr
                 BtnBg = C("#b8ffffff"), BtnBgHover = C("#ffffff"), BtnBorder = C("#1a000000"),
                 InputBg = C("#ffffff"), TrackBg = C("#21000000"), ThumbBg = C("#ffffff"),
                 EmptyBg = C("#80ffffff"), EmptyBorder = C("#1f000000"), HoverBg = C("#14000000"),
-                SwatchRing = C("#33000000"),
+                SwatchRing = C("#33000000"), RoomBorder = C("#33000000"),
             },
             new Entry
             {
@@ -67,7 +68,7 @@ namespace RemeberEr
                 BtnBg = C("#ccffffff"), BtnBgHover = C("#ffffff"), BtnBorder = C("#22000000"),
                 InputBg = C("#f7f7f9"), TrackBg = C("#26000000"), ThumbBg = C("#ffffff"),
                 EmptyBg = C("#8cffffff"), EmptyBorder = C("#22000000"), HoverBg = C("#18000000"),
-                SwatchRing = C("#40000000"),
+                SwatchRing = C("#40000000"), RoomBorder = C("#40000000"),
             },
             new Entry
             {
@@ -80,7 +81,7 @@ namespace RemeberEr
                 BtnBg = C("#1FFFFFFF"), BtnBgHover = C("#2EFFFFFF"), BtnBorder = C("#26FFFFFF"),
                 InputBg = C("#24242A"), TrackBg = C("#33FFFFFF"), ThumbBg = C("#E8E8EC"),
                 EmptyBg = C("#12FFFFFF"), EmptyBorder = C("#22FFFFFF"), HoverBg = C("#1AFFFFFF"),
-                SwatchRing = C("#70FFFFFF"),
+                SwatchRing = C("#70FFFFFF"), RoomBorder = C("#40FFFFFF"),
             },
         };
 
@@ -116,7 +117,7 @@ namespace RemeberEr
             Set("InputBg", e.InputBg); Set("TrackBg", e.TrackBg); Set("ThumbBg", e.ThumbBg);
             Set("TabOnBg", e.BtnBgHover);
             Set("EmptyBg", e.EmptyBg); Set("EmptyBorder", e.EmptyBorder); Set("HoverBg", e.HoverBg);
-            Set("SwatchRing", e.SwatchRing);
+            Set("SwatchRing", e.SwatchRing); Set("RoomBorder", e.RoomBorder);
         }
 
         static void Set(string resKey, Color c)

@@ -23,6 +23,11 @@ namespace RemeberEr
             public BitmapSource Preview;
             public string App;
             public string Title;
+            /// <summary>
+            /// 「手动记一笔」用：没有截图、标题也已经填好了，只借这个面板来选时间。
+            /// 这种情况下藏掉缩略图和标题框，只留三个按钮，标题换成「什么时候到期？」。
+            /// </summary>
+            public bool Manual;
         }
 
         readonly Payload _p;
@@ -32,6 +37,9 @@ namespace RemeberEr
 
         // 窗口的逻辑尺寸（XAML 里 Width/Height 是 312x212）
         const int W_DIP = 312, H_DIP = 212;
+        // 手动模式（没有缩略图、没有标题框）内容矮一大截，窗口太高会空出一大片
+        const int H_MANUAL_DIP = 132;
+        int _hDip = H_DIP;
 
         // 摆好之后的物理位置与尺寸（OnSourceInitialized 里用 SetWindowPos 落实）
         int _physX, _physY, _physW, _physH;
@@ -52,6 +60,18 @@ namespace RemeberEr
             BuildSourceLine(p.App, p.Title);
             TitleBox.Text = p.Title ?? "";
 
+            if (p.Manual)
+            {
+                // 手动记一笔：已经知道是什么事了，只差一个时间
+                Thumb.Visibility = Visibility.Collapsed;
+                SrcText.Visibility = Visibility.Collapsed;
+                HeadText.Text = string.IsNullOrEmpty(p.Title) ? "这件事什么时候到期？" : "「" + p.Title + "」什么时候到期？";
+                TitleBox.Visibility = Visibility.Collapsed;
+                WantLabel.Text = "无期限";
+                WantSub.Visibility = Visibility.Collapsed;
+                _hDip = H_MANUAL_DIP;
+            }
+
             ComputePhysicalPlacement();
 
             // 和框选层同一个道理：窗口必须在「出生之前」就按目标屏的 DPI 算好逻辑坐标，
@@ -61,12 +81,11 @@ namespace RemeberEr
             Left = _physX / _scale;
             Top = _physY / _scale;
             Width = W_DIP;
-            Height = H_DIP;
+            Height = _hDip;
 
             Loaded += (s, e) =>
             {
-                TitleBox.Focus();
-                TitleBox.SelectAll();
+                if (!p.Manual) { TitleBox.Focus(); TitleBox.SelectAll(); }
                 if (Program.AutoChoose != null) ScheduleAutoPick();
             };
         }
@@ -77,7 +96,7 @@ namespace RemeberEr
         void ComputePhysicalPlacement()
         {
             _physW = (int)Math.Round(W_DIP * _scale);
-            _physH = (int)Math.Round(H_DIP * _scale);
+            _physH = (int)Math.Round(_hDip * _scale);
 
             int monL = _monitor.Left, monT = _monitor.Top;
             int monR = _monitor.Right, monB = _monitor.Bottom;

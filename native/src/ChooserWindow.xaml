@@ -71,7 +71,7 @@
                     </Image.Clip>
                 </Image>
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="这一张，是 Todo 还是 Wantdo？" FontSize="11.5" FontWeight="SemiBold"
+                    <TextBlock x:Name="HeadText" Text="这一张，是 Todo 还是 Wantdo？" FontSize="11.5" FontWeight="SemiBold"
                                Foreground="{DynamicResource Tx2}" Margin="0,0,0,3"/>
                     <TextBlock x:Name="SrcText" FontSize="11" LineHeight="14.8"
                                Foreground="#8a8a8e" TextWrapping="Wrap" MaxHeight="30" ClipToBounds="True"/>
@@ -117,8 +117,20 @@
                     -->
                     <StackPanel>
                         <TextBlock Text="Soon" FontSize="12.5" FontWeight="Bold" HorizontalAlignment="Center"/>
-                        <TextBlock Text="两三天 or block" FontSize="9" Opacity="0.82"
-                                   HorizontalAlignment="Center"/>
+                        <!-- 「两三天 or [空]」：那个空是**可以填数字的框**，不是三个字 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,1,0,0">
+                            <TextBlock Text="两三天 or" FontSize="9" Opacity="0.82"
+                                       VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <Border Background="#3DFFFFFF" CornerRadius="4" Padding="3,0,3,0"
+                                    MinWidth="26" VerticalAlignment="Center">
+                                <TextBox x:Name="DaysBox" FontSize="9.5" FontWeight="SemiBold"
+                                         Background="Transparent" BorderThickness="0" Foreground="#ffffff"
+                                         CaretBrush="#ffffff" TextAlignment="Center"
+                                         VerticalContentAlignment="Center" MinWidth="20"
+                                         KeyDown="OnDaysKeyDown" PreviewTextInput="OnDaysInput"
+                                         ToolTip="填天数；留空就随机 48~72 小时"/>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                 </Button>
 
@@ -130,8 +142,8 @@
                         </LinearGradientBrush>
                     </Button.Background>
                     <StackPanel>
-                        <TextBlock Text="Wantdo" FontSize="12.5" FontWeight="Bold" HorizontalAlignment="Center"/>
-                        <TextBlock Text="无期限" FontSize="9" Opacity="0.82" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="WantLabel" Text="Wantdo" FontSize="12.5" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="WantSub" Text="无期限" FontSize="9" Opacity="0.82" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
             </Grid>
@@ -140,21 +152,8 @@
                 <TextBlock FontSize="9.5" Foreground="#b0b0b6" VerticalAlignment="Center">
                     <Run Text="Esc 算了 · 1 2 3 直接选"/>
                 </TextBlock>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="想指定天数就写" FontSize="9.5" Foreground="#b0b0b6"
-                               VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <Border Background="#0f000000" CornerRadius="5" Padding="5,0,5,1">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBox x:Name="DaysBox" Width="24" FontSize="10" FontWeight="SemiBold"
-                                     Background="Transparent" BorderThickness="0"
-                                     Foreground="#3a3a3c" CaretBrush="#3a3a3c" TextAlignment="Center"
-                                     VerticalContentAlignment="Center"
-                                     KeyDown="OnDaysKeyDown" PreviewTextInput="OnDaysInput"
-                                     ToolTip="留空就随机 48~72 小时"/>
-                            <TextBlock Text="天" FontSize="9.5" Foreground="#8a8a8e" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                <TextBlock Text="留空则自动给个两三天内的期限" FontSize="9.5" Foreground="#b0b0b6"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
             </Grid>
         </Grid>
     </Border>
