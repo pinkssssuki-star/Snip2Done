@@ -179,6 +179,7 @@ namespace RemeberEr
                 { "lastTouchedAt", null },
                 { "touchCount", 0.0 },
                 { "dueBucket", null },
+            { "dueDays", null },
                 { "dueAt", null },
                 { "doneAt", null },
                 { "filedAt", null },
@@ -250,10 +251,12 @@ namespace RemeberEr
 
         public Dictionary<string, object> Add(string room, string title, string source, string imageRel, string dueBucket)
         {
-            return Add(room, title, source, imageRel, dueBucket, null);
+            return Add(room, title, source, imageRel, dueBucket, null, 0);
         }
 
-        public Dictionary<string, object> Add(string room, string title, string source, string imageRel, string dueBucket, string id)
+        /// <param name="dueDays">「两三天」那一档的自定义天数；0 = 没写，用 48~72 小时随机</param>
+        public Dictionary<string, object> Add(string room, string title, string source, string imageRel,
+                                              string dueBucket, string id, int dueDays = 0)
         {
             long now = Now();
             var item = NewFields();
@@ -266,7 +269,9 @@ namespace RemeberEr
             item["createdAt"] = (double)now;
             item["lastTouchedAt"] = (double)now;
             item["dueBucket"] = dueBucket;
-            item["dueAt"] = dueBucket == null ? null : (object)(double)DueTimestamp(dueBucket, now);
+            // 写了数字才记下来：标签上要显示「N 天」而不是笼统的「两三天」
+            item["dueDays"] = dueDays > 0 ? (object)(double)dueDays : null;
+            item["dueAt"] = dueBucket == null ? null : (object)(double)DueTimestamp(dueBucket, now, dueDays);
             Items.Add(item);
             Save();
             return item;
@@ -557,7 +562,15 @@ namespace RemeberEr
             };
         }
 
-        static long DueTimestamp(string bucket, long from)
+        static readonly Random _dueRnd = new Random();
+
+        /// <summary>
+        /// 期限时间戳。
+        ///
+        /// 「两三天」这一档：**直接点是 48~72 小时里随机一个**（每次不一样，
+        /// 免得所有 Todo 都堆在同一天到期）；在旁边写了数字 N 就是 N 天后。
+        /// </summary>
+        static long DueTimestamp(string bucket, long from, int dueDays = 0)
         {
             if (bucket == "today")
             {
@@ -566,7 +579,9 @@ namespace RemeberEr
                 var end = new DateTimeOffset(d.Year, d.Month, d.Day, 23, 59, 59, 999, d.Offset);
                 return end.ToUnixTimeMilliseconds();
             }
-            return from + 3 * Decay.DAY;
+            if (dueDays > 0) return from + (long)dueDays * Decay.DAY;
+            // 48~72 小时
+            return from + _dueRnd.Next(48, 73) * 3600L * 1000L;
         }
     }
 }

@@ -112,9 +112,57 @@
                             VerticalAlignment="Center">
                         <Image x:Name="Pic" Stretch="Uniform"/>
                     </Border>
-                    <TextBlock x:Name="NoImage" Text="这条没有截图" FontSize="12"
-                               Foreground="{StaticResource Tx5}" HorizontalAlignment="Center"
-                               VerticalAlignment="Center" Visibility="Collapsed"/>
+
+                    <!--
+                        没有截图的时候，这块地方本来就是空的 —— 直接让它变成一个加号，
+                        点了走一次框选，选完挂到这一条上。比在别处藏个「补图」按钮好找。
+                    -->
+                    <Button x:Name="AddShot" Click="OnAddShot" Cursor="Hand"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="b" Width="104" Height="104" CornerRadius="12"
+                                        Background="#ffffff" BorderBrush="#2a8b5cf6" BorderThickness="1.5">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="+" FontSize="34" FontWeight="Light"
+                                                   Foreground="{StaticResource AccentDeep}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="补一张截图" FontSize="10.5" Margin="0,2,0,0"
+                                                   Foreground="{StaticResource Tx4}"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="b" Property="Background" Value="#faf5ff"/>
+                                        <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <!-- 有图的时候，加号缩成右下角一个小圆钮，不挡内容 -->
+                    <Button x:Name="AddShotSmall" Click="OnAddShot" Cursor="Hand"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                            ToolTip="换一张截图" Visibility="Collapsed">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="sb" Width="30" Height="30" CornerRadius="15"
+                                        Background="#e6ffffff" BorderBrush="#22000000" BorderThickness="1">
+                                    <TextBlock Text="+" FontSize="17" FontWeight="Light"
+                                               Foreground="{StaticResource AccentDeep}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="sb" Property="Background" Value="#ffffff"/>
+                                        <Setter TargetName="sb" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </Grid>
             </Border>
 

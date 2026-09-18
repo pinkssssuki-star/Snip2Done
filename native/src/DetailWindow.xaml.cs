@@ -26,6 +26,15 @@ namespace RemeberEr
         readonly string _id;
         /// <summary>这一扇窗开的是哪一条。详情窗能同时开好几扇，靠它去重。</summary>
         public string ItemId { get { return _id; } }
+
+        /// <summary>点了「补一张截图」—— 交给 PanelWindow 去走框选流程。</summary>
+        public event Action<string> ScreenshotRequested;
+
+        void OnAddShot(object sender, RoutedEventArgs e)
+        {
+            var h = ScreenshotRequested;
+            if (h != null) h(_id);
+        }
         Dictionary<string, object> _item;
 
         DispatcherTimer _saveTimer;
@@ -92,6 +101,12 @@ namespace RemeberEr
                 Math.Max(DETAIL_MIN_H, Math.Round(ih * scale) + DETAIL_CHROME_H));
         }
 
+        /// <summary>
+        /// 让这扇窗重新读一遍条目。
+        /// 补截图之后要叫它 —— 否则图挂上去了，窗里还杵着那个「补一张截图」的加号。
+        /// </summary>
+        public void Reload() { LoadItem(); }
+
         void LoadItem()
         {
             _loading = true;
@@ -137,8 +152,10 @@ namespace RemeberEr
                 Pic.Source = Images.Get(abs, 900);
             }
             bool hasImg = Pic.Source != null;
-            NoImage.Visibility = hasImg ? Visibility.Collapsed : Visibility.Visible;
             Pic.Visibility = hasImg ? Visibility.Visible : Visibility.Collapsed;
+            // 没图 -> 中间摆一个大的「补一张截图」；有图 -> 右下角一个小加号（换图）
+            AddShot.Visibility = hasImg ? Visibility.Collapsed : Visibility.Visible;
+            AddShotSmall.Visibility = hasImg ? Visibility.Visible : Visibility.Collapsed;
 
             _loading = false;
         }

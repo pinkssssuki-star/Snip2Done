@@ -477,9 +477,35 @@
                     BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
                     Visibility="{Binding QuickOpen, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
-                    <TextBox x:Name="QuickBox" Style="{StaticResource QuickInput}"
-                             Text="{Binding QuickText, UpdateSourceTrigger=PropertyChanged}"
-                             KeyDown="OnQuickKeyDown"/>
+                    <!-- 输入框后面跟一个加号：写完字得有个看得见的「加」可以点 -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="QuickBox" Style="{StaticResource QuickInput}"
+                                 Text="{Binding QuickText, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="OnQuickKeyDown"/>
+                        <Button Grid.Column="2" Click="OnQuickAdd" Cursor="Hand" ToolTip="加进去（Enter）">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="qb" Width="30" Height="30" CornerRadius="8"
+                                            Background="{StaticResource Accent}" BorderThickness="0">
+                                        <TextBlock Text="+" FontSize="18" FontWeight="SemiBold"
+                                                   Foreground="#ffffff"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="qb" Property="Background"
+                                                    Value="{StaticResource AccentDeep}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
                     <Grid Margin="0,7,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

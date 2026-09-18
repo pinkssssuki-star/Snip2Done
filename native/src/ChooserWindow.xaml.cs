@@ -37,7 +37,7 @@ namespace RemeberEr
         int _physX, _physY, _physW, _physH;
 
         /// <summary>choice, typedTitle。choice 为 null 表示取消。</summary>
-        public event Action<string, string> Decided;
+        public event Action<string, string, int> Decided;
 
         public ChooserWindow(Payload p, Interop.RECT monitor, double scale,
                              int selX, int selY, int selW, int selH)
@@ -167,11 +167,11 @@ namespace RemeberEr
         /// 顺序上 Hide 必须在最前，Close 放最后：Closed 事件里会刷新面板，
         /// 那时候窗口得已经不在屏幕上了。
         /// </summary>
-        void Dismiss(string choice, string typed)
+        void Dismiss(string choice, string typed, int days)
         {
             try { Hide(); } catch (Exception) { }
             var d = Decided;
-            if (d != null) d(choice, typed);
+            if (d != null) d(choice, typed, days);
             Close();
         }
 
@@ -195,15 +195,48 @@ namespace RemeberEr
 
         void Pick(string choice)
         {
-            Dismiss(choice, (TitleBox.Text ?? "").Trim());
+            Dismiss(choice, (TitleBox.Text ?? "").Trim(), ReadDays());
+        }
+
+        /// <summary>「几天后」输入框里的数字。空着或者写了 0 → 0（交给 48~72 小时随机）。</summary>
+        int ReadDays()
+        {
+            int n;
+            if (DaysBox == null) return 0;
+            string s = (DaysBox.Text ?? "").Trim();
+            if (s.Length == 0) return 0;
+            if (!int.TryParse(s, out n)) return 0;
+            if (n <= 0) return 0;
+            if (n > 999) n = 999;      // 别让人写出一个公元后的期限
+            return n;
+        }
+
+        /// <summary>只让输数字，别的一律吞掉。</summary>
+        void OnDaysInput(object sender, TextCompositionEventArgs e)
+        {
+            foreach (char c in e.Text) if (c < '0' || c > '9') { e.Handled = true; return; }
+        }
+
+        /// <summary>在「几天」框里按 Enter = 按「两三天」。</summary>
+        void OnDaysKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            Pick("soon");
         }
 
         /// <summary>自动化验收用：不用手点，直接选一个。</summary>
         public void AutoPick(string choice) { Pick(choice); }
+        /// <summary>验收用：直接指定天数。</summary>
+        public void AutoPickWithDays(string choice, int days)
+        {
+            if (DaysBox != null && days > 0) DaysBox.Text = days.ToString();
+            Pick(choice);
+        }
 
         void Cancel()
         {
-            Dismiss(null, null);
+            Dismiss(null, null, 0);
         }
 
         void OnPickToday(object sender, RoutedEventArgs e) { Pick("today"); }

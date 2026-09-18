@@ -34,6 +34,8 @@ namespace RemeberEr
         // 详情窗 / 记录窗都可以同时开好几扇，所以用列表而不是单个字段
         readonly List<DetailWindow> _details = new List<DetailWindow>();
         readonly List<RecordWindow> _records = new List<RecordWindow>();
+        /// <summary>不为 null 时，这次截图是「补图」，结果挂到这条上而不是弹归类窗。</summary>
+        string _attachToId;
         ChooserWindow _chooser;
         DispatcherTimer _hoverTimer;
         /// <summary>演示加速的节拍器（每秒一次，只在演示中真正干活）。</summary>
@@ -152,6 +154,73 @@ namespace RemeberEr
             else if (Program.Flow == "pos") ScheduleFlowPos();
             else if (Program.Flow == "accel") ScheduleFlowAccel();
             else if (Program.Flow == "multi") ScheduleFlowMulti();
+            else if (Program.Flow == "add") ScheduleFlowAdd();
+        }
+
+        /// <summary>
+        /// 验收「两三天 / 手动加一笔 / 补截图」三条。
+        /// 补截图借 --autoregion 让框选层自己画一个框，好把整条链路走完。
+        /// </summary>
+        void ScheduleFlowAdd()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            string target = null;
+
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                long now = Store.Now();
+                var a = _store.Add("todo", "测试-直接点两三天", "", null, "soon");
+                var b = _store.Add("todo", "测试-写5天", "", null, "soon", null, 5);
+                var c = _store.Add("todo", "测试-Today", "", null, "today");
+                Program.Log(string.Format("  两三天(没写) -> 距现在 {0:0.0} 小时（应落在 48~72）",
+                    (J.Num(a, "dueAt", 0) - now) / 3600000.0));
+                Program.Log(string.Format("  两三天(写5天) -> 距现在 {0:0.0} 小时（应为 120）",
+                    (J.Num(b, "dueAt", 0) - now) / 3600000.0));
+                Program.Log(string.Format("  Today        -> 距现在 {0:0.0} 小时",
+                    (J.Num(c, "dueAt", 0) - now) / 3600000.0));
+                _vm.Refresh();
+                Program.Log("  标签：写5天那条应该显示 \"" +
+                    (J.Num(b, "dueDays", 0) > 0 ? ((int)J.Num(b, "dueDays", 0)) + " 天" : "两三天") + "\"");
+                Shot("add-main");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                _vm.QuickOpen = true;
+                _vm.QuickText = "手动记的一笔";
+                Program.Log("  加之前 QuickOpen=" + _vm.QuickOpen);
+                _vm.AddManualCmd.Execute(null);
+                Program.Log(string.Format("  加之后 QuickOpen={0}（应为 False）· QuickText=\"{1}\"（应清空）",
+                    _vm.QuickOpen, _vm.QuickText));
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                foreach (var o in _store.Items)
+                {
+                    var it = J.Obj(o);
+                    if (J.IsNull(J.Get(it, "image"))) { target = J.Str(it, "id", ""); break; }
+                }
+                if (target == null) { Program.Log("  !! 没有「无图」条目可用来验补截图"); return; }
+                Program.Log("  补截图目标 " + target.Substring(0, 8) + " 当前 image=空");
+                OpenDetail(target);
+                StartCaptureForItem(target);
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(3000, () =>
+            {
+                var it = target == null ? null : _store.Get(target);
+                string img = it == null ? "-" : (J.Str(it, "image", null) ?? "(还是空)");
+                Program.Log("  补截图之后 image = " + img + "（不该是「还是空」）");
+                Shot("add-attached");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                Program.Log("  增加条目流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         string RectOf(Window w)
@@ -1159,6 +1228,7 @@ namespace RemeberEr
                 OpenRecord(rid, "write");
                 d.Close();   // 写完就把它让出来，和原来的行为一致
             };
+            d.ScreenshotRequested += rid => StartCaptureForItem(rid);
             d.Closed += (s, e) => { _details.Remove(d); _vm.Refresh(); };
             _details.Add(d);
             d.Show();
@@ -1225,6 +1295,11 @@ namespace RemeberEr
             if (e.Key != Key.Enter) return;
             _vm.AddManualCmd.Execute(null);
             e.Handled = true;
+        }
+
+        void OnQuickAdd(object sender, RoutedEventArgs e)
+        {
+            _vm.AddManualCmd.Execute(null);
         }
 
         // ------------------------------------------------------------ 设置页滑块
@@ -1362,7 +1437,7 @@ namespace RemeberEr
             }
         }
 
-        /// <summary>裁出选区 → 编 PNG → 弹归类窗。</summary>
+        /// <summary>裁出选区 → 编 PNG → 弹归类窗（或挂到已有条目上）。</summary>
         void ChooseFor(BitmapSource full, Interop.RECT mon, double scale, int x, int y, int w, int h, string app, string title)
         {
             byte[] png;
@@ -1395,6 +1470,16 @@ namespace RemeberEr
                 Title = title,
             };
 
+            // 补截图：结果挂到已有条目上，不弹归类窗（归类早就定过了）
+            if (_attachToId != null)
+            {
+                string to = _attachToId;
+                _attachToId = null;
+                AttachImage(to, payload);
+                EndCapture();
+                return;
+            }
+
             if (Program.Bench)
             {
                 CommitCapture(payload, "want", null);
@@ -1403,9 +1488,9 @@ namespace RemeberEr
             }
 
             var chooser = new ChooserWindow(payload, mon, scale, x, y, w, h);
-            chooser.Decided += (choice, typed) =>
+            chooser.Decided += (choice, typed, days) =>
             {
-                if (choice != null) CommitCapture(payload, choice, typed);
+                if (choice != null) CommitCapture(payload, choice, typed, days);
             };
             chooser.Closed += (s, e) =>
             {
@@ -1524,13 +1609,57 @@ namespace RemeberEr
         /// <summary>
         /// 标题优先级：用户手填 > 截图时的前台窗口标题 > 空（和 main.js 的 commitCapture 一致）。
         /// </summary>
-        void CommitCapture(ChooserWindow.Payload p, string choice, string typedTitle)
+        /// <summary>
+        /// 给一条已有条目补一张截图。走的是**和截图主流程同一套框选层** ——
+        /// 不多写一份抓屏/选区代码，行为也就自然一致（多屏、混 DPI 都白拿）。
+        /// </summary>
+        public void StartCaptureForItem(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return;
+            var it = _store.Get(itemId);
+            if (it == null) return;
+            _attachToId = itemId;
+            Program.Log("  补截图：目标 " + itemId.Substring(0, 8) + "「" + J.Str(it, "title", "") + "」");
+            DoCapture("补图");
+        }
+
+        /// <summary>把刚截下来的图挂到指定条目上（替换原图；缩略图缓存一并重写）。</summary>
+        void AttachImage(string id, ChooserWindow.Payload p)
+        {
+            var it = _store.Get(id);
+            if (it == null) { Program.Log("  !! 补图目标已不存在"); return; }
+            try
+            {
+                string rel = _store.SaveImage(id, p.Png);
+                it["image"] = rel;
+                _store.Save();
+                if (p.ThumbPng != null)
+                {
+                    string thumbRel = Path.ChangeExtension(rel, null) + ".thumb.png";
+                    File.WriteAllBytes(Path.Combine(_store.DataDir,
+                        thumbRel.Replace('/', Path.DirectorySeparatorChar)), p.ThumbPng);
+                }
+                Program.Log("  补图成功 -> " + rel + "（" + p.Png.Length / 1024 + "KB）");
+            }
+            catch (Exception ex)
+            {
+                Program.Log("  !! 补图失败：" + ex.Message);
+            }
+            // 已经开着的那扇详情窗要重读，不然它还显示着「补一张截图」的加号
+            foreach (var w in _details)
+            {
+                if (w.ItemId == id && w.IsVisible) { try { w.Reload(); } catch (Exception) { } }
+            }
+            _vm.Refresh();
+        }
+
+        void CommitCapture(ChooserWindow.Payload p, string choice, string typedTitle, int dueDays = 0)
         {
             string room = choice == "want" ? "want" : "todo";
             string dueBucket = choice == "today" ? "today" : (choice == "soon" ? "soon" : null);
             string title = string.IsNullOrEmpty(typedTitle) ? (p.Title ?? "") : typedTitle;
 
-            var item = _store.Add(room, title, p.App ?? "", null, dueBucket);
+            var item = _store.Add(room, title, p.App ?? "", null, dueBucket, null, dueDays);
             try
             {
                 string rel = _store.SaveImage(J.Str(item, "id", ""), p.Png);

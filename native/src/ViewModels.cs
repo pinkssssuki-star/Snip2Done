@@ -927,6 +927,8 @@ namespace RemeberEr
             if (v.Length == 0) return;
             _store.Add(_quickRoom, v, "", null, null);
             QuickText = "";
+            // 加完就收起来 —— 没人会连着录好几条，留着这个框只会挡住列表
+            QuickOpen = false;
             Refresh();
         }
 
@@ -1108,7 +1110,13 @@ namespace RemeberEr
             bool overdue = J.Bool(it, "overdue", false);
             string pill = null, kind = null;
             if (bucket == "today") { pill = overdue ? "逾期" : "Today"; kind = overdue ? "bad" : "today"; }
-            else if (bucket == "soon") { pill = overdue ? "逾期" : "Soon"; kind = overdue ? "bad" : "soon"; }
+            else if (bucket == "soon")
+            {
+                // 写了天数就显示具体天数，没写就是笼统的「两三天」
+                double dd = J.Num(it, "dueDays", 0);
+                pill = overdue ? "逾期" : (dd > 0 ? ((int)dd) + " 天" : "两三天");
+                kind = overdue ? "bad" : "soon";
+            }
 
             var vm = new TodoVm
             {
