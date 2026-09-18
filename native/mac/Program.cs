@@ -95,6 +95,9 @@ namespace RemeberEr
         /// <summary>把详情窗渲染成 PNG 后退出（免权限）。</summary>
         public static string ShotDetail;
 
+        /// <summary>把完成记录窗渲染成 PNG 后退出（免权限）。值形如 "write:/path" 或 "view:/path"。</summary>
+        public static string ShotRecord;
+
         /// <summary>
         /// 只跑数据 → ViewModel 这条链路并打印结果后退出，不起窗口。
         /// 用途：把「JSON 解析出来的分组/排序/文案对不对」和「窗口画得对不对」分开验证。
@@ -190,6 +193,9 @@ namespace RemeberEr
 
             // 把详情窗渲染成 PNG（免权限）
             if (ShotDetail != null) { RunShotDetail(); return; }
+
+            // 把完成记录窗渲染成 PNG（免权限）
+            if (ShotRecord != null) { RunShotRecord(); return; }
 
             // 灌演示数据后退出（配合 --data= 指到临时目录，别污染真实数据）
             if (Seed)
@@ -315,8 +321,15 @@ namespace RemeberEr
             Environment.Exit(0);
         }
 
-        /// <summary>取数据里第一条条目的 id，给详情窗自检用。</summary>
-        static string FirstItemId()
+        /// <summary>取数据里第一条条目的 id，给各窗口自检用。</summary>
+        static string FirstItemId() { return FindItemId(null); }
+
+        /// <summary>
+        /// 找一条符合状态的条目 id。
+        /// <paramref name="wantState"/> 为 null 时取第一条；否则取 state 匹配的第一条
+        /// （完成记录窗的 view 模式必须要一条已完成的，否则渲染出来是空壳）。
+        /// </summary>
+        static string FindItemId(string wantState)
         {
             try
             {
@@ -325,7 +338,9 @@ namespace RemeberEr
                 {
                     var it = J.Obj(o);
                     var id = J.Str(it, "id", null);
-                    if (!string.IsNullOrEmpty(id)) return id;
+                    if (string.IsNullOrEmpty(id)) continue;
+                    if (wantState != null && J.Str(it, "state", "") != wantState) continue;
+                    return id;
                 }
             }
             catch (Exception) { }
@@ -367,6 +382,56 @@ namespace RemeberEr
 
                     Log(string.Format("  已写出 {0}（{1}x{2}）", ShotDetail, w, h));
                     Log(string.Format("  按图片比例算出的窗口尺寸 = {0}x{1}（逻辑）", win.Width, win.Height));
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 把完成记录窗渲染成 PNG（免权限）。
+        /// 参数形如 "write:/path/to.png" / "view:/path/to.png" —— 两种模式布局差别很大，
+        /// 都得看。
+        /// </summary>
+        static void RunShotRecord()
+        {
+            int colon = ShotRecord.IndexOf(':');
+            string mode = colon > 0 ? ShotRecord.Substring(0, colon) : "view";
+            string path = colon > 0 ? ShotRecord.Substring(colon + 1) : ShotRecord;
+
+            Log("=== 完成记录窗渲染自检（模式 " + mode + "）===");
+            // view 模式得用一条真的已完成的条目，否则渲染出来是空壳
+            var id = mode == "view" ? FindItemId("done") : FirstItemId();
+            if (id == null) { Log("!! 数据里没有合适的条目，先用 --seed 造一份"); Environment.Exit(1); }
+            Log("  用条目 id = " + id);
+
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var win = new RecordWindow(new Store(DataDir), id, mode);
+                    win.Show();
+                    PumpUi(500);
+
+                    int w = (int)Math.Ceiling(win.Bounds.Width);
+                    int h = (int)Math.Ceiling(win.Bounds.Height);
+                    var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new PixelSize(w, h), new Vector(96, 96));
+                    rtb.Render(win);
+                    using (var fs = System.IO.File.Create(path))
+                        rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+                    Log(string.Format("  已写出 {0}（{1}x{2}）", path, w, h));
                 }
                 catch (Exception ex)
                 {
@@ -599,6 +664,7 @@ namespace RemeberEr
                     }, disp, 100, 100, 900, 560); });
                 Check("PreviewWindow", () => { var w = new PreviewWindow(); });
                 Check("DetailWindow", () => { var w = new DetailWindow(new Store(DataDir), FirstItemId()); });
+                Check("RecordWindow(write)", () => { var w = new RecordWindow(new Store(DataDir), FirstItemId(), "write"); });
 
                 Log(string.Format("=== XAML 自检结果：成功 {0} / 失败 {1} ===", ok, fail));
                 Environment.ExitCode = fail == 0 ? 0 : 1;
@@ -734,6 +800,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shot-panel=")) ShotPanel = a.Substring(13);
                 else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
                 else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
+                else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
         }
