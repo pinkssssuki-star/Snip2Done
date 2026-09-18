@@ -56,7 +56,7 @@
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock x:Name="title" Text="{Binding Title}" FontSize="12.5" LineHeight="16.5"
-                                   FontWeight="Medium" Foreground="{StaticResource Tx1}"
+                                   FontWeight="Medium" Foreground="{StaticResource Cx1}"
                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                    MaxHeight="33" ClipToBounds="True"
                                    Visibility="{Binding HasTitle, Converter={StaticResource BoolToVis}}"/>
@@ -82,7 +82,7 @@
                                 <TextBlock Text="{Binding PillText}" FontSize="9" FontWeight="SemiBold">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource Tx3}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding PillKind}" Value="today">
                                                     <Setter Property="Foreground" Value="#b45309"/>
@@ -99,10 +99,10 @@
                                 </TextBlock>
                             </Border>
                             <TextBlock Text="{Binding MetaSource}" FontSize="9.5" Margin="0,0,5,0"
-                                       Foreground="{StaticResource Tx5}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Tx5}" VerticalAlignment="Center"
                                        Visibility="{Binding ShowMetaSource, Converter={StaticResource BoolToVis}}"/>
                             <TextBlock Text="{Binding MetaTime}" FontSize="9.5"
-                                       Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                       Foreground="{DynamicResource Tx5}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -121,7 +121,7 @@
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="xb" CornerRadius="5" Background="Transparent">
-                                    <TextBlock Text="✕" FontSize="12" Foreground="{StaticResource TxFaint}"
+                                    <TextBlock Text="✕" FontSize="12" Foreground="{DynamicResource TxFaint}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
@@ -150,7 +150,7 @@
                 <!-- 已完成：删除线 + 变淡 -->
                 <DataTrigger Binding="{Binding IsDone}" Value="True">
                     <Setter TargetName="title" Property="TextDecorations" Value="Strikethrough"/>
-                    <Setter TargetName="title" Property="Foreground" Value="{StaticResource Tx5}"/>
+                    <Setter TargetName="title" Property="Foreground" Value="{DynamicResource Tx5}"/>
                     <Setter TargetName="card" Property="Opacity" Value="0.66"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
@@ -193,7 +193,7 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="{Binding Caption}" FontSize="9.5"
-                                   Foreground="{StaticResource Tx4}" TextTrimming="CharacterEllipsis"/>
+                                   Foreground="{DynamicResource Tx4}" TextTrimming="CharacterEllipsis"/>
                         <ProgressBar Grid.Row="1" Style="{StaticResource LifeBar}" Margin="0,4,0,0"
                                      Value="{Binding LifePercent, Mode=OneWay}"/>
                         <TextBlock Grid.Row="2" Text="{Binding FadingHint}" FontSize="8.5" Margin="0,4,0,0"
@@ -209,12 +209,12 @@
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="wb" CornerRadius="9" Background="#ebffffff">
-                                    <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource Tx4}"
+                                    <TextBlock Text="✕" FontSize="10" Foreground="{DynamicResource Tx4}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="wb" Property="Background" Value="{StaticResource Red}"/>
+                                        <Setter TargetName="wb" Property="Background" Value="{DynamicResource Red}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -288,7 +288,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                             </Border>
-                            <TextBlock Text="{Binding Caption}" FontSize="9.5" Foreground="{StaticResource Tx4}"
+                            <TextBlock Text="{Binding Caption}" FontSize="9.5" Foreground="{DynamicResource Tx4}"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
@@ -376,11 +376,11 @@
                                 </TextBlock>
                             </Border>
                             <TextBlock Text="{Binding Title}" FontSize="11.5" FontWeight="Medium"
-                                       Foreground="{StaticResource Tx2}" TextTrimming="CharacterEllipsis"
+                                       Foreground="{StaticResource Cx2}" TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="{Binding MetaText}" FontSize="9.5" Margin="0,2,0,0"
-                                   Foreground="{StaticResource Tx5}"/>
+                                   Foreground="{DynamicResource Tx5}"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -409,7 +409,7 @@
 
             <!-- ==== 顶栏（可拖动） -->
             <Border x:Name="Header" Grid.Row="0" Padding="12,9,10,9"
-                    BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1"
                     Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -425,7 +425,7 @@
                         </Ellipse.Effect>
                     </Ellipse>
                     <TextBlock Grid.Column="1" Text="记忆面板" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource Tx2}" VerticalAlignment="Center"/>
+                               Foreground="{DynamicResource Tx2}" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="3" Orientation="Horizontal">
                         <Button Style="{StaticResource IconBtn}" Content="✂" ToolTip="截图（Ctrl+Shift+A）"
                                 Command="{Binding SnipCmd}"/>
@@ -474,7 +474,7 @@
 
             <!-- ==== 快速记一笔 -->
             <Border Grid.Row="1" Padding="10,9,10,9"
-                    BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+                    BorderBrush="{DynamicResource Hair}" BorderThickness="0,0,0,1"
                     Visibility="{Binding QuickOpen, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <!-- 输入框后面跟一个加号：写完字得有个看得见的「加」可以点 -->
@@ -545,7 +545,7 @@
                         <Grid Grid.Row="0" Margin="1,0,1,6">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="TODO" Style="{StaticResource SecTitle}" VerticalAlignment="Center"/>
-                                <Border Background="#12000000" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
+                                <Border Background="{DynamicResource ChipBg}" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding NTodo}" Style="{StaticResource CountBadge}"/>
                                 </Border>
@@ -567,10 +567,10 @@
                                 <Border Style="{StaticResource EmptyBox}" VerticalAlignment="Stretch"
                                         Visibility="{Binding HasTodos, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <TextBlock Text="还没有 Todo。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                        <TextBlock Text="还没有 Todo。" FontSize="11" Foreground="{DynamicResource Tx4}"
                                                    HorizontalAlignment="Center"/>
                                         <TextBlock Text="按 Ctrl+Shift+A 截一张，选 Today 或 Soon。" FontSize="10"
-                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Tx5}" Margin="0,4,0,0"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -587,7 +587,7 @@
                         <Grid Grid.Row="0" Margin="1,0,1,6">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="WANTDO" Style="{StaticResource SecTitle}" VerticalAlignment="Center"/>
-                                <Border Background="#12000000" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
+                                <Border Background="{DynamicResource ChipBg}" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding NWant}" Style="{StaticResource CountBadge}"/>
                                 </Border>
@@ -615,10 +615,10 @@
                                 <Border Style="{StaticResource EmptyBox}"
                                         Visibility="{Binding HasWants, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <TextBlock Text="还没有想要做的事。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                        <TextBlock Text="还没有想要做的事。" FontSize="11" Foreground="{DynamicResource Tx4}"
                                                    HorizontalAlignment="Center"/>
                                         <TextBlock Text="截一张图，选 Wantdo 试试。" FontSize="10"
-                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Tx5}" Margin="0,4,0,0"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -650,7 +650,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="{Binding DemoBannerText}" FontSize="10.5"
                                        LineHeight="16" TextWrapping="Wrap" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Tx2}" Margin="0,0,8,0"/>
+                                       Foreground="{DynamicResource Tx2}" Margin="0,0,8,0"/>
                             <Button Grid.Column="1" Content="停下" VerticalAlignment="Center"
                                     Command="{Binding StopDemoCmd}"
                                     Visibility="{Binding DemoOn, Converter={StaticResource BoolToVis}}">
@@ -687,15 +687,15 @@
                     </Grid>
                     <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
                             BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
-                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{StaticResource Tx3}" TextWrapping="Wrap">
+                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{DynamicResource Tx3}" TextWrapping="Wrap">
                             这里分开摆两种「没做成」。<LineBreak/>
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource Red}">使命 Todo</Run> 是你主动舍弃的 —— 可以倒垃圾一次清空。<LineBreak/>
+                            <Run FontWeight="SemiBold" Foreground="{DynamicResource Red}">使命 Todo</Run> 是你主动舍弃的 —— 可以倒垃圾一次清空。<LineBreak/>
                             <Run FontWeight="SemiBold" Foreground="{StaticResource AccentDeep}">初心 Wantdo</Run> 是慢慢淡掉的 —— 永远留着，点一下就能捡回来。
                         </TextBlock>
                     </Border>
 
                     <!-- ==== 两个标签页 ==== -->
-                    <Border Grid.Row="2" Background="#12000000" CornerRadius="9" Padding="3" Margin="0,0,0,10">
+                    <Border Grid.Row="2" Background="{DynamicResource ChipBg}" CornerRadius="9" Padding="3" Margin="0,0,0,10">
                         <UniformGrid Columns="2">
                             <Button Content="使命 Todo"
                                     Command="{Binding BinTabCmd}" CommandParameter="todo">
@@ -732,7 +732,7 @@
                             <StackPanel Visibility="{Binding IsBinTodo, Converter={StaticResource BoolToVis}}">
                                 <Grid Margin="1,0,1,6">
                                     <TextBlock Text="主动舍弃的，倒掉就不再回来" FontSize="10"
-                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                               Foreground="{DynamicResource Tx5}" VerticalAlignment="Center"/>
                                     <Button HorizontalAlignment="Right" Content="{Binding EmptyTrashText}"
                                             Command="{Binding EmptyTrashCmd}"
                                             Visibility="{Binding HasTodoBins, Converter={StaticResource BoolToVis}}">
@@ -758,10 +758,10 @@
                                 <Border Style="{StaticResource EmptyBox}" Height="86"
                                         Visibility="{Binding HasTodoBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <TextBlock Text="没有舍弃的 Todo。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                        <TextBlock Text="没有舍弃的 Todo。" FontSize="11" Foreground="{DynamicResource Tx4}"
                                                    HorizontalAlignment="Center"/>
                                         <TextBlock Text="丢掉的会落到这里，攒着一起倒。" FontSize="10"
-                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Tx5}" Margin="0,4,0,0"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -770,7 +770,7 @@
                             <!-- 初心 Wantdo：能捡回，永不删 -->
                             <StackPanel Visibility="{Binding IsBinWant, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="慢慢淡掉的，点一下就能捡回来" FontSize="10"
-                                           Foreground="{StaticResource Tx5}" Margin="1,0,1,6"/>
+                                           Foreground="{DynamicResource Tx5}" Margin="1,0,1,6"/>
                                 <ItemsControl ItemsSource="{Binding WantBins}" ItemTemplate="{StaticResource BinCardTpl}"
                                               Visibility="{Binding HasWantBins, Converter={StaticResource BoolToVis}}">
                                     <ItemsControl.ItemsPanel>
@@ -782,10 +782,10 @@
                                 <Border Style="{StaticResource EmptyBox}" Height="86"
                                         Visibility="{Binding HasWantBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <TextBlock Text="还没有淡掉的念想。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                        <TextBlock Text="还没有淡掉的念想。" FontSize="11" Foreground="{DynamicResource Tx4}"
                                                    HorizontalAlignment="Center"/>
                                         <TextBlock Text="说明你的注意力都还在。" FontSize="10"
-                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Tx5}" Margin="0,4,0,0"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -811,13 +811,13 @@
                     </Grid>
                     <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
                             BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
-                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{StaticResource Tx3}" TextWrapping="Wrap">
+                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{DynamicResource Tx3}" TextWrapping="Wrap">
                             按完成日期排的。<LineBreak/>点任意一条看当时的心得与小结。
                         </TextBlock>
                     </Border>
 
                     <!-- 完成列表也分两个标签，但不用「使命/初心」那套抒情命名 -->
-                    <Border Grid.Row="2" Background="#12000000" CornerRadius="9" Padding="3" Margin="0,0,0,10">
+                    <Border Grid.Row="2" Background="{DynamicResource ChipBg}" CornerRadius="9" Padding="3" Margin="0,0,0,10">
                         <UniformGrid Columns="2">
                             <Button Content="Todo" Command="{Binding DoneTabCmd}" CommandParameter="todo">
                                 <Button.Style>
@@ -859,14 +859,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Bold"
-                                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                                               Foreground="{DynamicResource Tx5}" VerticalAlignment="Center"/>
                                                     <Border Background="#0f000000" CornerRadius="7" Padding="5,0,5,0"
                                                             Margin="6,0,6,0" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Count}" FontSize="9.5" FontWeight="SemiBold"
                                                                    Foreground="#8a8a8e"/>
                                                     </Border>
                                                 </StackPanel>
-                                                <Border Grid.Column="1" Height="1" Background="{StaticResource Hair}"
+                                                <Border Grid.Column="1" Height="1" Background="{DynamicResource Hair}"
                                                         VerticalAlignment="Center"/>
                                             </Grid>
                                             <ItemsControl ItemsSource="{Binding Items}"
@@ -888,14 +888,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Bold"
-                                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                                               Foreground="{DynamicResource Tx5}" VerticalAlignment="Center"/>
                                                     <Border Background="#0f000000" CornerRadius="7" Padding="5,0,5,0"
                                                             Margin="6,0,6,0" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Count}" FontSize="9.5" FontWeight="SemiBold"
                                                                    Foreground="#8a8a8e"/>
                                                     </Border>
                                                 </StackPanel>
-                                                <Border Grid.Column="1" Height="1" Background="{StaticResource Hair}"
+                                                <Border Grid.Column="1" Height="1" Background="{DynamicResource Hair}"
                                                         VerticalAlignment="Center"/>
                                             </Grid>
                                             <ItemsControl ItemsSource="{Binding Items}"
@@ -908,10 +908,10 @@
                             <Border Style="{StaticResource EmptyBox}"
                                     Visibility="{Binding HasDoneGroups, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="还没有完成的事。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                    <TextBlock Text="还没有完成的事。" FontSize="11" Foreground="{DynamicResource Tx4}"
                                                HorizontalAlignment="Center"/>
                                     <TextBlock Text="Todo 勾掉、Wantdo 点 Get Done，都会落到这里。" FontSize="10"
-                                               Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource Tx5}" Margin="0,4,0,0"
                                                HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
@@ -920,6 +920,12 @@
                 </Grid>
 
                 <!-- ============================================ 设置 -->
+                <!--
+                    整页用**不透明**的 SurfaceBg —— 面板一透明，灰色小字就糊在桌面上了。
+                    只有两处故意留着透明，好让用户能判断当前的透明度：
+                      · 顶栏（在设置页外面，本来就跟着 PanelBackground）
+                      · 「面板透明度」那一行（见下面那个 Background="Transparent"）
+                -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding IsSetView, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
@@ -930,12 +936,47 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
 
+                        <Border Background="{DynamicResource SurfaceBg}" Padding="10,10,10,2">
+                        <StackPanel>
+
+                        <!-- ==== 背景颜色 ==== -->
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Text="背景颜色" FontSize="11.5" FontWeight="Medium"
+                                       Foreground="{DynamicResource Tx2}"/>
+                            <TextBlock Text="不喜欢白色的话可以换。条目卡片不受影响，永远是白底黑字。" FontSize="10"
+                                       Foreground="{DynamicResource HintTx}" Margin="0,4,0,6"
+                                       TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left"/>
+                            <ItemsControl ItemsSource="{Binding ThemeOptions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding Name}" Command="{Binding PickCmd}"
+                                                CommandParameter="{Binding Key}" Margin="0,0,7,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource RoomBtn}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding On}" Value="True">
+                                                            <Setter Property="Tag" Value="on"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <Grid Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="快速模式" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="框完就定，跳过右下角那个 ✓。一框，一分类。" FontSize="10"
-                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           Foreground="{DynamicResource HintTx}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
                                            HorizontalAlignment="Left"/>
                             </StackPanel>
                             <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
@@ -946,9 +987,9 @@
                         <Grid Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="开机自启" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="开机就把它挂到桌面上，不用每次自己点。写当前用户的注册表，不需要管理员。" FontSize="10"
-                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           Foreground="{DynamicResource HintTx}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
                                            HorizontalAlignment="Left"/>
                             </StackPanel>
                             <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
@@ -959,9 +1000,9 @@
                         <Grid Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="隐藏折叠按钮" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="把顶栏的 ▾ 收起来。有侧边收起了，折叠基本多余。已经折叠着的时候它还会留着，不然你就展不开了。" FontSize="10"
-                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           Foreground="{DynamicResource HintTx}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
                                            HorizontalAlignment="Left"/>
                             </StackPanel>
                             <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
@@ -971,9 +1012,9 @@
 
                         <StackPanel Margin="0,0,0,12">
                             <TextBlock Text="演示加速" FontSize="11.5" FontWeight="Medium"
-                                       Foreground="{StaticResource Tx2}"/>
+                                       Foreground="{DynamicResource Tx2}"/>
                             <TextBlock Text="想知道「不管它」最后会怎样，可以看一次。走完约一分钟，之后这些念想可以随便捡回来。"
-                                       FontSize="10" Foreground="#9a9aa0" Margin="0,4,0,6"
+                                       FontSize="10" Foreground="{DynamicResource HintTx}" Margin="0,4,0,6"
                                        TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left"/>
                             <Button HorizontalAlignment="Left" Padding="12,6,12,6"
                                     Command="{Binding StartDemoCmd}"
@@ -988,12 +1029,19 @@
                             </Button>
                         </StackPanel>
 
-                        <StackPanel Margin="0,0,0,10">
+                        </StackPanel>
+                        </Border>
+
+                        <!--
+                            这一行**故意不加不透明底** —— 用户拖这个滑块的时候，
+                            要能直接看到面板当前有多透。
+                        -->
+                        <StackPanel Margin="10,8,10,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="面板透明度" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="{Binding OpacityText}" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                                           Foreground="{DynamicResource Tx4}" HorizontalAlignment="Right"/>
                             </Grid>
                             <Slider Style="{StaticResource PanelSlider}" Minimum="30" Maximum="100"
                                     Value="{Binding OpacityPercent, Mode=TwoWay}"
@@ -1001,12 +1049,14 @@
                                     ValueChanged="OnOpacityChanged"/>
                         </StackPanel>
 
+                        <Border Background="{DynamicResource SurfaceBg}" Padding="10,2,10,10">
+                        <StackPanel>
                         <StackPanel Margin="0,0,0,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="Wantdo 保护期" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="{Binding FadeText}" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                                           Foreground="{DynamicResource Tx4}" HorizontalAlignment="Right"/>
                             </Grid>
                             <Slider x:Name="FadeSlider" Style="{StaticResource PanelSlider}" Minimum="1" Maximum="60"
                                     Value="{Binding FadeStartDays, Mode=TwoWay}"
@@ -1016,41 +1066,42 @@
                         <StackPanel Margin="0,0,0,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="多久后放手" FontSize="11.5" FontWeight="Medium"
-                                           Foreground="{StaticResource Tx2}"/>
+                                           Foreground="{DynamicResource Tx2}"/>
                                 <TextBlock Text="{Binding BinText}" FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                                           Foreground="{DynamicResource Tx4}" HorizontalAlignment="Right"/>
                             </Grid>
                             <Slider x:Name="BinSlider" Style="{StaticResource PanelSlider}" Minimum="2" Maximum="180"
                                     Value="{Binding BinAfterDays, Mode=TwoWay}"
                                     Thumb.DragCompleted="OnDecayCommitted"/>
                         </StackPanel>
 
-                        <TextBlock FontSize="10" LineHeight="16.5" Foreground="#9a9aa0" TextWrapping="Wrap" Margin="0,0,0,10">
+                        <TextBlock FontSize="10" LineHeight="16.5" Foreground="{DynamicResource HintTx}" TextWrapping="Wrap" Margin="0,0,0,10">
                             保护期内 Wantdo 完全不衰减；超过「放手」天数就滑进 Paper Plane Bin（随时能捞回来）。<LineBreak/>
-                            Todo 永远不受这两个数字影响。<LineBreak/>
-                            点 ⚡ 可临时把这两个数字压缩 6000 倍来快速预览。
+                            Todo 永远不受这两个数字影响。
                         </TextBlock>
 
                         <StackPanel Visibility="{Binding ShowSeedRow, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="第一次用？" FontSize="11.5" FontWeight="Medium"
-                                       Foreground="{StaticResource Tx2}" Margin="0,0,0,6"/>
+                                       Foreground="{DynamicResource Tx2}" Margin="0,0,0,6"/>
                             <Button Style="{StaticResource GhostBtn}" Content="灌入演示数据"
                                     HorizontalAlignment="Left" Padding="12,6,12,6" Command="{Binding SeedCmd}"/>
-                            <TextBlock FontSize="10" LineHeight="16.5" Foreground="#9a9aa0" TextWrapping="Wrap"
+                            <TextBlock FontSize="10" LineHeight="16.5" Foreground="{DynamicResource HintTx}" TextWrapping="Wrap"
                                        Margin="0,6,0,0">
                                 只在还没有任何条目时出现。想先看看它长什么样、衰减怎么跑，点这个最快。
                             </TextBlock>
                         </StackPanel>
+                        </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
 
             <!-- ==== 底栏 -->
-            <Border Grid.Row="3" Padding="12,7,12,7" BorderBrush="{StaticResource Hair}"
+            <Border Grid.Row="3" Padding="12,7,12,7" BorderBrush="{DynamicResource Hair}"
                     BorderThickness="0,1,0,0"
                     Visibility="{Binding Collapsed, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                 <Grid>
-                    <TextBlock Text="{Binding Stats}" FontSize="10" Foreground="{StaticResource Tx4}"
+                    <TextBlock Text="{Binding Stats}" FontSize="10" Foreground="{DynamicResource Tx4}"
                                VerticalAlignment="Center"
                                Visibility="{Binding DockHintVisible, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"/>
                     <TextBlock Text="{Binding DockHint}" FontSize="10" Foreground="{StaticResource AccentDeep}"

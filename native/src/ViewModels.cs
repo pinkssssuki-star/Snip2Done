@@ -222,9 +222,17 @@ namespace RemeberEr
         public ImageSource BigImage { get { return Thumb; } }
     }
 
-    public class BinVm : ObservableObject
+    /// <summary>设置页里一个背景色选项（白 / 灰 / 黑）。</summary>
+    public class ThemeOptionVm : ObservableObject
     {
-        public string Id { get; set; }
+        public string Key { get; set; }
+        public string Name { get; set; }
+        bool _on;
+        public bool On { get { return _on; } set { Set(ref _on, value, "On"); } }
+    }
+
+    public class BinVm : ObservableObject
+    {        public string Id { get; set; }
         public string Caption { get; set; }
         public string RoomName { get; set; }
         public string ChipKind { get; set; }
@@ -308,6 +316,11 @@ namespace RemeberEr
             StartDemoCmd = new RelayCommand(StartDemo);
             StopDemoCmd = new RelayCommand(StopDemo);
             DismissDemoCmd = new RelayCommand(DismissDemo);
+            PickThemeCmd = new RelayCommand(p => PanelTheme = (string)p);
+
+            ThemeOptions = new ObservableCollection<ThemeOptionVm>();
+            foreach (var e in Palette.All)
+                ThemeOptions.Add(new ThemeOptionVm { Key = e.Key, Name = e.Name, On = e.Key == _panelTheme });
             SettingsCmd = new RelayCommand(() => { View = View == "set" ? "main" : "set"; OpacityPreview = null; });
             CollapseCmd = new RelayCommand(() => { if (CollapseRequested != null) CollapseRequested(); });
             ToggleTopmostCmd = new RelayCommand(ToggleTopmost);
@@ -684,12 +697,35 @@ namespace RemeberEr
         {
             get
             {
+                var c = Palette.Current.Panel;
                 var b = new SolidColorBrush(Color.FromArgb(
-                    (byte)Math.Round(_panelAlpha * 255), 255, 255, 255));
+                    (byte)Math.Round(_panelAlpha * 255), c.R, c.G, c.B));
                 b.Freeze();
                 return b;
             }
         }
+
+        // ---------------- 背景颜色 ----------------
+
+        /// <summary>设置页里那三个色块（白 / 灰 / 黑）。</summary>
+        public ObservableCollection<ThemeOptionVm> ThemeOptions { get; private set; }
+
+        string _panelTheme = "white";
+        public string PanelTheme
+        {
+            get { return _panelTheme; }
+            set
+            {
+                if (!Set(ref _panelTheme, value, "PanelTheme")) return;
+                _store.SetSetting("panelTheme", value);
+                Palette.Apply(value);
+                foreach (var o in ThemeOptions) o.On = (o.Key == value);
+                Raise("PanelBackground");   // 面板底色也换了
+                Program.Log("  背景颜色 -> " + Palette.Current.Name);
+            }
+        }
+
+        public RelayCommand PickThemeCmd { get; private set; }
 
         double _fadeStartDays = 7;        public double FadeStartDays
         {
@@ -969,6 +1005,15 @@ namespace RemeberEr
             if (aot != _alwaysOnTop) { _alwaysOnTop = aot; Raise("AlwaysOnTop"); }
             bool hcb = J.Bool(settings, "hideCollapseButton", false);
             if (hcb != _hideCollapseButton) { _hideCollapseButton = hcb; Raise("HideCollapseButton"); Raise("ShowCollapseButton"); }
+            string th = J.Str(settings, "panelTheme", "white");
+            if (th != _panelTheme || Palette.Current.Key != th)
+            {
+                _panelTheme = th;
+                Palette.Apply(th);
+                if (ThemeOptions != null)
+                    foreach (var o in ThemeOptions) o.On = (o.Key == th);
+                Raise("PanelTheme"); Raise("PanelBackground");
+            }
             bool settingsDirty = false;
             if (OpacityPreview == null)
             {

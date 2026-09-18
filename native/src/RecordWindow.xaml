@@ -45,7 +45,7 @@
         <Style x:Key="SecLbl" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{StaticResource Tx5}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Tx5}"/>
         </Style>
 
         <Style x:Key="FactK" TargetType="TextBlock">
@@ -83,7 +83,7 @@
                         <TextBlock x:Name="TagText" FontSize="10" FontWeight="Bold"/>
                     </Border>
                     <TextBlock Grid.Column="1" x:Name="TtlText" FontSize="12.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource Tx2}" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Tx2}" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
                     <Button Grid.Column="2" Content="✕" Width="26" Height="26"
                             Style="{StaticResource IconBtn}" ToolTip="关闭" Click="OnClose"/>
@@ -137,14 +137,14 @@
 
                         <Grid Margin="0,12,0,0">
                             <TextBlock Text="完成它之前，写点什么" Style="{StaticResource SecLbl}"/>
-                            <Border Height="1" Background="{StaticResource Hair}" VerticalAlignment="Center"
+                            <Border Height="1" Background="{DynamicResource Hair}" VerticalAlignment="Center"
                                     Margin="0,0,0,0" HorizontalAlignment="Right" Width="180"/>
                         </Grid>
                         <TextBox x:Name="ReflectionBox" Margin="0,8,0,0" Height="132"
                                  AcceptsReturn="True" TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto" Padding="10,9,10,9"
-                                 FontFamily="{StaticResource UiFont}" FontSize="12.5" Foreground="{StaticResource Tx1}"
-                                 CaretBrush="{StaticResource Tx1}" TextChanged="OnReflectionChanged">
+                                 FontFamily="{StaticResource UiFont}" FontSize="12.5" Foreground="{DynamicResource Tx1}"
+                                 CaretBrush="{DynamicResource Tx1}" TextChanged="OnReflectionChanged">
                             <TextBox.Template>
                                 <ControlTemplate TargetType="TextBox">
                                     <Border x:Name="b" CornerRadius="9" Background="#ffffff"
@@ -219,7 +219,7 @@
                                     </LinearGradientBrush>
                                 </Border.Background>
                                 <TextBlock x:Name="QuoteText" FontSize="12.5" LineHeight="21.9"
-                                           Foreground="{StaticResource Tx2}" TextWrapping="Wrap"/>
+                                           Foreground="{DynamicResource Tx2}" TextWrapping="Wrap"/>
                             </Border>
                         </StackPanel>
 
@@ -236,10 +236,10 @@
                                             Background="#07000000" BorderBrush="#0d000000" BorderThickness="1">
                                         <StackPanel>
                                             <TextBlock Text="{Binding K}" FontSize="9.5"
-                                                       Foreground="{StaticResource Tx5}"/>
+                                                       Foreground="{DynamicResource Tx5}"/>
                                             <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                                 <TextBlock Text="{Binding V}" FontSize="12.5" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource Tx1}"/>
+                                                           Foreground="{DynamicResource Tx1}"/>
                                                 <TextBlock Text="{Binding Small}" FontSize="10" Margin="3,0,0,0"
                                                            Foreground="#8a8a8e" VerticalAlignment="Bottom"/>
                                             </StackPanel>
@@ -261,7 +261,7 @@
                                 Visibility="Collapsed">
                         <Button Style="{StaticResource RecBtn}" Background="#ffffff" BorderBrush="#1c000000"
                                 BorderThickness="1" Click="OnCancel" Margin="0,0,8,0">
-                            <TextBlock Text="取消" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Tx3}"/>
+                            <TextBlock Text="取消" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Tx3}"/>
                         </Button>
                         <Button Style="{StaticResource RecBtn}" Click="OnCommit">
                             <Button.Background>
@@ -277,7 +277,7 @@
                     <Button x:Name="ViewFoot" Style="{StaticResource RecBtn}" HorizontalAlignment="Right"
                             Background="#ffffff" BorderBrush="#1c000000" BorderThickness="1"
                             Visibility="Collapsed" Click="OnClose">
-                        <TextBlock Text="关闭" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Tx3}"/>
+                        <TextBlock Text="关闭" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Tx3}"/>
                     </Button>
                 </Grid>
             </Border>

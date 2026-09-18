@@ -16,8 +16,8 @@
             <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
-            <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Tx1}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource Tx1}"/>
             <Setter Property="Padding" Value="7,5,7,5"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
@@ -45,8 +45,8 @@
         <Style x:Key="NoteBoxStyle" TargetType="TextBox">
             <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
             <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
-            <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Tx1}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource Tx1}"/>
             <Setter Property="Padding" Value="9,7,9,7"/>
             <Setter Property="AcceptsReturn" Value="True"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -128,7 +128,7 @@
                                                    Foreground="{StaticResource AccentDeep}"
                                                    HorizontalAlignment="Center"/>
                                         <TextBlock Text="补一张截图" FontSize="10.5" Margin="0,2,0,0"
-                                                   Foreground="{StaticResource Tx4}"
+                                                   Foreground="{DynamicResource Tx4}"
                                                    HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
@@ -188,7 +188,7 @@
             <!-- ============================================ 备注 -->
             <StackPanel Grid.Row="3" Margin="14,6,14,13">
                 <Grid Margin="0,0,0,5">
-                    <TextBlock Text="备注" FontSize="10" Foreground="{StaticResource Tx5}"/>
+                    <TextBlock Text="备注" FontSize="10" Foreground="{DynamicResource Tx5}"/>
                     <TextBlock x:Name="SavedText" Text="已保存" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource Green}" HorizontalAlignment="Right" Opacity="0"/>
                 </Grid>

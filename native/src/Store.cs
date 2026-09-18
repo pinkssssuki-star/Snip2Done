@@ -122,6 +122,8 @@ namespace RemeberEr
                 { "alwaysOnTop", true },
                 // 把顶栏的折叠按钮藏掉。有了侧边收起，折叠基本是多余的
                 { "hideCollapseButton", false },
+                // 面板背景色：white / gray / black
+                { "panelTheme", "white" },
             };
         }
 

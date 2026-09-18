@@ -72,7 +72,7 @@
                 </Image>
                 <StackPanel Grid.Column="1">
                     <TextBlock Text="这一张，是 Todo 还是 Wantdo？" FontSize="11.5" FontWeight="SemiBold"
-                               Foreground="{StaticResource Tx2}" Margin="0,0,0,3"/>
+                               Foreground="{DynamicResource Tx2}" Margin="0,0,0,3"/>
                     <TextBlock x:Name="SrcText" FontSize="11" LineHeight="14.8"
                                Foreground="#8a8a8e" TextWrapping="Wrap" MaxHeight="30" ClipToBounds="True"/>
                 </StackPanel>

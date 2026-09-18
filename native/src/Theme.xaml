@@ -15,13 +15,36 @@
     <local:RatioToPercent x:Key="RatioToPercent"/>
     <local:TagOn x:Key="TagOn"/>
 
-    <!-- 文字 -->
+    <!--
+        面板**自己**的颜色。刻意不加 po:Freeze —— Palette.Apply() 要在运行时改
+        这几个共享画笔的 Color；一冻就改不动，换主题会静默失效。
+    -->
     <SolidColorBrush x:Key="Tx1" Color="#1c1c1e"/>
     <SolidColorBrush x:Key="Tx2" Color="#2c2c2e"/>
     <SolidColorBrush x:Key="Tx3" Color="#7a7a80"/>
     <SolidColorBrush x:Key="Tx4" Color="#86868c"/>
     <SolidColorBrush x:Key="Tx5" Color="#a1a1a6"/>
     <SolidColorBrush x:Key="TxFaint" Color="#c4c4c9"/>
+    <!-- 设置页那种完全不透明的底：面板透明度拉满时，设置页的字还得看得见 -->
+    <SolidColorBrush x:Key="SurfaceBg" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="ChipBg" Color="#12000000"/>
+    <SolidColorBrush x:Key="HintTx" Color="#9a9aa0"/>
+
+    <!-- 卡片里的字：任何主题下都不变（设计原则第 5 条，卡片永远白底黑字） -->
+    <SolidColorBrush x:Key="Cx1" Color="#1c1c1e"/>
+    <SolidColorBrush x:Key="Cx2" Color="#2c2c2e"/>
+
+    <!-- 控件表面：这些也要跟着主题走，不然黑色主题下按钮会变成一块块白药丸 -->
+    <SolidColorBrush x:Key="BtnBg" Color="#b8ffffff"/>
+    <SolidColorBrush x:Key="BtnBgHover" Color="#ffffff"/>
+    <SolidColorBrush x:Key="BtnBorder" Color="#1a000000"/>
+    <SolidColorBrush x:Key="TabOnBg" Color="#ffffff"/>
+    <SolidColorBrush x:Key="InputBg" Color="#ffffff"/>
+    <SolidColorBrush x:Key="TrackBg" Color="#21000000"/>
+    <SolidColorBrush x:Key="ThumbBg" Color="#ffffff"/>
+    <SolidColorBrush x:Key="EmptyBg" Color="#80ffffff"/>
+    <SolidColorBrush x:Key="EmptyBorder" Color="#1f000000"/>
+    <SolidColorBrush x:Key="HoverBg" Color="#14000000"/>
     <SolidColorBrush x:Key="Accent" Color="#8b5cf6"/>
     <SolidColorBrush x:Key="AccentDeep" Color="#7c3aed"/>
     <SolidColorBrush x:Key="Green" Color="#10b981"/>
@@ -83,7 +106,7 @@
         <Setter Property="Height" Value="24"/>
         <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx4}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">
@@ -94,8 +117,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="#14000000"/>
-                            <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource HoverBg}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Tx1}"/>
                         </Trigger>
                         <!-- Tag=on：⚡ 演示加速 / ⚙ 设置页打开时的紫色高亮 -->
                         <Trigger Property="Tag" Value="on">
@@ -108,7 +131,7 @@
                                 <Condition Property="Tag" Value="danger"/>
                             </MultiTrigger.Conditions>
                             <Setter TargetName="b" Property="Background" Value="#29ef4444"/>
-                            <Setter Property="Foreground" Value="{StaticResource Red}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Red}"/>
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -124,7 +147,7 @@
     <Style x:Key="TabBtn" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="10.5"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx4}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Padding" Value="0,5,0,5"/>
         <Setter Property="Template">
@@ -136,12 +159,12 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Tx2}"/>
                         </Trigger>
                         <!-- 放在悬停之后：选中态要压过悬停 -->
                         <Trigger Property="Tag" Value="on">
-                            <Setter TargetName="b" Property="Background" Value="#ffffff"/>
-                            <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource TabOnBg}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Tx1}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -153,26 +176,26 @@
     <Style x:Key="GhostBtn" TargetType="Button">        <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx4}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Padding" Value="8,3,8,3"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="b" CornerRadius="7" Background="#b8ffffff"
-                            BorderBrush="#1a000000" BorderThickness="1"
+                    <Border x:Name="b" CornerRadius="7" Background="{DynamicResource BtnBg}"
+                            BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="#ffffff"/>
-                            <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource BtnBgHover}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Tx2}"/>
                         </Trigger>
                         <!-- Tag=danger：不可逆的操作（倒垃圾）确认态，红底白字 -->
                         <Trigger Property="Tag" Value="danger">
-                            <Setter TargetName="b" Property="Background" Value="{StaticResource Red}"/>
-                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Red}"/>
+                            <Setter TargetName="b" Property="Background" Value="{DynamicResource Red}"/>
+                            <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Red}"/>
                             <Setter Property="Foreground" Value="#ffffff"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
@@ -187,13 +210,13 @@
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx3}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="b" CornerRadius="7" Background="#ffffff"
-                            BorderBrush="#1c000000" BorderThickness="1" Padding="0,6,0,6">
+                    <Border x:Name="b" CornerRadius="7" Background="{DynamicResource BtnBg}"
+                            BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1" Padding="0,6,0,6">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -212,14 +235,14 @@
     <Style x:Key="QuickInput" TargetType="TextBox">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="12.5"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
-        <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx1}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource Tx1}"/>
         <Setter Property="Padding" Value="8,6,8,6"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
-                    <Border x:Name="b" CornerRadius="8" Background="#ffffff"
-                            BorderBrush="#21000000" BorderThickness="1"
+                    <Border x:Name="b" CornerRadius="8" Background="{DynamicResource InputBg}"
+                            BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
                             Padding="{TemplateBinding Padding}">
                         <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
                     </Border>
@@ -241,7 +264,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ProgressBar">
-                    <Border Background="#17000000" CornerRadius="2" ClipToBounds="True">
+                    <Border Background="{DynamicResource TrackBg}" CornerRadius="2" ClipToBounds="True">
                         <Grid>
                             <Rectangle x:Name="PART_Track"/>
                             <Rectangle x:Name="PART_Indicator" HorizontalAlignment="Left" RadiusX="2" RadiusY="2">
@@ -268,7 +291,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid VerticalAlignment="Center" Background="Transparent">
-                        <Border Height="4" CornerRadius="3" Background="#21000000" VerticalAlignment="Center"/>
+                        <Border Height="4" CornerRadius="3" Background="{DynamicResource TrackBg}" VerticalAlignment="Center"/>
                         <Track x:Name="PART_Track">
                             <Track.Thumb>
                                 <Thumb Width="14" Height="14" Cursor="Hand">
@@ -276,7 +299,7 @@
                                         <ControlTemplate TargetType="Thumb">
                                             <Grid>
                                                 <Ellipse Width="14" Height="14" Fill="{StaticResource Accent}"/>
-                                                <Ellipse Width="14" Height="14" Stroke="#ffffff" StrokeThickness="2"/>
+                                                <Ellipse Width="14" Height="14" Stroke="{DynamicResource ThumbBg}" StrokeThickness="2"/>
                                             </Grid>
                                         </ControlTemplate>
                                     </Thumb.Template>
@@ -304,8 +327,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Grid Background="Transparent">
-                        <Border x:Name="track" CornerRadius="12" Background="#26000000"/>
-                        <Border x:Name="knob" Width="18" Height="18" CornerRadius="9" Background="#FFFFFF"
+                        <Border x:Name="track" CornerRadius="12" Background="{DynamicResource TrackBg}"/>
+                        <Border x:Name="knob" Width="18" Height="18" CornerRadius="9" Background="{DynamicResource ThumbBg}"
                                 HorizontalAlignment="Left" Margin="3,0,0,0">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.3" Color="#000000"/>
@@ -332,7 +355,7 @@
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="10.5"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx4}"/>
         <Setter Property="TextBlock.LineHeight" Value="14"/>
     </Style>
 
@@ -340,14 +363,14 @@
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Tx3}"/>
     </Style>
 
     <!-- 空态（.empty） -->
     <Style x:Key="EmptyBox" TargetType="Border">
         <Setter Property="CornerRadius" Value="10"/>
-        <Setter Property="Background" Value="#80ffffff"/>
-        <Setter Property="BorderBrush" Value="#1f000000"/>
+        <Setter Property="Background" Value="{DynamicResource EmptyBg}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource EmptyBorder}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="10"/>
     </Style>

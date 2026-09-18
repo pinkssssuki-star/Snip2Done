@@ -155,6 +155,54 @@ namespace RemeberEr
             else if (Program.Flow == "accel") ScheduleFlowAccel();
             else if (Program.Flow == "multi") ScheduleFlowMulti();
             else if (Program.Flow == "add") ScheduleFlowAdd();
+            else if (Program.Flow == "theme") ScheduleFlowTheme();
+        }
+
+        /// <summary>
+        /// 验收背景颜色 + 设置页不透明底。
+        /// 关键是把透明度拉到 30%（最透）—— 那正是原来灰字糊在桌面上的极端情况。
+        /// </summary>
+        void ScheduleFlowTheme()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                _vm.View = "set";
+                _vm.OpacityPercent = 30;
+                var b = Application.Current.Resources["Tx2"] as SolidColorBrush;
+                Program.Log("  透明度拉到 " + _vm.OpacityText
+                    + "，Tx2 画笔 IsFrozen=" + (b == null ? "null" : b.IsFrozen.ToString()));
+                Shot("theme-white");
+            }));
+
+            foreach (var key in new[] { "gray", "black" })
+            {
+                string k = key;
+                steps.Add(Tuple.Create<int, Action>(600, () =>
+                {
+                    _vm.PanelTheme = k;
+                    var tb = Application.Current.Resources["Tx2"] as SolidColorBrush;
+                    var sb = Application.Current.Resources["SurfaceBg"] as SolidColorBrush;
+                    Program.Log(string.Format("  切到「{0}」：Tx2 实际色 = {1}，面板底色 = {2}，SurfaceBg = {3}",
+                        Palette.Current.Name,
+                        tb == null ? "?" : tb.Color.ToString(),
+                        Palette.Current.Panel.ToString(),
+                        sb == null ? "?" : sb.Color.ToString()));
+                    Shot("theme-" + k);
+                }));
+            }
+
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                _vm.PanelTheme = "white";
+                Program.Log("  切回「白」，三个选项的选中状态 = " +
+                    _vm.ThemeOptions[0].Name + "=" + _vm.ThemeOptions[0].On + " / " +
+                    _vm.ThemeOptions[1].Name + "=" + _vm.ThemeOptions[1].On + " / " +
+                    _vm.ThemeOptions[2].Name + "=" + _vm.ThemeOptions[2].On);
+                Program.Log("  主题流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>
