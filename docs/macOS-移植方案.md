@@ -163,7 +163,7 @@ macOS 是**按应用签名**授予这两项权限的，不是按脚本：
 | **P3** | 截图流程 | ✔ 抓屏 / 全局热键 / 窗口探测 / 框选层 / 归类窗 / 落盘 / 面板刷新全部接通；**链路已用合成位图免权限验证**；仅「从真实屏幕抓图」需待授权 |
 | **P4** | 面板交互 | ✔ 面板四视图 + 缩略图缓存 + 详情窗 + 完成记录窗 + 悬停预览窗全部完成；**6 个窗口全覆盖** |
 | **P5** | 衰减与预览 | ✔ Wantdo 衰减（数据/文案/生命条）+ `Decay` 现算 + 预览窗已完成；**待补**：长悬停触发、贴边隐藏 |
-| **P6** | 打磨与打包 | 🔄 权限引导已实现（`--request-perms` + 全黑检测 + 明确报错）；**待补**：`.app` 打包、内存/启动基准复测 |
+| **P6** | 打磨与打包 | 🔄 `.app` 打包已实现（`build-app.sh` + `Info.plist` + 重新 ad-hoc 签名）；权限引导已实现；**待补**：内存实测（沙箱里 `ps` 被禁，需在正常终端量） |
 
 ### 端到端验证（不需要权限）
 
@@ -217,6 +217,9 @@ GUI 程序出错常常只表现为「窗口一闪没了」，日志里什么都�
 | `./run.sh --dumpsnap=out.json` | 数据层读取与序列化 | 无 |
 | `./run.sh --seed` | 往 `--data=` 指定目录灌演示数据 | 无 |
 | `./run.sh --vm-selftest` | JSON → ViewModel 的分组/排序/文案/空值回落 | 无 |
+| `./run.sh --flow=chain` | **整条采集链路**（框选→归类→落盘→刷新），喂合成位图 | 无 |
+| `./run.sh --dock-test` | 贴边隐藏的四边几何与「抓手是否在屏内」 | 无 |
+| `./run.sh --shot-*=<png>` | 各窗口渲染成 PNG（面板/归类窗/详情窗/记录窗） | 无 |
 | `./run.sh --grab=out.png` | 抓屏是否拿到正确内容（含全黑检测） | 屏幕录制 |
 | `./run.sh --overlay-test=out.png` | 框选层渲染、坐标换算、选区几何 | 屏幕录制 |
 | `./run.sh --request-perms` | 申请屏幕录制权限（授权后须重启进程） | — |
@@ -255,6 +258,58 @@ GUI 程序出错常常只表现为「窗口一闪没了」，日志里什么都�
 | 预览窗纵向钳制 | `SystemParameters.WorkArea`（主屏） | 光标所在屏的工作区 | 多屏下主屏的工作区是错的 |
 | 截图窗尺寸 | 每块屏一层，各铺自己那块屏 | 一条窗口跨虚拟屏 | 换来**支持跨屏框选**（原版做不到）；代价是副屏内容会被等比拉伸 |
 | 通知/弹窗 | 无 | 无 | 设计原则第 3 条「不弹窗」，移植时没有引入任何新的打断式 UI |
+
+## 7.6 打包与基准
+
+```sh
+native/mac/build-app.sh                 # -> dist/记忆面板.app（29 MB，依赖系统 .NET 运行时）
+native/mac/build-app.sh --self-contained # 把 .NET 运行时一起打进去，换机器也能跑
+```
+
+**为什么必须打成 `.app`**（而不是发裸可执行文件）：
+
+1. 系统权限（屏幕录制 / 辅助功能）是按 **bundle 身份**授予并记录的。
+   跑裸可执行文件时授权会落到「终端」上：换个终端就要重新授权，
+   而且系统设置里显示的名字是「终端」，用户认不出那是谁。
+2. `LSUIElement=true` 让这个常驻工具不出现在 Dock 里，裸可执行文件做不到。
+
+`Info.plist` 里这两条 **必须** 有，缺了系统会直接拒绝、连弹窗都不给：
+
+- `NSScreenCaptureUsageDescription` —— 抓屏
+- `NSAppleEventsUsageDescription` —— 读「鼠标下窗口标题」
+
+打包脚本里两件容易被忽略的事：
+
+- **版本号一致性校验**：`Info.plist` 的 `CFBundleVersion` 必须等于 `Program.cs` 里的
+  `Version` 常量，不同就直接拒绝打包（原版 `pack.ps1` 也是从代码读版本，避免两处各写一份）。
+- **重新 ad-hoc 签名整个 bundle**：.NET 的 apphost 自带签名，但 `Identifier=apphost`
+  且只覆盖那一个可执行文件，会让 TCC 记录的身份与 `CFBundleIdentifier` 对不上。
+  重签后 `Identifier=com.remeberer.mac`。
+
+### 体积与基准（本机实测）
+
+| 指标 | Electron 版 | WPF 原生版 | **mac 版** |
+|---|---|---|---|
+| 分发体积 | 98.5 MB | 0.14 MB | **29 MB**（依赖系统 .NET 运行时） |
+| 进程数 | 5 | 1 | **1** |
+| 面板首帧 | 330–410 ms | ~630 ms | **583 ms** |
+
+mac 版装不进「0.14 MB」的原因是平台决定的：Windows 版小是因为 .NET Framework 4.8
+系统自带，而 macOS 没有内建 .NET。选 Avalonia 而不是 Electron，省的正是
+「分发 98.5 MB、跑起来 5 个进程」那一大块 —— 这一条目的达到了。
+
+内存需要你在**正常终端**里量（本项目的沙箱禁止 `ps`，报 Operation not permitted）：
+
+```sh
+cd native/mac && ./run.sh &
+ps -o pid,rss,comm -p $(pgrep -f RemeberEr.Mac | head -1)
+```
+
+启动分段可以直接从日志读（每次启动都会重开一份）：
+
+```sh
+grep -E "已构造|已显示" ~/Library/"Application Support"/remeber-er/native.log
+```
 
 ## 8. 已知风险
 
