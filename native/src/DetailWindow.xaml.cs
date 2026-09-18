@@ -115,7 +115,7 @@ namespace RemeberEr
                 // 直接从原始条目取 life 会永远拿到 0 —— 所以这里按同一套 Decay 现算。
                 var cfg = Decay.CfgFor(_store.Settings);
                 double scale = Decay.TimeScaleFor(_store.Settings);
-                double life = Decay.LifeFor(_item, Store.Now(), cfg, scale);
+                double life = Decay.LifeFor(_item, Store.Now(), cfg, scale, Decay.DemoStartedAtFor(_store.Settings));
                 int pct = (int)Math.Round(Math.Min(1, Math.Max(0, life)) * 100);
                 LifeText.Text = pct + "%　（被碰过 " + (long)J.Num(_item, "touchCount", 0) + " 次）";
             }

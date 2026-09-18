@@ -35,6 +35,8 @@ namespace RemeberEr
         RecordWindow _record;
         ChooserWindow _chooser;
         DispatcherTimer _hoverTimer;
+        /// <summary>演示加速的节拍器（每秒一次，只在演示中真正干活）。</summary>
+        DispatcherTimer _demoTick;
         string _hoverId;
         bool _collapsed;
         bool _closing;
@@ -97,6 +99,13 @@ namespace RemeberEr
             MouseEnter += (s, e) => { if (_docked) RevealDock(true); };
             MouseLeave += (s, e) => { if (_docked) RevealDock(false); };
 
+            // 演示加速的节拍器 —— 每秒重算一次，磁贴才会在眼前真的褪色。
+            // 以前没有任何周期性刷新，所以那个 ⚡ 打开之后画面上什么都不动。
+            // 只在演示中才跑，平时不占 CPU。
+            _demoTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _demoTick.Tick += (s, e) => { _vm.TickDemo(); };
+            _demoTick.Start();
+
             if (Program.StartView != null) _vm.View = Program.StartView;   // 截图用的视图开关
 
             var wa = SystemParameters.WorkArea;
@@ -140,6 +149,49 @@ namespace RemeberEr
             else if (Program.Flow == "ui") ScheduleFlowUi();
             else if (Program.Flow == "trash") ScheduleFlowTrash();
             else if (Program.Flow == "pos") ScheduleFlowPos();
+            else if (Program.Flow == "accel") ScheduleFlowAccel();
+        }
+
+        /// <summary>
+        /// 验收演示加速：每秒记一次「还剩几条念想 / 纸篓里有几条 / 透明度」，
+        /// 确认它是**慢慢褪色**而不是点下去一次性清空，并且跑完会出标语。
+        /// </summary>
+        void ScheduleFlowAccel()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Program.Log(string.Format("  开始前：Wantdo {0} 条，纸篓 {1} 条",
+                    _vm.NWant, _vm.NBin));
+                Shot("accel-00");
+                _vm.StartDemo();
+            }));
+
+            int last = 0;
+            for (int sec = 5; sec <= 90; sec += 5)
+            {
+                int delay = (sec - last) * 1000;
+                last = sec;
+                int at = sec;
+                steps.Add(Tuple.Create<int, Action>(delay, () =>
+                {
+                    double minOp = 1.0;
+                    foreach (var w in _vm.Wants) if (w.Opacity < minOp) minOp = w.Opacity;
+                    Program.Log(string.Format(
+                        "    t={0,2}s  念想 {1} 条（最淡 {2:0.00}）· 纸篓 {3} 条 · 演示中={4} 已完成={5}",
+                        at, _vm.NWant, minOp, _vm.NBin, _vm.DemoOn, _vm.DemoFinished));
+                    if (at == 20) Shot("accel-20");
+                    if (at == 40) Shot("accel-40");
+                }));
+            }
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                Program.Log("  横幅文字 = " + _vm.DemoBannerText);
+                Shot("accel-done");
+                Program.Log("  演示加速流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         string Pos()

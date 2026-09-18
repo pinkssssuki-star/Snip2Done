@@ -431,18 +431,6 @@
                                 Command="{Binding SnipCmd}"/>
                         <Button Style="{StaticResource IconBtn}" Content="＋" ToolTip="手动记一笔"
                                 Command="{Binding ToggleQuickCmd}"/>
-                        <Button Content="⚡"
-                                ToolTip="演示加速：约 5 分钟跑完一次完整淡出" Command="{Binding DemoToggleCmd}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DemoOn}" Value="True">
-                                            <Setter Property="Tag" Value="on"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                         <Button Content="⚙" ToolTip="设置"
                                 Command="{Binding SettingsCmd}">
                             <Button.Style>
@@ -519,6 +507,7 @@
                         <RowDefinition Height="208*"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="120*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- ==== Todo ==== -->
@@ -610,9 +599,53 @@
                             </Grid>
                         </ScrollViewer>
                     </Grid>
-                </Grid>
 
-                <!-- ============================================ Paper Plane Bin -->
+                    <!-- ==== 演示加速横幅：只在演示中 / 刚演完时出现 ==== -->
+                    <Border Grid.Row="3" CornerRadius="9" Padding="10,9,10,9" Margin="0,8,0,0"
+                            BorderThickness="1"
+                            Visibility="{Binding ShowDemoBanner, Converter={StaticResource BoolToVis}}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#16f59e0b"/>
+                                <Setter Property="BorderBrush" Value="#33f59e0b"/>
+                                <Style.Triggers>
+                                    <!-- 演完了换成紫色：橙色是「正在发生」，紫色是「说完了」 -->
+                                    <DataTrigger Binding="{Binding DemoFinished}" Value="True">
+                                        <Setter Property="Background" Value="#168b5cf6"/>
+                                        <Setter Property="BorderBrush" Value="#338b5cf6"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding DemoBannerText}" FontSize="10.5"
+                                       LineHeight="16" TextWrapping="Wrap" VerticalAlignment="Center"
+                                       Foreground="{StaticResource Tx2}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="1" Content="停下" VerticalAlignment="Center"
+                                    Command="{Binding StopDemoCmd}"
+                                    Visibility="{Binding DemoOn, Converter={StaticResource BoolToVis}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                        <Setter Property="Padding" Value="9,3,9,3"/>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Grid.Column="1" Content="知道了" VerticalAlignment="Center"
+                                    Command="{Binding DismissDemoCmd}"
+                                    Visibility="{Binding DemoFinished, Converter={StaticResource BoolToVis}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                        <Setter Property="Padding" Value="9,3,9,3"/>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
                 <Grid Visibility="{Binding IsBinView, Converter={StaticResource BoolToVis}}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -910,6 +943,25 @@
                                           IsChecked="{Binding HideCollapseButton, Mode=TwoWay}"/>
                         </Grid>
 
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Text="演示加速" FontSize="11.5" FontWeight="Medium"
+                                       Foreground="{StaticResource Tx2}"/>
+                            <TextBlock Text="想知道「不管它」最后会怎样，可以看一次。走完约一分钟，之后这些念想可以随便捡回来。"
+                                       FontSize="10" Foreground="#9a9aa0" Margin="0,4,0,6"
+                                       TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left"/>
+                            <Button HorizontalAlignment="Left" Padding="12,6,12,6"
+                                    Command="{Binding StartDemoCmd}"
+                                    Content="试试让时间以 30000 倍流逝~">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Setter Property="Padding" Value="12,6,12,6"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AccentDeep}"/>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+
                         <StackPanel Margin="0,0,0,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="面板透明度" FontSize="11.5" FontWeight="Medium"
@@ -978,10 +1030,7 @@
                     <TextBlock Text="{Binding DockHint}" FontSize="10" Foreground="{StaticResource AccentDeep}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                Visibility="{Binding DockHintVisible, Converter={StaticResource BoolToVis}}"/>
-                    <TextBlock Text="⚡ 演示加速中" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentDeep}" HorizontalAlignment="Right"
-                               VerticalAlignment="Center"
-                               Visibility="{Binding DemoOn, Converter={StaticResource BoolToVis}}"/>
+                    <!-- 演示状态不在这里提示了：主视图底部有一条专门的横幅，比这行小字清楚得多 -->
                 </Grid>
             </Border>
         </Grid>

@@ -11,7 +11,11 @@ namespace RemeberEr
     public static class Decay
     {
         public const long DAY = 24L * 60 * 60 * 1000;
-        public const double DEMO_TIME_SCALE = 6000.0;
+        /// <summary>
+        /// 演示加速的倍率。挑 30000 是为了让一次完整演示落在「一分钟」这个量级：
+        /// 保护期 7 天 ÷ 30000 ≈ 20 秒开始变淡，21 天 ÷ 30000 ≈ 60 秒掉进纸篓。
+        /// </summary>
+        public const double DEMO_TIME_SCALE = 30000.0;
 
         public static Dictionary<string, object> DefaultCfg()
         {
@@ -38,14 +42,34 @@ namespace RemeberEr
             return J.Bool(settings, "demoFastDecay", false) ? DEMO_TIME_SCALE : 1.0;
         }
 
-        public static double ElapsedDays(double lastTouchedAt, double now, double scale)
+        /// <summary>演示是哪一刻开始的（真实时间戳）。没在演示就是 0。</summary>
+        public static double DemoStartedAtFor(Dictionary<string, object> settings)
         {
-            return ((now - lastTouchedAt) * scale) / DAY;
+            return J.Num(settings, "demoStartedAt", 0);
         }
 
-        public static double OpacityFor(Dictionary<string, object> it, double now, Dictionary<string, object> cfg, double scale)
+        /// <summary>
+        /// 生效年龄（天）。
+        ///
+        /// scale > 1 时**不能直接拿总时长去乘** —— 那样一条一小时前放下的 Wantdo
+        /// 会在演示开始的那一瞬间变成 30000 倍年龄（一小时 → 3.4 年），第一次扫描
+        /// 就被塞进纸篓。看到的不是「慢慢变淡」，是一次性清空，演示根本没得看。
+        ///
+        /// 正确做法：演示**开始之前**积累的年龄照旧，只把**开始之后**流逝的时间加速。
+        /// 于是点下去的那一刻画面不变，接下来才肉眼可见地开始褪色。
+        /// </summary>
+        public static double ElapsedDays(double lastTouchedAt, double now, double scale, double demoStartedAt)
         {
-            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale);
+            if (scale <= 1 || demoStartedAt <= 0) return (now - lastTouchedAt) / DAY;
+            double before = Math.Max(0, demoStartedAt - lastTouchedAt);
+            double during = Math.Max(0, now - demoStartedAt);
+            return (before + during * scale) / DAY;
+        }
+
+        public static double OpacityFor(Dictionary<string, object> it, double now,
+                                        Dictionary<string, object> cfg, double scale, double demoStartedAt)
+        {
+            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale, demoStartedAt);
             double start = J.Num(cfg, "fadeStartDays", 7);
             double end = J.Num(cfg, "fadeEndDays", 21);
             double min = J.Num(cfg, "minOpacity", 0.22);
@@ -55,23 +79,27 @@ namespace RemeberEr
             return 1 - t * (1 - min);
         }
 
-        public static bool ShouldBin(Dictionary<string, object> it, double now, Dictionary<string, object> cfg, double scale)
+        public static bool ShouldBin(Dictionary<string, object> it, double now,
+                                     Dictionary<string, object> cfg, double scale, double demoStartedAt)
         {
-            return ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale) >= J.Num(cfg, "binAfterDays", 21);
+            return ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale, demoStartedAt)
+                   >= J.Num(cfg, "binAfterDays", 21);
         }
 
-        public static double LifeFor(Dictionary<string, object> it, double now, Dictionary<string, object> cfg, double scale)
+        public static double LifeFor(Dictionary<string, object> it, double now,
+                                     Dictionary<string, object> cfg, double scale, double demoStartedAt)
         {
-            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale);
+            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale, demoStartedAt);
             double bin = J.Num(cfg, "binAfterDays", 21);
             if (d <= 0) return 1;
             if (d >= bin) return 0;
             return 1 - d / bin;
         }
 
-        public static double DaysLeftFor(Dictionary<string, object> it, double now, Dictionary<string, object> cfg, double scale)
+        public static double DaysLeftFor(Dictionary<string, object> it, double now,
+                                         Dictionary<string, object> cfg, double scale, double demoStartedAt)
         {
-            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale);
+            double d = ElapsedDays(J.Num(it, "lastTouchedAt", 0), now, scale, demoStartedAt);
             return Math.Max(0, J.Num(cfg, "binAfterDays", 21) - d);
         }
     }
@@ -124,9 +152,20 @@ namespace RemeberEr
         /// <summary>比对用：把「现在」钉死，让 C# 和 JS 两个实现能在同一时刻求值。</summary>
         public static long? NowOverride;
 
+
         public static long Now()
         {
             return NowOverride ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        /// <summary>
+        /// **真实**墙上时间，不受 --now= 钉死影响。
+        /// 演示的起跑时刻必须用这个：用 Now() 的话，--now= 一开就永远追不上，
+        /// 演示会瞬间跑完或者永远不动。
+        /// </summary>
+        public static long RealNow()
+        {
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         static Dictionary<string, object> NewFields()
@@ -413,13 +452,14 @@ namespace RemeberEr
         {
             var cfg = Decay.CfgFor(Settings);
             double scale = Decay.TimeScaleFor(Settings);
+            double demoStart = Decay.DemoStartedAtFor(Settings);
             double now = Now();
             int binned = 0;
             foreach (var o in Items)
             {
                 var it = J.Obj(o);
                 if (J.Str(it, "room", "") != "want" || J.Str(it, "state", "") != "active") continue;
-                if (Decay.ShouldBin(it, now, cfg, scale))
+                if (Decay.ShouldBin(it, now, cfg, scale, demoStart))
                 {
                     it["state"] = "binned";
                     it["binnedAt"] = (double)now;
@@ -436,6 +476,7 @@ namespace RemeberEr
             Sweep();
             var cfg = Decay.CfgFor(Settings);
             double scale = Decay.TimeScaleFor(Settings);
+            double demoStart = Decay.DemoStartedAtFor(Settings);
             double now = Now();
 
             var items = new List<object>();
@@ -457,9 +498,9 @@ namespace RemeberEr
                 var outItem = new Dictionary<string, object>();
                 foreach (var kv in it) outItem[kv.Key] = kv.Value;
 
-                outItem["opacity"] = isWant && isActive ? Decay.OpacityFor(it, now, cfg, scale) : 1.0;
-                outItem["life"] = isWant && isActive ? Decay.LifeFor(it, now, cfg, scale) : 1.0;
-                outItem["daysLeft"] = isWant && isActive ? (object)Decay.DaysLeftFor(it, now, cfg, scale) : null;
+                outItem["opacity"] = isWant && isActive ? Decay.OpacityFor(it, now, cfg, scale, demoStart) : 1.0;
+                outItem["life"] = isWant && isActive ? Decay.LifeFor(it, now, cfg, scale, demoStart) : 1.0;
+                outItem["daysLeft"] = isWant && isActive ? (object)Decay.DaysLeftFor(it, now, cfg, scale, demoStart) : null;
 
                 object dueAt = J.Get(it, "dueAt");
                 outItem["overdue"] = J.Str(it, "room", "") == "todo" && isActive && dueAt is double && (double)dueAt < now;

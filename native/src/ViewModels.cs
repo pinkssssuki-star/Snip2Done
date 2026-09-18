@@ -305,6 +305,9 @@ namespace RemeberEr
             SnipCmd = new RelayCommand(() => { if (SnipRequested != null) SnipRequested(); });
             ToggleQuickCmd = new RelayCommand(ToggleQuick);
             DemoToggleCmd = new RelayCommand(ToggleDemo);
+            StartDemoCmd = new RelayCommand(StartDemo);
+            StopDemoCmd = new RelayCommand(StopDemo);
+            DismissDemoCmd = new RelayCommand(DismissDemo);
             SettingsCmd = new RelayCommand(() => { View = View == "set" ? "main" : "set"; OpacityPreview = null; });
             CollapseCmd = new RelayCommand(() => { if (CollapseRequested != null) CollapseRequested(); });
             ToggleTopmostCmd = new RelayCommand(ToggleTopmost);
@@ -335,6 +338,9 @@ namespace RemeberEr
         public RelayCommand SnipCmd { get; private set; }
         public RelayCommand ToggleQuickCmd { get; private set; }
         public RelayCommand DemoToggleCmd { get; private set; }
+        public RelayCommand StartDemoCmd { get; private set; }
+        public RelayCommand StopDemoCmd { get; private set; }
+        public RelayCommand DismissDemoCmd { get; private set; }
         public RelayCommand SettingsCmd { get; private set; }
         public RelayCommand CollapseCmd { get; private set; }
         public RelayCommand ToggleTopmostCmd { get; private set; }
@@ -729,8 +735,112 @@ namespace RemeberEr
 
         public void ToggleDemo()
         {
-            _store.SetSetting("demoFastDecay", !_demoOn);
+            if (_demoOn) StopDemo(); else StartDemo();
+        }
+
+        // ---------------- 演示加速 ----------------
+        //
+        // 「试试让时间以 N 倍流逝」是一次**有始有终的演示**，不是个开关：
+        // 点一下开始，画面每秒重算一次（看得到磁贴真的在褪色），
+        // 等所有还在的 Wantdo 都掉进纸篓，就自动结束并留一句话。
+
+        public const string DemoSlogan = "希望梦想不再褪色，就好好注意它噢~";
+
+        /// <summary>演示正常跑完了（不是被手动停下的）。</summary>
+        bool _demoFinished;
+        public bool DemoFinished
+        {
+            get { return _demoFinished; }
+            set
+            {
+                if (!Set(ref _demoFinished, value, "DemoFinished")) return;
+                Raise("ShowDemoBanner"); Raise("DemoBannerText");
+            }
+        }
+
+        /// <summary>开演的时候还剩几条念想 —— 用来判断「跑完了」。</summary>
+        int _demoWantsAtStart;
+
+        public bool ShowDemoBanner { get { return _demoOn || _demoFinished; } }
+
+        public string DemoBannerText
+        {
+            get
+            {
+                if (_demoFinished) return DemoSlogan;
+                if (NDemoLeft <= 0) return string.Format("时间正以 {0} 倍流逝…", (int)Decay.DEMO_TIME_SCALE);
+                return string.Format("时间正以 {0} 倍流逝 · 还有 {1} 个念想没被碰过",
+                    (int)Decay.DEMO_TIME_SCALE, NDemoLeft);
+            }
+        }
+
+        /// <summary>演示中「还在的 Wantdo」有几条。</summary>
+        int _nDemoLeft;
+        public int NDemoLeft
+        {
+            get { return _nDemoLeft; }
+            set { if (Set(ref _nDemoLeft, value, "NDemoLeft")) Raise("DemoBannerText"); }
+        }
+
+        public void StartDemo()
+        {
+            _demoFinished = false;
+            _demoWantsAtStart = NWant;
+            // 记下起跑时刻：倍率只作用于**这一刻之后**流逝的时间，
+            // 否则一条一小时前放下的念想会在点击瞬间就变成 3.4 年年龄，直接被清空。
+            _store.SetSetting("demoStartedAt", (double)Store.RealNow());
+            _store.SetSetting("demoFastDecay", true);
+            // 切回主视图 —— 站在设置页里是看不到磁贴在褪色的
+            View = "main";
             Refresh();
+            Program.Log(string.Format("  演示加速开始：倍率 {0}，当前想褪色的有 {1} 条",
+                (int)Decay.DEMO_TIME_SCALE, _demoWantsAtStart));
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+            if (_demoWantsAtStart == 0)
+            {
+                // 一条都没有就没什么可看的，直接把话说清楚
+                FinishDemo();
+            }
+        }
+
+        public void StopDemo()
+        {
+            _store.SetSetting("demoFastDecay", false);
+            _store.SetSetting("demoStartedAt", 0.0);   // 回到真实时间，年龄照旧算
+            _demoFinished = false;
+            Refresh();
+            Program.Log("  演示加速已停下");
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        void FinishDemo()
+        {
+            _store.SetSetting("demoFastDecay", false);
+            _store.SetSetting("demoStartedAt", 0.0);
+            _demoFinished = true;
+            Refresh();
+            Program.Log("  演示加速跑完 -> 出标语");
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        public void DismissDemo()
+        {
+            _demoFinished = false;
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        /// <summary>
+        /// 演示期间的节拍器（由窗口每秒调一次）。
+        ///
+        /// 这一步是必须的：Sweep() 挂在 Snapshot() 里，而 Snapshot() 只有 _vm.Refresh()
+        /// 才会跑，程序里**本来没有任何周期性刷新** —— 所以以前的 ⚡ 打开之后画面上
+        /// 什么都不会发生，得去点个别的东西才重算一次。
+        /// </summary>
+        public void TickDemo()
+        {
+            if (!_demoOn) return;
+            Refresh();
+            if (_demoWantsAtStart > 0 && NWant == 0) FinishDemo();
         }
 
         void ToggleQuick()
@@ -887,6 +997,7 @@ namespace RemeberEr
 
             NTodo = CountActive(todo);
             NWant = want.Count;
+            NDemoLeft = want.Count;   // 演示横幅上显示的「还有几条没被碰过」
             NBin = bin.Count;
             NDone = done.Count;
 
