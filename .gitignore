@@ -1,0 +1,25 @@
+# ---- 依赖与缓存 ----
+node_modules/
+.npm-cache/
+.electron-cache/
+.eb-cache/
+.localappdata/
+.userdata/
+.userdata-pkg/
+.userdata-guide/
+
+# ---- 运行期产物（截图、日志、测量数据）----
+.guide/
+.tmp/
+dist/
+*.log
+ui-*.ok
+
+# ---- 主版本：编译产物，以及从 NuGet 取来的参考程序集 ----
+native/out/
+native/obj/
+native/refasm/
+
+# ---- legacy：WebView2 SDK 是第三方解压产物 ----
+legacy/wpf-webview2/webview2/
+legacy/wpf-webview2/out/

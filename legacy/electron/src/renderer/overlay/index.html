@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'self'"
+    />
+    <title>框选</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100vw; height: 100vh; overflow: hidden;
+        background: transparent; cursor: crosshair;
+        user-select: none;
+        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      #shot {
+        position: fixed; inset: 0;
+        width: 100vw; height: 100vh;
+        object-fit: fill;
+        -webkit-user-drag: none;
+        pointer-events: none;
+      }
+      /* 未开始框选时的整体压暗 */
+      #veil {
+        position: fixed; inset: 0;
+        background: rgba(0, 0, 0, 0.42);
+        pointer-events: none;
+      }
+      #veil.off { display: none; }
+
+      /* 选区：靠超大 box-shadow 把周围压暗，省掉四块遮罩 */
+      #sel {
+        position: fixed;
+        display: none;
+        border: 1px solid rgba(255, 255, 255, 0.95);
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55), 0 0 12px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+      }
+      #sel.on { display: block; }
+
+      #size {
+        position: fixed;
+        display: none;
+        padding: 2px 7px;
+        border-radius: 5px;
+        background: rgba(20, 20, 22, 0.92);
+        color: #eee;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #size.on { display: block; }
+
+      #hint {
+        position: fixed;
+        left: 50%; top: 26px;
+        transform: translateX(-50%);
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgba(20, 20, 22, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #e8e8ea;
+        font-size: 12.5px;
+        letter-spacing: 0.2px;
+        pointer-events: none;
+        transition: opacity 0.18s;
+      }
+      #hint.off { opacity: 0; }
+      kbd {
+        padding: 1px 5px; margin: 0 2px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.13);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        font-family: inherit; font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="shot" alt="" />
+    <div id="veil"></div>
+    <div id="sel"></div>
+    <div id="size"></div>
+    <div id="hint">拖动框选要记住的东西 · <kbd>Esc</kbd> 取消</div>
+    <script src="overlay.js"></script>
+  </body>
+</html>

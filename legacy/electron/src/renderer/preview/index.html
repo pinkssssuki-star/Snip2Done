@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src appimg:; style-src 'unsafe-inline'; script-src 'self'"
+    />
+    <title>预览</title>
+    <style>
+      html, body {
+        margin: 0; width: 100%; height: 100%;
+        background: transparent; overflow: hidden;
+      }
+      /* 窗口尺寸就是按图片比例算好的，所以 100%/100% 正好贴合 */
+      #img {
+        width: 100%; height: 100%; display: block;
+        object-fit: contain;
+        border-radius: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.16);
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34);
+      }
+    </style>
+  </head>
+  <body>
+    <img id="img" alt="" />
+    <script src="preview.js"></script>
+  </body>
+</html>

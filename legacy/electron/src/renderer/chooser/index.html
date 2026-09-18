@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>放到哪</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100vw; height: 100vh;
+        background: transparent; overflow: hidden;
+        user-select: none;
+        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        color: #1c1c1e;
+      }
+      .card {
+        width: 100%; height: 100%;
+        display: flex; flex-direction: column; gap: 8px;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
+      }
+
+      .top { display: flex; gap: 10px; align-items: flex-start; flex: 1; min-height: 0; }
+      .thumb {
+        width: 64px; height: 46px; flex: none;
+        object-fit: cover; border-radius: 7px;
+        border: 1px solid rgba(0, 0, 0, 0.10);
+        background: #f4f4f5;
+      }
+      .meta { min-width: 0; flex: 1; }
+      .q { font-size: 11.5px; font-weight: 600; color: #2c2c2e; margin-bottom: 3px; }
+      .src {
+        font-size: 11px; line-height: 1.35; color: #8a8a8e;
+        overflow: hidden; display: -webkit-box;
+        -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        word-break: break-all;
+      }
+      .src .app { color: #a1a1a6; }
+
+      /* 标题：可不填；留空就用截图时的前台窗口标题 */
+      #title {
+        width: 100%; flex: none;
+        padding: 7px 9px;
+        border-radius: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.13);
+        background: #fff; color: #1c1c1e;
+        font-family: inherit; font-size: 12.5px;
+        outline: none; user-select: text;
+      }
+      #title::placeholder { color: #b8b8be; }
+      #title:focus { border-color: rgba(139, 92, 246, 0.65); }
+
+      .btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; flex: none; }
+      button {
+        appearance: none; border: 1px solid transparent; cursor: pointer;
+        border-radius: 9px; padding: 7px 4px 6px;
+        font-family: inherit; font-size: 12.5px; font-weight: 700;
+        color: #fff; line-height: 1.15;
+        transition: transform 0.08s, filter 0.12s;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+      }
+      button small { font-size: 9px; font-weight: 400; opacity: 0.82; letter-spacing: 0.3px; }
+      button:hover { filter: brightness(1.08); }
+      button:active { transform: scale(0.97); }
+      .b-today { background: linear-gradient(160deg, #f59e0b, #d97706); }
+      .b-soon  { background: linear-gradient(160deg, #3b82f6, #2563eb); }
+      .b-want  { background: linear-gradient(160deg, #a855f7, #7c3aed); }
+
+      .foot { display: flex; justify-content: space-between; align-items: center; flex: none; }
+      .hintk { font-size: 9.5px; color: #b0b0b6; }
+      kbd {
+        padding: 1px 4px; border-radius: 3px;
+        background: rgba(0, 0, 0, 0.06);
+        border: 1px solid rgba(0, 0, 0, 0.09);
+        font-family: inherit; font-size: 9px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="top">
+        <img id="thumb" class="thumb" alt="" />
+        <div class="meta">
+          <div class="q">这一张，是 Todo 还是 Wantdo？</div>
+          <div class="src" id="src">—</div>
+        </div>
+      </div>
+
+      <input id="title" type="text" placeholder="标题（可不填）" autocomplete="off" spellcheck="false" />
+
+      <div class="btns">
+        <button class="b-today" data-choice="today">Today<small>一天内</small></button>
+        <button class="b-soon" data-choice="soon">Soon<small>三天内</small></button>
+        <button class="b-want" data-choice="want">Wantdo<small>无期限</small></button>
+      </div>
+
+      <div class="foot">
+        <span class="hintk"><kbd>Esc</kbd> 算了 · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 直接选</span>
+        <span class="hintk">留空则用窗口标题</span>
+      </div>
+    </div>
+    <script src="chooser.js"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+# 换行统一：仓库里存 LF，各平台检出时按系统习惯
+* text=auto
+
+# 二进制，别做任何转换
+*.png binary
+*.jpg binary
+*.ico binary
+*.nupkg binary
+*.zip binary
+
+# PowerShell / cmd 脚本在 Windows 上有 BOM，别让 git 去动它们
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src appimg: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>看它一眼</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%; height: 100%;
+        background: transparent; overflow: hidden;
+        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        color: #1c1c1e; user-select: none;
+      }
+      .wrap {
+        width: 100%; height: 100%;
+        display: flex; flex-direction: column;
+        border-radius: 14px; overflow: hidden;
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(0, 0, 0, 0.09);
+        box-shadow: 0 16px 44px rgba(0, 0, 0, 0.3);
+      }
+
+      /* ---- 标题栏：房间标签 + 可编辑标题 + 关闭 ---- */
+      .hdr {
+        -webkit-app-region: drag;
+        flex: none;
+        display: flex; align-items: center; gap: 8px;
+        padding: 9px 10px 9px 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .tag {
+        flex: none;
+        font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+        padding: 2px 8px; border-radius: 6px;
+        background: rgba(139, 92, 246, 0.14); color: #6d28d9;
+        text-transform: uppercase;
+      }
+      #title {
+        -webkit-app-region: no-drag;
+        flex: 1; min-width: 0;
+        border: 1px solid transparent; border-radius: 7px;
+        background: transparent;
+        padding: 5px 7px;
+        font-family: inherit; font-size: 13px; font-weight: 600; color: #1c1c1e;
+        outline: none; user-select: text;
+        transition: background 0.12s, border-color 0.12s;
+      }
+      #title::placeholder { color: #bcbcc2; font-weight: 400; }
+      #title:hover { background: rgba(0, 0, 0, 0.04); }
+      #title:focus { background: #fff; border-color: rgba(139, 92, 246, 0.55); }
+      .hdr button {
+        -webkit-app-region: no-drag; flex: none;
+        appearance: none; border: 0; cursor: pointer;
+        width: 26px; height: 26px; border-radius: 7px;
+        background: transparent; color: #a1a1a6; font-size: 13px;
+        font-family: inherit;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.12s;
+      }
+      .hdr button:hover { background: rgba(0, 0, 0, 0.07); color: #1c1c1e; }
+      #close:hover { background: rgba(239, 68, 68, 0.14); color: #dc2626; }
+
+      /* ---- 图 ---- */
+      .stage {
+        flex: 1; min-height: 0;
+        display: flex; align-items: center; justify-content: center;
+        padding: 12px; background: #f4f4f5;
+      }
+      .stage img {
+        max-width: 100%; max-height: 100%;
+        border-radius: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.10);
+        object-fit: contain;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+      }
+      .stage .none { color: #a1a1a6; font-size: 12px; }
+
+      /* ---- 元信息 ---- */
+      .meta {
+        flex: none;
+        padding: 9px 14px 4px;
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .row { font-size: 11px; color: #8a8a8e; display: flex; gap: 7px; }
+      .row b { color: #3a3a3c; font-weight: 600; min-width: 42px; }
+
+      /* ---- 备注 ---- */
+      .note-wrap {
+        flex: none;
+        padding: 6px 14px 13px;
+        display: flex; flex-direction: column; gap: 5px;
+      }
+      .note-lbl { font-size: 10px; color: #a1a1a6; display: flex; justify-content: space-between; }
+      #note {
+        width: 100%; height: 58px; resize: none;
+        border: 1px solid rgba(0, 0, 0, 0.11); border-radius: 8px;
+        background: #fff; color: #1c1c1e;
+        padding: 7px 9px;
+        font-family: inherit; font-size: 11.5px; line-height: 1.5;
+        outline: none; user-select: text;
+      }
+      #note::placeholder { color: #bcbcc2; }
+      #note:focus { border-color: rgba(139, 92, 246, 0.55); }
+      .saved { color: #10b981; font-weight: 600; opacity: 0; transition: opacity 0.25s; }
+      .saved.on { opacity: 1; }
+
+      /* ---- 底部动作 ---- */
+      .acts {
+        flex: none;
+        display: flex; align-items: center; gap: 8px;
+        padding: 0 14px 13px;
+      }
+      .acts .sp { flex: 1; }
+      .hint2 { font-size: 10px; color: #b0b0b6; }
+      #get-done {
+        appearance: none; cursor: pointer; font-family: inherit;
+        border: 1px solid transparent; border-radius: 9px;
+        padding: 8px 15px;
+        font-size: 12px; font-weight: 700; color: #fff;
+        background: linear-gradient(160deg, #10b981, #059669);
+        box-shadow: 0 3px 12px rgba(16, 185, 129, 0.3);
+        transition: all 0.12s;
+      }
+      #get-done:hover { filter: brightness(1.08); }
+      #get-done:active { transform: scale(0.97); }
+      #get-done.hide { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hdr">
+        <span class="tag" id="tag">Wantdo</span>
+        <input id="title" type="text" placeholder="给这条起个名字…" autocomplete="off" spellcheck="false" />
+        <button id="close" title="关闭">✕</button>
+      </div>
+
+      <div class="stage" id="stage"></div>
+
+      <div class="meta">
+        <div class="row"><b>来源</b><span id="src">—</span></div>
+        <div class="row"><b>记于</b><span id="when">—</span></div>
+        <div class="row" id="life-row"><b>生命值</b><span id="life">—</span></div>
+      </div>
+
+      <div class="note-wrap">
+        <div class="note-lbl"><span>备注</span><span class="saved" id="saved">已保存</span></div>
+        <textarea id="note" placeholder="为什么截它？打算怎么处理？"></textarea>
+      </div>
+
+      <div class="acts">
+        <span class="hint2" id="done-hint"></span>
+        <span class="sp"></span>
+        <button id="get-done">✓ Get Done</button>
+      </div>
+    </div>
+    <script src="detail.js"></script>
+  </body>
+</html>

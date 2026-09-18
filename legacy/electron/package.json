@@ -1,0 +1,57 @@
+{
+  "name": "remeber-er",
+  "version": "0.5.0",
+  "private": true,
+  "description": "记忆面板 —— 常驻桌面的截图记忆索引：Todo / Wantdo 两个房间，Wantdo 靠注意力续命",
+  "main": "src/main/main.js",
+  "author": "RemeberEr",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "demo": "electron . --demo",
+    "test": "node test/decay.test.js",
+    "icon": "node scripts/make-icon.js",
+    "guide": "node scripts/make-guide.js",
+    "dist": "node scripts/make-icon.js && electron-builder --win --x64",
+    "dist:dir": "node scripts/make-icon.js && electron-builder --win --x64 --dir"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.remeberer.desktop",
+    "productName": "RemeberEr",
+    "copyright": "RemeberEr",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "RemeberEr-${version}-portable.exe"
+    },
+    "compression": "normal"
+  }
+}

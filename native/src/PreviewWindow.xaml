@@ -1,0 +1,13 @@
+<Window x:Class="RemeberEr.PreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        ShowActivated="False" Focusable="False" SizeToContent="WidthAndHeight">
+    <Border CornerRadius="10" Background="#ffffff" BorderBrush="#22000000" BorderThickness="1" Padding="4">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.28" Color="#000000"/>
+        </Border.Effect>
+        <Image x:Name="Pic" MaxWidth="440" MaxHeight="440" Stretch="Uniform"/>
+    </Border>
+</Window>

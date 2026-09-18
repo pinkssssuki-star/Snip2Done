@@ -1,0 +1,111 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    纯原生 WPF 版（不用 WebView2）。
+    经典 csproj 而不是 SDK 风格：这台机器没有 .NET SDK，只有 VS 2022 的 MSBuild
+    加上从 NuGet 取来的 .NET Framework 4.8 参考程序集。
+    build.ps1 会用 /p:TargetFrameworkRootPath=... 把参考程序集的位置指进来。
+  -->
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>RemeberEr</RootNamespace>
+    <AssemblyName>RemeberEr.Native</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <OutputPath>out\</OutputPath>
+    <IntermediateOutputPath>obj\</IntermediateOutputPath>
+    <LangVersion>7.3</LangVersion>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <ApplicationIcon />
+    <!-- 自己写 Main 而不是让 MSBuild 从 App.xaml 生成，好在建窗口之前设 DPI 感知 -->
+    <StartupObject>RemeberEr.Program</StartupObject>
+    <!-- DPI 感知靠清单设，见 src/app.manifest 里的说明 -->
+    <ApplicationManifest>src\app.manifest</ApplicationManifest>
+    <NoWin32Manifest>false</NoWin32Manifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <!-- 数据层：Json + Store/Decay 已经和 JS 版逐字段对齐过，现在直接放在 src 下，主版本自包含 -->
+  <ItemGroup>
+    <Compile Include="src\Json.cs" />
+    <Compile Include="src\Store.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="src\Program.cs" />
+    <Compile Include="src\Interop.cs" />
+    <Compile Include="src\Mvvm.cs" />
+    <Compile Include="src\ViewModels.cs" />
+    <Compile Include="src\Capture.cs" />
+    <Compile Include="src\PanelWindow.xaml.cs">
+      <DependentUpon>PanelWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\PreviewWindow.xaml.cs">
+      <DependentUpon>PreviewWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\ChooserWindow.xaml.cs">
+      <DependentUpon>ChooserWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\DetailWindow.xaml.cs">
+      <DependentUpon>DetailWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\RecordWindow.xaml.cs">
+      <DependentUpon>RecordWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\OverlayWindow.xaml.cs">
+      <DependentUpon>OverlayWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="src\Theme.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\PanelWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\PreviewWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\ChooserWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\DetailWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\RecordWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="src\OverlayWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

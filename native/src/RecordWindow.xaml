@@ -1,0 +1,286 @@
+<Window x:Class="RemeberEr.RecordWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="小小的总结"
+        Width="430" Height="520"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
+        PreviewKeyDown="OnKeyDown">
+
+    <Window.Resources>
+        <Style x:Key="RecBtn" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" CornerRadius="9" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="14,8,14,8" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <ScaleTransform ScaleX="1" ScaleY="1"/>
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="b" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecLbl" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource Tx5}"/>
+        </Style>
+
+        <Style x:Key="FactK" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#3a3a3c"/>
+            <Setter Property="Width" Value="76"/>
+        </Style>
+        <Style x:Key="FactV" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#8a8a8e"/>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="14" Background="#faffffff" BorderBrush="#17000000" BorderThickness="1"
+            ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ============================================ 顶栏 -->
+            <Border Grid.Row="0" Padding="12,10,10,10" BorderBrush="#0f000000" BorderThickness="0,0,0,1"
+                    Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" x:Name="RoomTag" CornerRadius="6" Padding="8,2,8,2"
+                            VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBlock x:Name="TagText" FontSize="10" FontWeight="Bold"/>
+                    </Border>
+                    <TextBlock Grid.Column="1" x:Name="TtlText" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource Tx2}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="2" Content="✕" Width="26" Height="26"
+                            Style="{StaticResource IconBtn}" ToolTip="关闭" Click="OnClose"/>
+                </Grid>
+            </Border>
+
+            <!-- ============================================ 主体 -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Padding="0,0,4,0">
+                <Grid Margin="14,12,14,14">
+
+                    <!-- ==== 写心得 ==== -->
+                    <StackPanel x:Name="WritePanel" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Grid.Column="0" Width="96" Height="68" Margin="0,0,11,0"
+                                  VerticalAlignment="Top">
+                                <Border CornerRadius="8" ClipToBounds="True" Background="#f4f4f5">
+                                    <Image x:Name="WThumb" Stretch="UniformToFill"/>
+                                </Border>
+                                <Border x:Name="WThumbPh" CornerRadius="8" Visibility="Collapsed">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#a78bfa" Offset="0"/>
+                                            <GradientStop Color="#7c3aed" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock x:Name="WThumbChar" FontSize="26" FontWeight="SemiBold"
+                                               Foreground="#ffffff" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                            <StackPanel Grid.Column="1">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="记于" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="WF1" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="到目前为止" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="WF2" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="你看过它" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="WF3" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,12,0,0">
+                            <TextBlock Text="完成它之前，写点什么" Style="{StaticResource SecLbl}"/>
+                            <Border Height="1" Background="{StaticResource Hair}" VerticalAlignment="Center"
+                                    Margin="0,0,0,0" HorizontalAlignment="Right" Width="180"/>
+                        </Grid>
+                        <TextBox x:Name="ReflectionBox" Margin="0,8,0,0" Height="132"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" Padding="10,9,10,9"
+                                 FontFamily="{StaticResource UiFont}" FontSize="12.5" Foreground="{StaticResource Tx1}"
+                                 CaretBrush="{StaticResource Tx1}" TextChanged="OnReflectionChanged">
+                            <TextBox.Template>
+                                <ControlTemplate TargetType="TextBox">
+                                    <Border x:Name="b" CornerRadius="9" Background="#ffffff"
+                                            BorderBrush="#1f000000" BorderThickness="1"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ScrollViewer x:Name="PART_ContentHost"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="b" Property="BorderBrush" Value="#998b5cf6"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </TextBox.Template>
+                        </TextBox>
+                    </StackPanel>
+
+                    <!-- ==== 回看小结 ==== -->
+                    <StackPanel x:Name="ViewPanel" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Grid.Column="0" Width="96" Height="68" Margin="0,0,11,0"
+                                  VerticalAlignment="Top">
+                                <Border CornerRadius="8" ClipToBounds="True" Background="#f4f4f5">
+                                    <Image x:Name="VThumb" Stretch="UniformToFill"/>
+                                </Border>
+                                <Border x:Name="VThumbPh" CornerRadius="8" Visibility="Collapsed">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#a78bfa" Offset="0"/>
+                                            <GradientStop Color="#7c3aed" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock x:Name="VThumbChar" FontSize="26" FontWeight="SemiBold"
+                                               Foreground="#ffffff" HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                            <StackPanel Grid.Column="1">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="来源" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="VF1" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="记于" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="VF2" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="完成于" Style="{StaticResource FactK}"/>
+                                    <TextBlock x:Name="VF3" Style="{StaticResource FactV}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Margin="0,12,0,0" CornerRadius="9" Padding="12,10,12,10"
+                                Background="#128b5cf6" BorderBrush="#298b5cf6" BorderThickness="1">
+                            <TextBlock x:Name="SummaryText" FontSize="12" LineHeight="20.4"
+                                       Foreground="#3a3a3c" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <StackPanel x:Name="QuoteSection" Margin="0,12,0,0">
+                            <TextBlock Text="心得" Style="{StaticResource SecLbl}" Margin="0,0,0,8"/>
+                            <Border x:Name="QuoteBox" CornerRadius="9" Padding="13,11,13,11"
+                                    BorderThickness="3,0,0,0" BorderBrush="#a855f7">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#17a855f7" Offset="0"/>
+                                        <GradientStop Color="#08a855f7" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock x:Name="QuoteText" FontSize="12.5" LineHeight="21.9"
+                                           Foreground="{StaticResource Tx2}" TextWrapping="Wrap"/>
+                            </Border>
+                        </StackPanel>
+
+                        <TextBlock Text="小结" Style="{StaticResource SecLbl}" Margin="0,12,0,8"/>
+                        <ItemsControl x:Name="StatsList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,7,7" CornerRadius="9" Padding="10,8,10,8"
+                                            Background="#07000000" BorderBrush="#0d000000" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding K}" FontSize="9.5"
+                                                       Foreground="{StaticResource Tx5}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding V}" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource Tx1}"/>
+                                                <TextBlock Text="{Binding Small}" FontSize="10" Margin="3,0,0,0"
+                                                           Foreground="#8a8a8e" VerticalAlignment="Bottom"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- ============================================ 底部 -->
+            <Border Grid.Row="2" Padding="14,10,14,13" BorderBrush="#0f000000" BorderThickness="0,1,0,0">
+                <Grid>
+                    <TextBlock x:Name="FootNote" FontSize="10" Foreground="#b0b0b6" VerticalAlignment="Center"/>
+
+                    <StackPanel x:Name="WriteFoot" Orientation="Horizontal" HorizontalAlignment="Right"
+                                Visibility="Collapsed">
+                        <Button Style="{StaticResource RecBtn}" Background="#ffffff" BorderBrush="#1c000000"
+                                BorderThickness="1" Click="OnCancel" Margin="0,0,8,0">
+                            <TextBlock Text="取消" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Tx3}"/>
+                        </Button>
+                        <Button Style="{StaticResource RecBtn}" Click="OnCommit">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0.6,1">
+                                    <GradientStop Color="#10b981" Offset="0"/>
+                                    <GradientStop Color="#059669" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <TextBlock Text="Get Done" FontSize="12" FontWeight="SemiBold" Foreground="#ffffff"/>
+                        </Button>
+                    </StackPanel>
+
+                    <Button x:Name="ViewFoot" Style="{StaticResource RecBtn}" HorizontalAlignment="Right"
+                            Background="#ffffff" BorderBrush="#1c000000" BorderThickness="1"
+                            Visibility="Collapsed" Click="OnClose">
+                        <TextBlock Text="关闭" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Tx3}"/>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

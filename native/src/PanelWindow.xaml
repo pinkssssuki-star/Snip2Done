@@ -1,0 +1,819 @@
+<Window x:Class="RemeberEr.PanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RemeberEr"
+        Title="记忆面板"
+        Width="340" Height="500"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+
+    <Window.Resources>
+
+        <!-- ======================================================== Todo 卡片 -->
+        <DataTemplate x:Key="TodoCardTpl">
+            <Border x:Name="card" CornerRadius="10" Background="#ffffff"
+                    BorderBrush="#12000000" BorderThickness="1"
+                    Padding="9,8,9,8" Margin="0,0,0,6"
+                    Cursor="Hand" MouseLeftButtonUp="OnTodoCardClick"
+                    MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 勾选框：先只标记完成，留在原地让你能反悔 -->
+                    <Button Grid.Column="0" x:Name="chk" Width="16" Height="16"
+                            VerticalAlignment="Center" Margin="0,0,8,0" Cursor="Hand"
+                            Command="{Binding DataContext.ToggleDoneCmd, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Id}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="cb" CornerRadius="5" Background="#ffffff"
+                                        BorderBrush="#38000000" BorderThickness="1.5">
+                                    <TextBlock x:Name="tick" Text="✓" FontSize="10" Foreground="Transparent"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="cb" Property="BorderBrush" Value="{StaticResource Green}"/>
+                                    </Trigger>
+                                    <!-- 已完成：绿底白勾 -->
+                                    <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                        <Setter TargetName="cb" Property="Background" Value="{StaticResource Green}"/>
+                                        <Setter TargetName="cb" Property="BorderBrush" Value="{StaticResource Green}"/>
+                                        <Setter TargetName="tick" Property="Foreground" Value="#ffffff"/>
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="title" Text="{Binding Title}" FontSize="12.5" LineHeight="16.5"
+                                   FontWeight="Medium" Foreground="{StaticResource Tx1}"
+                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                   MaxHeight="33" ClipToBounds="True"
+                                   Visibility="{Binding HasTitle, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                            <Border x:Name="pill" Padding="6,1,6,1" CornerRadius="6" Margin="0,0,5,0"
+                                    Visibility="{Binding HasPill, Converter={StaticResource BoolToVis}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#0f000000"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PillKind}" Value="today">
+                                                <Setter Property="Background" Value="#fef3c7"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding PillKind}" Value="soon">
+                                                <Setter Property="Background" Value="#dbeafe"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding PillKind}" Value="bad">
+                                                <Setter Property="Background" Value="#fee2e2"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding PillText}" FontSize="9" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PillKind}" Value="today">
+                                                    <Setter Property="Foreground" Value="#b45309"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PillKind}" Value="soon">
+                                                    <Setter Property="Foreground" Value="#1d4ed8"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PillKind}" Value="bad">
+                                                    <Setter Property="Foreground" Value="#b91c1c"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                            <TextBlock Text="{Binding MetaSource}" FontSize="9.5" Margin="0,0,5,0"
+                                       Foreground="{StaticResource Tx5}" VerticalAlignment="Center"
+                                       Visibility="{Binding ShowMetaSource, Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="{Binding MetaTime}" FontSize="9.5"
+                                       Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Image Grid.Column="2" Source="{Binding Thumb}" Width="46" Height="34"
+                           Margin="8,0,0,0" VerticalAlignment="Center" Stretch="UniformToFill"
+                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}">
+                        <Image.Clip>
+                            <RectangleGeometry Rect="0,0,46,34" RadiusX="6" RadiusY="6"/>
+                        </Image.Clip>
+                    </Image>
+
+                    <Button Grid.Column="3" x:Name="xbtn" Content="✕" Width="20" Height="20" Margin="2,0,0,0"
+                            VerticalAlignment="Center" Opacity="0" Cursor="Hand"
+                            Command="{Binding DataContext.BinItemCmd, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Id}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="xb" CornerRadius="5" Background="Transparent">
+                                    <TextBlock Text="✕" FontSize="12" Foreground="{StaticResource TxFaint}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="xb" Property="Background" Value="#24ef4444"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <!-- 悬停：底色变浅 + 描边转紫 -->
+                <Trigger SourceName="card" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="card" Property="Background" Value="#fafafa"/>
+                    <Setter TargetName="card" Property="BorderBrush" Value="#598b5cf6"/>
+                    <Setter TargetName="xbtn" Property="Opacity" Value="1"/>
+                </Trigger>
+                <!-- 逾期：红边 + 淡红底 -->
+                <DataTrigger Binding="{Binding Overdue}" Value="True">
+                    <Setter TargetName="card" Property="Background" Value="#fff5f5"/>
+                    <Setter TargetName="card" Property="BorderBrush" Value="#66dc2626"/>
+                </DataTrigger>
+                <!-- 已完成：删除线 + 变淡 -->
+                <DataTrigger Binding="{Binding IsDone}" Value="True">
+                    <Setter TargetName="title" Property="TextDecorations" Value="Strikethrough"/>
+                    <Setter TargetName="title" Property="Foreground" Value="{StaticResource Tx5}"/>
+                    <Setter TargetName="card" Property="Opacity" Value="0.66"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ======================================================== Wantdo 磁贴 -->
+        <DataTemplate x:Key="WantCardTpl">
+            <Border x:Name="tile" Height="112" CornerRadius="10" Background="#ffffff"
+                    BorderBrush="#12000000" BorderThickness="1" Margin="3,0,3,6"
+                    ClipToBounds="True" Cursor="Hand" RenderTransformOrigin="0.5,0.5"
+                    Opacity="{Binding Opacity}"
+                    MouseLeftButtonUp="OnWantCardClick"
+                    MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave">
+                <Border.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="68"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Image Grid.Row="0" Source="{Binding Thumb}" Stretch="UniformToFill"
+                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}"/>
+                    <Border Grid.Row="0" Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#a78bfa" Offset="0"/>
+                                <GradientStop Color="#7c3aed" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="{Binding FirstChar}" FontSize="24" FontWeight="SemiBold"
+                                   Foreground="#ffffff" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <Grid Grid.Row="1" Margin="7,5,7,6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{Binding Caption}" FontSize="9.5"
+                                   Foreground="{StaticResource Tx4}" TextTrimming="CharacterEllipsis"/>
+                        <ProgressBar Grid.Row="1" Style="{StaticResource LifeBar}" Margin="0,4,0,0"
+                                     Value="{Binding LifePercent, Mode=OneWay}"/>
+                        <TextBlock Grid.Row="2" Text="{Binding FadingHint}" FontSize="8.5" Margin="0,4,0,0"
+                                   Foreground="#a78bfa"
+                                   Visibility="{Binding ShowFadingHint, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
+
+                    <Button Grid.Row="0" x:Name="wx" Content="✕" Width="18" Height="18"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
+                            Opacity="0" Cursor="Hand"
+                            Command="{Binding DataContext.BinItemCmd, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Id}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="wb" CornerRadius="9" Background="#ebffffff">
+                                    <TextBlock Text="✕" FontSize="10" Foreground="{StaticResource Tx4}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="wb" Property="Background" Value="{StaticResource Red}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <Trigger SourceName="tile" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="tile" Property="BorderBrush" Value="#8c8b5cf6"/>
+                    <Setter TargetName="wx" Property="Opacity" Value="1"/>
+                    <Setter TargetName="tile" Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="1.025" ScaleY="1.025"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ======================================================== 纸篓卡片 -->
+        <DataTemplate x:Key="BinCardTpl">
+            <Border x:Name="tile" Height="100" CornerRadius="10" Background="#ffffff"
+                    BorderBrush="#29000000" BorderThickness="1" Margin="3,0,3,6"
+                    Opacity="0.72"
+                    ClipToBounds="True" Cursor="Hand"
+                    MouseLeftButtonUp="OnBinCardClick"
+                    MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Image Grid.Row="0" Source="{Binding Thumb}" Stretch="UniformToFill"
+                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}"/>
+                    <Border Grid.Row="0" Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#cbd5e1" Offset="0"/>
+                                <GradientStop Color="#94a3b8" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="{Binding FirstChar}" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="#ffffff" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Row="1" Margin="7,4,7,5">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="chip" Padding="5,1,5,1" CornerRadius="4" Margin="0,0,5,0"
+                                    VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#212563eb"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChipKind}" Value="want">
+                                                <Setter Property="Background" Value="#24a855f7"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding RoomName}" FontSize="8.5" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1d4ed8"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ChipKind}" Value="want">
+                                                    <Setter Property="Foreground" Value="#7c3aed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                            <TextBlock Text="{Binding Caption}" FontSize="9.5" Foreground="{StaticResource Tx4}"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Border Grid.Row="0" Grid.RowSpan="2" x:Name="pick" Background="#eb7c3aed"
+                            VerticalAlignment="Bottom" Padding="4" Opacity="0">
+                        <TextBlock Text="捡回来" FontSize="10" FontWeight="SemiBold" Foreground="#ffffff"
+                                   HorizontalAlignment="Center"/>
+                    </Border>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="tile" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="tile" Property="Opacity" Value="1"/>
+                    <Setter TargetName="tile" Property="BorderBrush" Value="#8c8b5cf6"/>
+                    <Setter TargetName="pick" Property="Opacity" Value="1"/>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ======================================================== Done 条目 -->
+        <DataTemplate x:Key="DoneItemTpl">
+            <Border x:Name="di" CornerRadius="9" Background="#ffffff"
+                    BorderBrush="#0f000000" BorderThickness="1" Padding="6,6,8,6" Margin="0,0,0,4"
+                    Cursor="Hand" MouseLeftButtonUp="OnDoneItemClick">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Image Grid.Column="0" Source="{Binding Thumb}" Width="38" Height="30" Margin="0,0,8,0"
+                           Stretch="UniformToFill" VerticalAlignment="Center"
+                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}">
+                        <Image.Clip>
+                            <RectangleGeometry Rect="0,0,38,30" RadiusX="6" RadiusY="6"/>
+                        </Image.Clip>
+                    </Image>
+                    <Border Grid.Column="0" Width="38" Height="30" CornerRadius="6" Margin="0,0,8,0"
+                            Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#cbd5e1" Offset="0"/>
+                                <GradientStop Color="#94a3b8" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="{Binding FirstChar}" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="#ffffff" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Padding="5,1,5,1" CornerRadius="4" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#212563eb"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChipKind}" Value="want">
+                                                <Setter Property="Background" Value="#24a855f7"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding RoomName}" FontSize="8.5" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#1d4ed8"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ChipKind}" Value="want">
+                                                    <Setter Property="Foreground" Value="#7c3aed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                            <TextBlock Text="{Binding Title}" FontSize="11.5" FontWeight="Medium"
+                                       Foreground="{StaticResource Tx2}" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding MetaText}" FontSize="9.5" Margin="0,2,0,0"
+                                   Foreground="{StaticResource Tx5}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="di" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="di" Property="Background" Value="#fafafa"/>
+                    <Setter TargetName="di" Property="BorderBrush" Value="#668b5cf6"/>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+    </Window.Resources>
+
+    <!-- ============================================================ 面板外壳 -->
+    <Grid>
+        <Border x:Name="Shell" CornerRadius="14" BorderThickness="1"
+                Background="{Binding PanelBackground}"
+                BorderBrush="#14000000" ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ==== 顶栏（可拖动） -->
+            <Border x:Name="Header" Grid.Row="0" Padding="12,9,10,9"
+                    BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+                    Background="Transparent" MouseLeftButtonDown="OnHeaderDrag">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Ellipse Grid.Column="0" Width="7" Height="7" Fill="{StaticResource Accent}"
+                             VerticalAlignment="Center" Margin="0,0,7,0">
+                        <Ellipse.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.6" Color="#8b5cf6"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                    <TextBlock Grid.Column="1" Text="记忆面板" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource Tx2}" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                        <Button Style="{StaticResource IconBtn}" Content="✂" ToolTip="截图（Ctrl+Shift+A）"
+                                Command="{Binding SnipCmd}"/>
+                        <Button Style="{StaticResource IconBtn}" Content="＋" ToolTip="手动记一笔"
+                                Command="{Binding ToggleQuickCmd}"/>
+                        <Button Content="⚡"
+                                ToolTip="演示加速：约 5 分钟跑完一次完整淡出" Command="{Binding DemoToggleCmd}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DemoOn}" Value="True">
+                                            <Setter Property="Tag" Value="on"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="⚙" ToolTip="设置"
+                                Command="{Binding SettingsCmd}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SettingsOn}" Value="True">
+                                            <Setter Property="Tag" Value="on"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <!-- 置顶开关：单屏用户不想被一直压着的时候可以关掉 -->
+                        <Button Command="{Binding ToggleTopmostCmd}"
+                                ToolTip="窗口置顶（关掉就不会一直压在最上面）">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource IconBtn}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AlwaysOnTop}" Value="True">
+                                            <Setter Property="Tag" Value="on"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Viewbox Width="14" Height="14">
+                                <Path Data="M 2,2 L 14,2 M 8,15 L 8,5.5 M 4,9.5 L 8,5.5 L 12,9.5"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.8" Fill="Transparent"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"/>
+                            </Viewbox>
+                        </Button>
+                        <Button Style="{StaticResource IconBtn}" ToolTip="折叠"
+                                Content="{Binding CollapseGlyph}" Command="{Binding CollapseCmd}"/>
+                        <Button Style="{StaticResource IconBtn}" Content="✕" Tag="danger"
+                                ToolTip="退出（Ctrl+Shift+Q）" Command="{Binding QuitCmd}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ==== 快速记一笔 -->
+            <Border Grid.Row="1" Padding="10,9,10,9"
+                    BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+                    Visibility="{Binding QuickOpen, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBox x:Name="QuickBox" Style="{StaticResource QuickInput}"
+                             Text="{Binding QuickText, UpdateSourceTrigger=PropertyChanged}"
+                             KeyDown="OnQuickKeyDown"/>
+                    <Grid Margin="0,7,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Style="{StaticResource RoomBtn}" Content="Todo"
+                                Command="{Binding SetRoomCmd}" CommandParameter="todo"
+                                Tag="{Binding QuickTodoOn, Converter={StaticResource TagOn}}"/>
+                        <Button Grid.Column="2" Style="{StaticResource RoomBtn}" Content="Wantdo"
+                                Command="{Binding SetRoomCmd}" CommandParameter="want"
+                                Tag="{Binding QuickWantOn, Converter={StaticResource TagOn}}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ==== 主体 -->
+            <Grid x:Name="Body" Grid.Row="2" Margin="10"
+                  Visibility="{Binding Collapsed, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+
+                <!-- ============================================ 主视图 -->
+                <Grid Visibility="{Binding IsMainView, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <!-- 比例 = (Todo 露出行数 × 行高) : (Wantdo 露出行数 × 行高) = 208 : 120 -->
+                        <RowDefinition Height="208*"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="120*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ==== Todo ==== -->
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="1,0,1,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="TODO" Style="{StaticResource SecTitle}" VerticalAlignment="Center"/>
+                                <Border Background="#12000000" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding NTodo}" Style="{StaticResource CountBadge}"/>
+                                </Border>
+                            </StackPanel>
+                            <Button HorizontalAlignment="Right" Style="{StaticResource GhostBtn}"
+                                    Command="{Binding ShowDoneCmd}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Done"/>
+                                    <TextBlock Text="{Binding NDone}" Margin="4,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Padding="0,0,4,0">
+                            <Grid>
+                                <ItemsControl x:Name="TodoList" ItemsSource="{Binding Todos}" ItemTemplate="{StaticResource TodoCardTpl}"
+                                              Visibility="{Binding HasTodos, Converter={StaticResource BoolToVis}}"/>
+                                <Border Style="{StaticResource EmptyBox}" VerticalAlignment="Stretch"
+                                        Visibility="{Binding HasTodos, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="还没有 Todo。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="按 Ctrl+Shift+A 截一张，选 Today 或 Soon。" FontSize="10"
+                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- ==== Wantdo ==== -->
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="1,0,1,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="WANTDO" Style="{StaticResource SecTitle}" VerticalAlignment="Center"/>
+                                <Border Background="#12000000" CornerRadius="8" Padding="6,1,6,1" Margin="6,0,0,0"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding NWant}" Style="{StaticResource CountBadge}"/>
+                                </Border>
+                            </StackPanel>
+                            <Button HorizontalAlignment="Right" Style="{StaticResource GhostBtn}"
+                                    Command="{Binding ShowBinCmd}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Paper Plane Bin"/>
+                                    <TextBlock Text="{Binding NBin}" Margin="4,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Padding="0,0,4,0">
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding Wants}" ItemTemplate="{StaticResource WantCardTpl}"
+                                              Visibility="{Binding HasWants, Converter={StaticResource BoolToVis}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <Border Style="{StaticResource EmptyBox}"
+                                        Visibility="{Binding HasWants, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="还没有想要做的事。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="截一张图，选 Wantdo 试试。" FontSize="10"
+                                                   Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+
+                <!-- ============================================ Paper Plane Bin -->
+                <Grid Visibility="{Binding IsBinView, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="1,0,1,6">
+                        <Button HorizontalAlignment="Left" Style="{StaticResource GhostBtn}" Content="← 返回"
+                                Command="{Binding BackCmd}"/>
+                        <TextBlock Text="PAPER PLANE BIN" Style="{StaticResource SecTitle}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
+                            BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
+                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{StaticResource Tx3}" TextWrapping="Wrap">
+                            梦想纸飞机的废纸篓。<LineBreak/>这里不是删除，是被你暂时放下的想法 —— 点一下就能捡回来。
+                        </TextBlock>
+                    </Border>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,4,0">
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding Bins}" ItemTemplate="{StaticResource BinCardTpl}"
+                                          Visibility="{Binding HasBins, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                            <Border Style="{StaticResource EmptyBox}"
+                                    Visibility="{Binding HasBins, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="纸篓是空的。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="说明你的注意力都还在。" FontSize="10"
+                                               Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ============================================ Done -->
+                <Grid Visibility="{Binding IsDoneView, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="1,0,1,6">
+                        <Button HorizontalAlignment="Left" Style="{StaticResource GhostBtn}" Content="← 返回"
+                                Command="{Binding BackCmd}"/>
+                        <TextBlock Text="DONE" Style="{StaticResource SecTitle}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
+                            BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
+                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{StaticResource Tx3}" TextWrapping="Wrap">
+                            按完成日期排的。<LineBreak/>点任意一条看当时的心得与小结。
+                        </TextBlock>
+                    </Border>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,4,0">
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding DoneGroups}"
+                                          Visibility="{Binding HasDoneGroups, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <Grid Margin="2,8,2,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Bold"
+                                                               Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                                                    <Border Background="#0f000000" CornerRadius="7" Padding="5,0,5,0"
+                                                            Margin="6,0,6,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Count}" FontSize="9.5" FontWeight="SemiBold"
+                                                                   Foreground="#8a8a8e"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Height="1" Background="{StaticResource Hair}"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Items}"
+                                                          ItemTemplate="{StaticResource DoneItemTpl}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Border Style="{StaticResource EmptyBox}"
+                                    Visibility="{Binding HasDoneGroups, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="还没有完成的事。" FontSize="11" Foreground="{StaticResource Tx4}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Todo 勾掉、Wantdo 点 Get Done，都会落到这里。" FontSize="10"
+                                               Foreground="{StaticResource Tx5}" Margin="0,4,0,0"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ============================================ 设置 -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding IsSetView, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <Grid Margin="1,0,1,10">
+                            <Button HorizontalAlignment="Left" Style="{StaticResource GhostBtn}" Content="← 返回"
+                                    Command="{Binding BackCmd}"/>
+                            <TextBlock Text="SETTINGS" Style="{StaticResource SecTitle}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="快速模式" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="框完就定，跳过右下角那个 ✓。一框，一分类。" FontSize="10"
+                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
+                                          VerticalAlignment="Top" Margin="0,2,0,0"
+                                          IsChecked="{Binding QuickCapture, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <Grid Margin="0,0,0,5">
+                                <TextBlock Text="面板透明度" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="{Binding OpacityText}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Slider Style="{StaticResource PanelSlider}" Minimum="30" Maximum="100"
+                                    Value="{Binding OpacityPercent, Mode=TwoWay}"
+                                    Thumb.DragCompleted="OnOpacityCommitted"
+                                    ValueChanged="OnOpacityChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <Grid Margin="0,0,0,5">
+                                <TextBlock Text="Wantdo 保护期" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="{Binding FadeText}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Slider x:Name="FadeSlider" Style="{StaticResource PanelSlider}" Minimum="1" Maximum="60"
+                                    Value="{Binding FadeStartDays, Mode=TwoWay}"
+                                    Thumb.DragCompleted="OnDecayCommitted"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10">
+                            <Grid Margin="0,0,0,5">
+                                <TextBlock Text="多久后放手" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="{Binding BinText}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Slider x:Name="BinSlider" Style="{StaticResource PanelSlider}" Minimum="2" Maximum="180"
+                                    Value="{Binding BinAfterDays, Mode=TwoWay}"
+                                    Thumb.DragCompleted="OnDecayCommitted"/>
+                        </StackPanel>
+
+                        <TextBlock FontSize="10" LineHeight="16.5" Foreground="#9a9aa0" TextWrapping="Wrap" Margin="0,0,0,10">
+                            保护期内 Wantdo 完全不衰减；超过「放手」天数就滑进 Paper Plane Bin（随时能捞回来）。<LineBreak/>
+                            Todo 永远不受这两个数字影响。<LineBreak/>
+                            点 ⚡ 可临时把这两个数字压缩 6000 倍来快速预览。
+                        </TextBlock>
+
+                        <StackPanel Visibility="{Binding ShowSeedRow, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="第一次用？" FontSize="11.5" FontWeight="Medium"
+                                       Foreground="{StaticResource Tx2}" Margin="0,0,0,6"/>
+                            <Button Style="{StaticResource GhostBtn}" Content="灌入演示数据"
+                                    HorizontalAlignment="Left" Padding="12,6,12,6" Command="{Binding SeedCmd}"/>
+                            <TextBlock FontSize="10" LineHeight="16.5" Foreground="#9a9aa0" TextWrapping="Wrap"
+                                       Margin="0,6,0,0">
+                                只在还没有任何条目时出现。想先看看它长什么样、衰减怎么跑，点这个最快。
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- ==== 底栏 -->
+            <Border Grid.Row="3" Padding="12,7,12,7" BorderBrush="{StaticResource Hair}"
+                    BorderThickness="0,1,0,0"
+                    Visibility="{Binding Collapsed, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                <Grid>
+                    <TextBlock Text="{Binding Stats}" FontSize="10" Foreground="{StaticResource Tx4}"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding DockHintVisible, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"/>
+                    <TextBlock Text="{Binding DockHint}" FontSize="10" Foreground="{StaticResource AccentDeep}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding DockHintVisible, Converter={StaticResource BoolToVis}}"/>
+                    <TextBlock Text="⚡ 演示加速中" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource AccentDeep}" HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding DemoOn, Converter={StaticResource BoolToVis}}"/>
+                </Grid>
+            </Border>
+        </Grid>
+        </Border>
+
+        <!-- 贴边隐藏时露在外面的那条窄边，给个看得见的抓手 -->
+        <Border x:Name="DockGrip" Width="5" Height="46" CornerRadius="3"
+                Background="{StaticResource Accent}" Visibility="Collapsed"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="1,0,0,0">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.7" Color="#8b5cf6"/>
+            </Border.Effect>
+        </Border>
+    </Grid>
+</Window>
