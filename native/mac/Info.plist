@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>记忆面板</string>
+  <key>CFBundleDisplayName</key>
+  <string>记忆面板</string>
+  <key>CFBundleExecutable</key>
+  <string>RemeberEr.Mac</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.remeberer.mac</string>
+
+  <!--
+    版本号要与 native/src/Program.cs 里的 Version 常量一致；
+    build-app.sh 会在打包时校验这一条，避免两处各写一份然后对不上。
+  -->
+  <key>CFBundleVersion</key>
+  <string>0.9.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.9.0</string>
+
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <!-- 常驻桌面工具：不进 Dock，也不抢焦点 -->
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+
+  <!--
+    下面两条**必须**有，否则请求对应权限时系统会直接拒绝、连弹窗都不给：
+      · 屏幕录制（抓屏）
+      · 辅助功能（读「鼠标下窗口标题」）
+    文案会显示在系统权限弹窗里，所以写成人话，讲清楚用途 ——
+    这个产品要的确实是敏感能力，不该含糊其辞。
+  -->
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>记忆面板需要抓取屏幕上的内容，才能把你框选的那一块存成记忆钩子。截图只保存在你自己的电脑上。</string>
+
+  <key>NSAppleEventsUsageDescription</key>
+  <string>记忆面板需要读取鼠标所指窗口的标题，作为这条记忆的来源信息。这些信息只保存在你自己的电脑上。</string>
+</dict>
+</plist>

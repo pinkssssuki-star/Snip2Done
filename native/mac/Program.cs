@@ -98,6 +98,12 @@ namespace RemeberEr
         /// <summary>跑一遍贴边隐藏的几何判定并打印结果后退出（免权限）。</summary>
         public static bool DockTest;
 
+        /// <summary>
+        /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
+        /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
+        /// </summary>
+        public static bool BenchMode;
+
         /// <summary>把完成记录窗渲染成 PNG 后退出（免权限）。值形如 "write:/path" 或 "view:/path"。</summary>
         public static string ShotRecord;
 
@@ -964,6 +970,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shot-chooser=")) ShotChooser = a.Substring(15);
                 else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
                 else if (a == "--dock-test") DockTest = true;
+                else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
