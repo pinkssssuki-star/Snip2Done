@@ -173,9 +173,20 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Image Grid.Row="0" Source="{Binding Thumb}" Stretch="UniformToFill"
-                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}"/>
-                    <Border Grid.Row="0" Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                    <!--
+                        图片走 Border 的**底色**（ImageBrush）而不是当子元素 ——
+                        Border 的 CornerRadius 会裁剪它自己的底色，但**不会裁剪子元素**，
+                        ClipToBounds 也只按矩形裁。原来上面这张图就是这么盖过圆角的，
+                        看起来上边缘是直角。
+                    -->
+                    <Border Grid.Row="0" CornerRadius="10,10,0,0"
+                            Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Thumb}" Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                    <Border Grid.Row="0" CornerRadius="10,10,0,0"
+                            Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                 <GradientStop Color="#a78bfa" Offset="0"/>
@@ -249,9 +260,20 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Image Grid.Row="0" Source="{Binding Thumb}" Stretch="UniformToFill"
-                           Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}"/>
-                    <Border Grid.Row="0" Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                    <!--
+                        图片走 Border 的**底色**（ImageBrush）而不是当子元素 ——
+                        Border 的 CornerRadius 会裁剪它自己的底色，但**不会裁剪子元素**，
+                        ClipToBounds 也只按矩形裁。原来上面这张图就是这么盖过圆角的，
+                        看起来上边缘是直角。
+                    -->
+                    <Border Grid.Row="0" CornerRadius="10,10,0,0"
+                            Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Thumb}" Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                    <Border Grid.Row="0" CornerRadius="10,10,0,0"
+                            Visibility="{Binding HasThumb, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                                 <GradientStop Color="#cbd5e1" Offset="0"/>

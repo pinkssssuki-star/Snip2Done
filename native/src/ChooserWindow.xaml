@@ -86,8 +86,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="7"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="7"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition x:Name="ColGap3" Width="7"/>
+                    <ColumnDefinition x:Name="ColWant" Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <Button Grid.Column="0" Style="{StaticResource ChoiceBtn}" Click="OnPickToday">
@@ -134,7 +134,7 @@
                     </StackPanel>
                 </Button>
 
-                <Button Grid.Column="4" Style="{StaticResource ChoiceBtn}" Click="OnPickWant">
+                <Button x:Name="WantBtn" Grid.Column="4" Style="{StaticResource ChoiceBtn}" Click="OnPickWant">
                     <Button.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0.6,1">
                             <GradientStop Color="#a855f7" Offset="0"/>

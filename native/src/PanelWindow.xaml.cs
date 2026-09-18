@@ -598,6 +598,20 @@ namespace RemeberEr
 
         // ------------------------------------------------------------ UI 验收流程
 
+        /// <summary>窗口落在哪块屏上（按中心点找）。</summary>
+        static Interop.RECT MonitorOf(Interop.RECT r)
+        {
+            int cx = (r.Left + r.Right) / 2, cy = (r.Top + r.Bottom) / 2;
+            foreach (var m in Interop.AllMonitors())
+                if (cx >= m.Left && cx < m.Right && cy >= m.Top && cy < m.Bottom) return m;
+            return new Interop.RECT
+            {
+                Left = 0, Top = 0,
+                Right = Interop.GetSystemMetrics(0),
+                Bottom = Interop.GetSystemMetrics(1),
+            };
+        }
+
         /// <summary>抓某个别的窗口（归类窗 / 时间面板）自己那块。</summary>
         void ShotWindow(Window w, string name)
         {
@@ -1454,21 +1468,27 @@ namespace RemeberEr
                 return;
             }
 
-            Interop.RECT cur;
-            double sc;
-            if (!Interop.MonitorUnderCursor(out cur, out sc))
+            // 让时间面板贴着记忆面板摆。
+            //
+            // 归类窗的定位规则是「选区右下角往下 10px，下面放不下就翻到选区上方」，
+            // 所以这里**把面板自己当成那个「选区」**传进去 —— 面板在屏幕右下角时，
+            // 下面必然放不下，它就翻到面板正上方、右边缘对齐。不传的话
+            // （原来传的是 0,0,0,0）它会跑到屏幕角落去。
+            Interop.RECT panelRect;
+            Interop.GetWindowRect(_hwnd, out panelRect);
+            Interop.RECT mon = MonitorOf(panelRect);
+            var sel = new Interop.RECT
             {
-                cur = new Interop.RECT
-                {
-                    Left = 0, Top = 0,
-                    Right = Interop.GetSystemMetrics(0),
-                    Bottom = Interop.GetSystemMetrics(1),
-                };
-                sc = 1.0;
-            }
+                Left = panelRect.Left - mon.Left,
+                Top = panelRect.Top - mon.Top,
+                Right = panelRect.Right - mon.Left,
+                Bottom = panelRect.Bottom - mon.Top,
+            };
+            double sc = Interop.ScaleOf(mon);
 
             var p = new ChooserWindow.Payload { Title = title, App = "", Manual = true };
-            var w = new ChooserWindow(p, cur, sc, 0, 0, 0, 0);
+            var w = new ChooserWindow(p, mon, sc, sel.Left, sel.Top,
+                                      sel.Right - sel.Left, sel.Bottom - sel.Top);
             _chooser = w;   // 验收流程要能驱动它
             w.Decided += (choice, typed, days) =>
             {

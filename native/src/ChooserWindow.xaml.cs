@@ -67,8 +67,11 @@ namespace RemeberEr
                 SrcText.Visibility = Visibility.Collapsed;
                 HeadText.Text = string.IsNullOrEmpty(p.Title) ? "这件事什么时候到期？" : "「" + p.Title + "」什么时候到期？";
                 TitleBox.Visibility = Visibility.Collapsed;
-                WantLabel.Text = "无期限";
-                WantSub.Visibility = Visibility.Collapsed;
+                // 手动记的是 Todo —— 既然是 DDL，就不该有「无期限」这个选项。
+                // 藏掉第三个按钮，把它占的列和前面的间隔列一起收成 0，剩下两个自动撑满。
+                WantBtn.Visibility = Visibility.Collapsed;
+                ColWant.Width = new GridLength(0);
+                ColGap3.Width = new GridLength(0);
                 _hDip = H_MANUAL_DIP;
             }
 
