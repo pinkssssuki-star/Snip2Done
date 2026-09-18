@@ -10,6 +10,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace RemeberEr
 {
@@ -80,6 +81,13 @@ namespace RemeberEr
 
         /// <summary>灌一份演示数据后退出（不碰真实数据，配合 --data= 用）。</summary>
         public static bool Seed;
+
+        /// <summary>
+        /// 把面板窗口自身渲染成 PNG 后退出（不需要屏幕录制权限）。
+        /// 用途：让「排版对不对」这件事可以被直接看见/比对，
+        /// 而不是只能靠人肉描述 —— GUI 移植里排版问题最耗来回沟通。
+        /// </summary>
+        public static string ShotPanel;
 
         /// <summary>
         /// 只跑数据 → ViewModel 这条链路并打印结果后退出，不起窗口。
@@ -168,6 +176,9 @@ namespace RemeberEr
             // 数据 → ViewModel 链路自检
             if (VmSelfTest) { RunVmSelfTest(); return; }
 
+            // 把面板自身渲染成 PNG（免权限）
+            if (ShotPanel != null) { RunShotPanel(); return; }
+
             // 灌演示数据后退出（配合 --data= 指到临时目录，别污染真实数据）
             if (Seed)
             {
@@ -204,6 +215,120 @@ namespace RemeberEr
 
             Log("!! 当前系统不是 macOS，平台层退回 stub —— 抓屏/热键/窗口探测都不会工作");
             return new StubPlatform();
+        }
+
+        /// <summary>
+        /// 把面板窗口渲染成 PNG。
+        /// 走 RenderTargetBitmap 直接抓视觉树，不经系统抓屏 —— 因此不需要任何权限，
+        /// 在授权之前就能验证排版。
+        /// </summary>
+        static void RunShotPanel()
+        {
+            Log("=== 面板渲染自检 ===");
+            var app = AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var panel = new PanelWindow();
+                    panel.Show();
+
+                    // 主动把排队的 UI 任务跑完。
+                    //
+                    // ⚠️ 关键点：这里没有消息循环（用的是 SetupWithoutStarting），
+                    // 所以 DispatcherTimer 和后台线程回调都**不会**被派发 ——
+                    // 试过这两种写法，回调永远不触发，进程就那么挂着。
+                    // RunJobs() 是在当前线程上同步排空队列，正好适合自检场景。
+                    PumpUi(1200);
+
+                    // 用布局后的实际尺寸，而不是 Window.Width/Height ——
+                    // 后者是设置值，前者才是真正排版出来的大小。
+                    int w = (int)Math.Ceiling(panel.Bounds.Width);
+                    int h = (int)Math.Ceiling(panel.Bounds.Height);
+                    if (w <= 0 || h <= 0) { w = (int)panel.Width; h = (int)panel.Height; }
+
+                    var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new PixelSize(w, h), new Vector(96, 96));
+                    rtb.Render(panel);
+                    using (var fs = System.IO.File.Create(ShotPanel))
+                        rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+                    Log(string.Format("  已写出 {0}（{1}x{2}）", ShotPanel, w, h));
+
+                    // 量一下各区域实际拿到的尺寸，别靠猜
+                    foreach (var n in new[] { "TodoSection", "WantSection" })
+                    {
+                        var c = panel.FindControl<Control>(n);
+                        Log(string.Format("  布局 [{0}] 尺寸 = {1}x{2}",
+                            n, c?.Bounds.Width, c?.Bounds.Height));
+                    }
+
+                    // 磁贴的实际测量高度 vs 它被分到的高度 —— 挤出磁贴的根因就在这个差值
+                    // 注意：不能用 System.Linq 的 OfType —— Avalonia.Styling 里也有个
+                    // 同名的 Selector 扩展方法，会把调用解析错（踩过编译错误）。
+                    Avalonia.Controls.Border tile = null;
+                    foreach (var v in panel.GetVisualDescendants())
+                    {
+                        var b = v as Avalonia.Controls.Border;
+                        if (b != null && b.Classes.Contains("Tile")) { tile = b; break; }
+                    }
+                    if (tile != null)
+                    {
+                        Log(string.Format("  磁贴: 实际高={0:0.#} 欲高={1:0.#} 欲宽={2:0.#}",
+                            tile.Bounds.Height, tile.DesiredSize.Height, tile.DesiredSize.Width));
+                    }
+
+                    // 把关键元素的精确矩形打印出来。
+                    // 肉眼看渲染图判断「谁被裁了」很容易读错（一条灰线可能是滚动条），
+                    // 数字不会骗人。
+                    Log("  --- 关键元素矩形（相对各自父级）---");
+                    DumpRects(panel, "Label");       // 副标题
+                    DumpRects(panel, "LifeBar");     // 生命条
+                    DumpRects(panel, "Tile");        // 磁贴
+                    Log(string.Format("  内容：Todo {0} / Wantdo {1} / 纸篓 {2} / 完成组 {3}",
+                        panel.Vm.Todos.Count, panel.Vm.Wants.Count,
+                        panel.Vm.Bins.Count, panel.Vm.DoneGroups.Count));
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>把带某个样式类的元素矩形打出来，用于核对布局是否溢出。</summary>
+        static void DumpRects(Avalonia.Controls.Control root, string cls)
+        {
+            int i = 0;
+            foreach (var v in root.GetVisualDescendants())
+            {
+                var c = v as Avalonia.Controls.Control;
+                if (c == null || !c.Classes.Contains(cls)) continue;
+                Log(string.Format("    {0}[{1}] 尺寸={2:0.#}x{3:0.#} 位置=({4:0.#},{5:0.#}) 可见={6}",
+                    cls, i++, c.Bounds.Width, c.Bounds.Height,
+                    c.Bounds.X, c.Bounds.Y, c.IsVisible));
+            }
+        }
+
+        /// <summary>
+        /// 在当前线程上把 UI 任务队列排空指定的毫秒数。
+        /// 自检专用：没有消息循环时，这是唯一能让绑定求值、布局、异步回填跑起来的方式。
+        /// </summary>
+        static void PumpUi(int ms)
+        {
+            var until = Environment.TickCount64 + ms;
+            while (Environment.TickCount64 < until)
+            {
+                Dispatcher.UIThread.RunJobs();
+                System.Threading.Thread.Sleep(10);
+            }
         }
 
         /// <summary>
@@ -441,6 +566,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--overlay-test=")) OverlayTest = a.Substring(15);
                 else if (a == "--xaml-selftest") XamlSelfTest = true;
                 else if (a == "--seed") Seed = true;
+                else if (a.StartsWith("--shot-panel=")) ShotPanel = a.Substring(13);
                 else if (a == "--vm-selftest") VmSelfTest = true;
             }
         }

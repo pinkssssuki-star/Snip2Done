@@ -176,7 +176,7 @@
 
   <Style Selector="Border.Tile">
     <Setter Property="Width" Value="150"/>
-    <Setter Property="Height" Value="112"/>
+    <Setter Property="Height" Value="122"/>
     <Setter Property="CornerRadius" Value="10"/>
     <Setter Property="Background" Value="{StaticResource TileBg}"/>
     <Setter Property="BorderBrush" Value="{StaticResource Hair}"/>
@@ -190,11 +190,21 @@
     <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
   </Style>
 
+  <!--
+    生命条是「2px 细线」，但 ProgressBar 的默认模板带内边距和最小高度，
+    直接设 Height=3 会被模板的最小尺寸顶回默认高度，于是看起来像一条粗灰条、
+    还把磁贴里其它内容挤掉。
+    所以要连 MinHeight 和模板内部元素一起约束掉（真实踩到的坑）。
+  -->
   <Style Selector="ProgressBar.LifeBar">
-    <Setter Property="Height" Value="3"/>
+    <Setter Property="Height" Value="4"/>
+    <Setter Property="MinHeight" Value="0"/>
     <Setter Property="CornerRadius" Value="2"/>
     <Setter Property="Background" Value="#14000000"/>
     <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+  </Style>
+  <Style Selector="ProgressBar.LifeBar /template/ Border#PART_Indicator">
+    <Setter Property="CornerRadius" Value="2"/>
   </Style>
 
   <Style Selector="ProgressBar.LifeBar.low">

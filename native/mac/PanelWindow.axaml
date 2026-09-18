@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:RemeberEr"
         x:Class="RemeberEr.PanelWindow"
-        Width="340" Height="500"
+        Width="340" Height="520"
         CanResize="False"
         ShowInTaskbar="False"
         WindowDecorations="None"
@@ -65,29 +65,52 @@
     <!-- ================================================ Wantdo 磁贴 -->
     <DataTemplate x:Key="WantTileTpl">
       <Border Classes="Tile" PointerReleased="OnWantTileClick">
-        <Grid RowDefinitions="*,Auto">
-          <Grid Grid.Row="0">
-            <!-- 有图铺图，没图用标题首字做占位块 -->
-            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
-                   IsVisible="{Binding HasThumb}"/>
-            <Border Background="{StaticResource AccentDeep}" IsVisible="{Binding !HasThumb}">
-              <TextBlock Text="{Binding FirstChar}"
-                         FontSize="30" FontWeight="SemiBold" Foreground="#ffffff"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
-          </Grid>
-          <StackPanel Grid.Row="1" Margin="7,5,7,6" Spacing="3">
-            <TextBlock Text="{Binding Caption}" FontSize="10.5"
-                       Foreground="{StaticResource Tx2}"
-                       TextTrimming="CharacterEllipsis"/>
-            <ProgressBar Classes="LifeBar"
-                         Classes.low="{Binding LifePercent, Converter={StaticResource LifeClass}}"
-                         Minimum="0" Maximum="100"
-                         Value="{Binding LifePercent}"/>
-            <TextBlock Text="{Binding FadingHint}" FontSize="9.5"
-                       Foreground="{StaticResource Red}"
+        <!--
+          布局分三层，生命条用「贴底叠加」而不是参与流式排版：
+            · 图片区固定 60px
+            · 文字区（副标题 + 可选提示）占剩余空间
+            · 生命条：2px 细线，绝对贴在磁贴最底部（VerticalAlignment=Bottom）
+
+          为什么生命条要贴底：它一旦参与流式排版，长副标题 + 「还能撑 N 天」
+          两行文字就会把它挤出磁贴外 —— 从自检截图上看过这个现象。
+          贴底之后，无论文字多长，生命条永远在最下面那一条。
+        -->
+        <Grid>
+          <Grid RowDefinitions="54,*,Auto">
+            <Grid Grid.Row="0" ClipToBounds="True">
+              <!-- 有图铺图，没图用标题首字做占位块 -->
+              <Image Source="{Binding Thumb}" Stretch="UniformToFill"
+                     IsVisible="{Binding HasThumb}"/>
+              <Border Background="{StaticResource AccentDeep}" IsVisible="{Binding !HasThumb}">
+                <TextBlock Text="{Binding FirstChar}"
+                           FontSize="30" FontWeight="SemiBold" Foreground="#ffffff"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+            </Grid>
+
+            <StackPanel Grid.Row="1" Margin="7,3,7,1" Spacing="2" ClipToBounds="True">
+              <TextBlock Text="{Binding Caption}" FontSize="10.5"
+                         Foreground="{StaticResource Tx2}"
+                         TextWrapping="Wrap" MaxHeight="26" LineHeight="13"/>
+            </StackPanel>
+            <TextBlock Grid.Row="2" Text="{Binding FadingHint}" FontSize="9.5"
+                       Foreground="{StaticResource Red}" Margin="7,0,7,5"
                        IsVisible="{Binding ShowFadingHint}"/>
-          </StackPanel>
+          </Grid>
+
+          <!--
+            生命条：贴在最底部的一根细线。
+            高度/内边距全部显式写死（不只靠样式），因为 ProgressBar 的默认模板
+            带 MinHeight 与内边距，会把它顶成一条粗灰条并把提示文字挤出磁贴 ——
+            写法上宁可啰嗦，也不要依赖样式的优先级。
+          -->
+          <ProgressBar Classes="LifeBar"
+                       Classes.low="{Binding LifePercent, Converter={StaticResource LifeClass}}"
+                       Minimum="0" Maximum="100"
+                       Value="{Binding LifePercent}"
+                       Height="4" MinHeight="4" MinWidth="0"
+                       Padding="0" BorderThickness="0" CornerRadius="2"
+                       HorizontalAlignment="Stretch" VerticalAlignment="Bottom"/>
         </Grid>
       </Border>
     </DataTemplate>
@@ -165,10 +188,10 @@
       <Grid Grid.Row="2" Margin="10" IsVisible="{Binding !$parent[Window].DiagOn}">
 
         <!-- ········ 主视图 ········ -->
-        <Grid IsVisible="{Binding IsMainView}" RowDefinitions="208*,10,120*">
+        <Grid x:Name="MainView" IsVisible="{Binding IsMainView}" RowDefinitions="260*,10,120*">
 
           <!-- Todo -->
-          <Grid Grid.Row="0" RowDefinitions="Auto,*">
+          <Grid x:Name="TodoSection" Grid.Row="0" RowDefinitions="Auto,*">
             <Grid Grid.Row="0" Margin="1,0,1,6" ColumnDefinitions="Auto,Auto,*">
               <TextBlock Grid.Column="0" Classes="SecTitle" Text="TODO" VerticalAlignment="Center"/>
               <Border Grid.Column="1" Classes="CountBadge" Margin="6,0,0,0" VerticalAlignment="Center">
@@ -186,16 +209,30 @@
           </Grid>
 
           <!-- Wantdo -->
-          <Grid Grid.Row="2" RowDefinitions="Auto,*">
+          <Grid x:Name="WantSection" Grid.Row="2" RowDefinitions="Auto,*">
             <Grid Grid.Row="0" Margin="1,0,1,6" ColumnDefinitions="Auto,Auto,*">
               <TextBlock Grid.Column="0" Classes="SecTitle" Text="WANTDO" VerticalAlignment="Center"/>
               <Border Grid.Column="1" Classes="CountBadge" Margin="6,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="{Binding NWant}"/>
               </Border>
             </Grid>
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer Grid.Row="1"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
               <StackPanel>
-                <ItemsControl ItemsSource="{Binding Wants}" ItemTemplate="{StaticResource WantTileTpl}"/>
+                <!--
+                  Wantdo 是**横向一排**磁贴（原版如此，可横向滚动）。
+                  ItemsControl 默认的 ItemsPanel 是纵向 StackPanel，
+                  必须显式换成横向 —— 否则磁贴会竖着叠成一列。
+                  这个坑是从自检渲染出来的截图上直接看出来的。
+                -->
+                <ItemsControl ItemsSource="{Binding Wants}" ItemTemplate="{StaticResource WantTileTpl}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                </ItemsControl>
                 <Border Classes="EmptyBox" IsVisible="{Binding !HasWants}">
                   <TextBlock Text="还没有 Wantdo。想做的事记在这里，你不碰它，它就会慢慢变淡。"/>
                 </Border>

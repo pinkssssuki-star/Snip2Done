@@ -166,7 +166,7 @@ namespace RemeberEr
             _vm.Collapsed = !_vm.Collapsed;
             // 折叠成一条：只留顶栏。高度是「量着顶栏实际需要」定的，
             // 不会把按钮挤变形（原版的做法，这里按顶栏实际高度取）。
-            Height = _vm.Collapsed ? 44 : 500;
+            Height = _vm.Collapsed ? 44 : 520;
             PositionBottomRight();
             Program.Log("  折叠 = " + _vm.Collapsed + "，高度 = " + Height);
         }

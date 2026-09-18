@@ -159,21 +159,24 @@ macOS 是**按应用签名**授予这两项权限的，不是按脚本：
 |---|---|---|
 | **P0** | 项目骨架、平台接口、数据层接入 | ✔ 工具链冒烟通过（.NET 10.0.401 + Avalonia 12.1.2 编译并加载成功） |
 | **P1** | 空壳窗口能起来 | ✔ 面板显示在右下角，透明/无边框/置顶/中文渲染经真人确认；启动 ~390ms |
-| **P2** | 数据流打通 | ✔ `--dumpsnap` 输出与 Windows 版 JSON 逐字段一致；真实显示器枚举与 `system_profiler` 一致 |
+| **P2** | 数据流打通 | ✔ `--dumpsnap` 输出与 Windows 版 JSON 逐字段一致；真实显示器枚举与 `system_profiler` 一致；`ViewModels.cs` 移植后 `--vm-selftest` 分组/排序/文案/null 回落全部正确 |
 | **P3** | 截图流程 | 🔄 抓屏 / 全局热键 / 窗口探测 / 框选层已实现；**待真人授权后跑端到端** |
-| **P4** | 面板交互 | ⬜ Done 列表、详情、备注、纸篓捞回、设置页 |
-| **P5** | 衰减与预览 | ⬜ Wantdo 衰减变淡、长悬停放大预览、贴边隐藏 |
+| **P4** | 面板交互 | 🔄 面板真实 UI 与四个视图（主/纸篓/完成/设置）+ 缩略图缓存已完成；**待补**：归类窗、详情窗、完成记录窗 |
+| **P5** | 衰减与预览 | 🔄 Wantdo 衰减的**数据与文案**已随 ViewModels 移植完成（透明度/生命条/淡出提示）；**待补**：长悬停放大预览、贴边隐藏 |
 | **P6** | 打磨与打包 | ⬜ 权限引导、`.app` 打包、内存/启动基准复测 |
 
-### 已落地的实现清单（P0–P3）
+### 已落地的实现清单
 
 ```
 native/mac/
   RemeberEr.Mac.csproj        Avalonia 项目，链接共享的 ../src/Json.cs / Store.cs
-  Program.cs                  入口；参数与 Windows 版完全一致；数据目录改为 mac 惯例
-  Mvvm.cs                     ICommand/转换器/DPI 换算（去 CommandManager 依赖）
+  Program.cs                  入口；参数与 Windows 版一致；数据目录改为 mac 惯例
+  Mvvm.cs                     ICommand/转换器/字号与样式类转换
+  ViewModels.cs               由 WPF 版移植（908 行，只改缩略图那一小块）
   BitmapUtil.cs               BGRA 缓冲 → Avalonia WriteableBitmap
-  PanelWindow.axaml(.cs)      面板窗口 + 环境诊断面板
+  Theme.axaml                 设计 token（颜色/转换器/字体），照抄 WPF 版 Theme.xaml
+  Styles.axaml                控件样式（Avalonia 不允许样式进 ResourceDictionary）
+  PanelWindow.axaml(.cs)      面板：顶栏 + Todo 卡片 + Wantdo 磁贴 + 纸篓/完成/设置
   OverlayWindow.axaml(.cs)    框选层：压暗、拖角微调、拖内部平移、外侧 ✓、快速模式
   Platform/
     IPlatform.cs              平台能力接口（取代 Interop.cs 的 34 处 Win32）
@@ -185,21 +188,38 @@ native/mac/
   build.sh / run.sh           对应 Windows 的 build.ps1 / run.ps1
 ```
 
-### 免权限的验收手段（重要）
+### 免权限自检（重要）
 
-GUI 程序出错常常只表现为「窗口一闪没了」，日志里什么都没有。为此实现了两个
+GUI 程序出错常常只表现为「窗口一闪没了」，日志里什么都没有。为此做了一组
 **不需要系统权限**就能跑的自检，把问题分层隔离：
 
 | 命令 | 验证什么 | 需要权限 |
 |---|---|---|
-| `./run.sh --xaml-selftest` | 各窗口的 XAML 能否解析、控件能否找到 | 无 |
+| `./run.sh --xaml-selftest` | 各窗口 XAML、控件绑定、主题资源加载 | 无 |
+| `./run.sh --dumpsnap=out.json` | 数据层读取与序列化 | 无 |
+| `./run.sh --seed` | 往 `--data=` 指定目录灌演示数据 | 无 |
+| `./run.sh --vm-selftest` | JSON → ViewModel 的分组/排序/文案/空值回落 | 无 |
 | `./run.sh --grab=out.png` | 抓屏是否拿到正确内容（含全黑检测） | 屏幕录制 |
 | `./run.sh --overlay-test=out.png` | 框选层渲染、坐标换算、选区几何 | 屏幕录制 |
-| `./run.sh --dumpsnap=out.json` | 数据层读取与序列化 | 无 |
 | `./run.sh --request-perms` | 申请屏幕录制权限（授权后须重启进程） | — |
 
-`--xaml-selftest` 与 `--dumpsnap` 在**没授权之前**就应全部通过；如果它们失败，
-说明是代码问题而不是权限问题。
+前四条在**没授权之前**就应全部通过；失败说明是代码问题而不是权限问题。
+这一分层是有必要的：`--xaml-selftest` 曾抓出一个真实缺陷
+（自检用的应用对象绕开了主题加载，导致测的不是真实启动路径）。
+
+### 移植中踩到的 Avalonia 12 差异（备忘）
+
+| 现象 | 正确写法 |
+|---|---|
+| `ToolTip="…"` 解析失败 | `ToolTip.Tip="…"` |
+| `TextBox.Watermark` 已过时 | `PlaceholderText` |
+| `<Style>` 放进 `ResourceDictionary` 报 AVLN3000 | 样式必须放在 `<Styles>` 根下（本项目用独立 Styles.axaml） |
+| `new ResourceInclude(uri)` / `new StyleInclude(uri)` 抛 “Source must be set.” | `StyleInclude` 的 `ctor(Uri)` 参数其实是 **baseUri**，`Source` 是 init 属性；直接用 `AvaloniaXamlLoader.Load(uri)` |
+| `Rect.Empty` 不存在 | `default(Rect)` |
+| `Bitmap.Save(stream)` 已过时 | `Bitmap.Save(stream, new PngBitmapEncoderOptions())` |
+| `Avalonia.Controls.Shapes` 需显式 using | `Path` / `Rectangle` 都在这里 |
+| `Application.Initialize` 只能跑一次 | 主题加载抽成静态方法 + 幂等开关，供自检复用 |
+| XML 注释里不能出现 `--` | 分隔线用 `····`，否则 `AVLN1001`（`<!-- ---- -->` 会炸） |
 
 ---
 
