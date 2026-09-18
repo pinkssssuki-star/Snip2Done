@@ -23,7 +23,7 @@ namespace RemeberEr
 
         public Screenshot CaptureDisplay(DisplayInfo d) { return null; }
 
-        public Screenshot CaptureDisplayDimmed(DisplayInfo d, PixelRect rect) { return null; }
+        public Screenshot CaptureDisplayDimmed(DisplayInfo d, PhysRect rect) { return null; }
 
         public bool HasScreenCapturePermission() { return false; }
 

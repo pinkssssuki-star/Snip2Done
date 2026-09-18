@@ -81,7 +81,7 @@ namespace RemeberEr
         /// 抓一整块屏，同时把物理像素矩形 <paramref name="rect"/> 之外的区域涂黑。
         /// 框选层用它给每块屏铺一张「暗掉的底图」。
         /// </summary>
-        Screenshot CaptureDisplayDimmed(DisplayInfo d, PixelRect rect);
+        Screenshot CaptureDisplayDimmed(DisplayInfo d, PhysRect rect);
 
         /// <summary>屏幕录制权限是否已授予。未授予时上层要引导用户去系统设置。</summary>
         bool HasScreenCapturePermission();
@@ -134,10 +134,10 @@ namespace RemeberEr
     }
 
     /// <summary>物理像素矩形。用 double 是为了和缩放运算少一次取整。</summary>
-    public struct PixelRect
+    public struct PhysRect
     {
         public double X, Y, W, H;
-        public PixelRect(double x, double y, double w, double h) { X = x; Y = y; W = w; H = h; }
+        public PhysRect(double x, double y, double w, double h) { X = x; Y = y; W = w; H = h; }
         public bool IsEmpty { get { return W <= 0 || H <= 0; } }
     }
 }

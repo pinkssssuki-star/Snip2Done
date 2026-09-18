@@ -288,7 +288,7 @@ namespace RemeberEr
             return GrabDisplay(d.Id);
         }
 
-        public Screenshot CaptureDisplayDimmed(DisplayInfo d, PixelRect rect)
+        public Screenshot CaptureDisplayDimmed(DisplayInfo d, PhysRect rect)
         {
             var shot = CaptureDisplay(d);
             if (shot == null) return null;
@@ -304,7 +304,7 @@ namespace RemeberEr
         }
 
         /// <summary>把矩形之外的区域乘暗（原地修改）。</summary>
-        internal static void DimOutside(Screenshot s, PixelRect r, double factor = 0.42)
+        internal static void DimOutside(Screenshot s, PhysRect r, double factor = 0.42)
         {
             int x0 = Math.Max(0, (int)Math.Round(r.X));
             int y0 = Math.Max(0, (int)Math.Round(r.Y));

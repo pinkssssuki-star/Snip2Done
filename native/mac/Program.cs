@@ -75,6 +75,16 @@ namespace RemeberEr
         /// </summary>
         public static bool XamlSelfTest;
 
+        /// <summary>灌一份演示数据后退出（不碰真实数据，配合 --data= 用）。</summary>
+        public static bool Seed;
+
+        /// <summary>
+        /// 只跑数据 → ViewModel 这条链路并打印结果后退出，不起窗口。
+        /// 用途：把「JSON 解析出来的分组/排序/文案对不对」和「窗口画得对不对」分开验证。
+        /// 对应 P2 的验收标准。
+        /// </summary>
+        public static bool VmSelfTest;
+
         /// <summary>平台实现。P1 是桩，P3 起换成 MacPlatform。</summary>
         public static IPlatform Platform;
 
@@ -152,6 +162,20 @@ namespace RemeberEr
                 return;
             }
 
+            // 数据 → ViewModel 链路自检
+            if (VmSelfTest) { RunVmSelfTest(); return; }
+
+            // 灌演示数据后退出（配合 --data= 指到临时目录，别污染真实数据）
+            if (Seed)
+            {
+                Log("=== 灌演示数据 ===");
+                var st = new Store(DataDir);
+                st.SeedDemo();
+                Log("  已灌入，条目数 = " + st.Items.Count);
+                Log("  数据目录 = " + DataDir);
+                return;
+            }
+
             // 框选层自检：抓屏 → 弹框选层 → 自动画选区 → 存图 → 退出
             if (OverlayTest != null) { RunOverlayTest(); return; }
 
@@ -177,6 +201,61 @@ namespace RemeberEr
 
             Log("!! 当前系统不是 macOS，平台层退回 stub —— 抓屏/热键/窗口探测都不会工作");
             return new StubPlatform();
+        }
+
+        /// <summary>
+        /// 跑一遍 PanelViewModel.Refresh()，把解析结果全部打印出来。
+        /// 同时刻意打印几个「JSON 里是 null」的字段的处理结果 ——
+        /// 演示数据里 decayCfg / stats 就是 null，这是最容易漏的边界。
+        /// </summary>
+        static void RunVmSelfTest()
+        {
+            Log("=== ViewModel 自检 ===");
+            var store = new Store(DataDir);
+            var vm = new PanelViewModel(store);
+            vm.Refresh();
+
+            Log(string.Format("  Todo {0} 条（进行中 {1}） / Wantdo {2} 条 / 纸篓 {3} 条 / 完成 {4} 条",
+                vm.Todos.Count, vm.NTodo, vm.Wants.Count, vm.Bins.Count, vm.NDone));
+            Log(string.Format("  Stats = {0}", vm.Stats));
+            Log(string.Format("  设置: 透明度={0} 快速模式={1} 置顶={2} 演示加速={3}",
+                vm.OpacityText, vm.QuickCapture, vm.AlwaysOnTop, vm.DemoOn));
+            Log(string.Format("  衰减配置: 保护期={0} 放手期={1}（JSON 里是 null，应回落成默认 7/21）",
+                vm.FadeText, vm.BinText));
+            Log(string.Format("  空态标志: HasTodos={0} HasWants={1} HasBins={2} HasDoneGroups={3} 显示灌数据行={4}",
+                vm.HasTodos, vm.HasWants, vm.HasBins, vm.HasDoneGroups, vm.ShowSeedRow));
+
+            Log("  --- Todo 列表（顺序应为：未完成在前，today 优先）---");
+            foreach (var t in vm.Todos)
+                Log(string.Format("    [{0}] {1}  卡={2} 完成={3} 逾期={4} 来源={5} 时间={6}",
+                    string.IsNullOrEmpty(t.PillText) ? "—" : t.PillText,
+                    t.Title, t.PillKind ?? "—", t.IsDone, t.Overdue, t.MetaSource, t.MetaTime));
+
+            Log("  --- Wantdo 列表 ---");
+            foreach (var w in vm.Wants)
+                Log(string.Format("    「{0}」 副标题={1} 首字={2} 透明度={3:0.##} 生命={4:0.#}% 提示={5}",
+                    w.Title, w.Caption, w.FirstChar, w.Opacity, w.LifePercent, w.FadingHint ?? "—"));
+
+            Log("  --- 完成列表分组 ---");
+            foreach (var g in vm.DoneGroups)
+            {
+                Log(string.Format("    {0}（{1} 条）", g.Label, g.Count));
+                foreach (var d in g.Items)
+                    Log(string.Format("      {0} [{1}] {2}", d.Title, d.ChipKind, d.MetaText));
+            }
+
+            Log(string.Format("  缩略图: 有图条目 {0} 个（演示数据无图片，应为 0）",
+                CountWithThumb(vm)));
+            Log("=== 自检结束 ===");
+        }
+
+        static int CountWithThumb(PanelViewModel vm)
+        {
+            int n = 0;
+            foreach (var t in vm.Todos) if (t.HasThumb) n++;
+            foreach (var w in vm.Wants) if (w.HasThumb) n++;
+            foreach (var b in vm.Bins) if (b.HasThumb) n++;
+            return n;
         }
 
         static void AppMain()
@@ -347,6 +426,8 @@ namespace RemeberEr
                 else if (a.StartsWith("--grab=")) GrabPng = a.Substring(7);
                 else if (a.StartsWith("--overlay-test=")) OverlayTest = a.Substring(15);
                 else if (a == "--xaml-selftest") XamlSelfTest = true;
+                else if (a == "--seed") Seed = true;
+                else if (a == "--vm-selftest") VmSelfTest = true;
             }
         }
 
