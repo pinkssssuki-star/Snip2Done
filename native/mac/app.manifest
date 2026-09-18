@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <!--
+    macOS 版不需要 DPI 感知声明（那段是 WPF 版为了 PerMonitorV2 才要的，
+    见 native/src/app.manifest）。这里保留一个空清单，只是为了让 csproj 里的
+    ApplicationManifest 不指空，同时把「为什么这里什么都没有」写清楚。
+  -->
+  <assemblyIdentity version="1.0.0.0" name="RemeberEr.Mac" />
+</assembly>

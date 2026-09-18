@@ -20,6 +20,17 @@ native/out/
 native/obj/
 native/refasm/
 
+# ---- macOS 版（Avalonia）：编译产物 ----
+native/mac/bin/
+native/mac/obj/
+
+# ---- dotnet 的 HOME / 缓存落到仓库时的兜底 ----
+# 正常情况下 tools/dev-env.sh 会把它们指到仓库外层的 .dev/，
+# 但若有人直接跑 dotnet（没 source dev-env.sh），它们会落在仓库根目录。
+.nuget/
+.dotnet/
+.local/
+
 # ---- legacy：WebView2 SDK 是第三方解压产物 ----
 legacy/wpf-webview2/webview2/
 legacy/wpf-webview2/out/

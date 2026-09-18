@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    记忆面板 —— macOS 版（Avalonia）。
+    与 native/RemeberEr.Native.csproj（Windows/WPF 版）并存，两者互不影响：
+    Windows 版继续用 MSBuild 编译，这一份用 dotnet build 编译。
+
+    数据层 Json.cs / Store.cs 由 ../src 链接进来，不复制 —— 两边共用同一份文件，
+    避免逻辑漂移（这两个文件和 Electron 版的 JS 逐字段对齐过，那份对齐要保住）。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>RemeberEr.Mac</AssemblyName>
+    <RootNamespace>RemeberEr</RootNamespace>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <!--
+      AVLN3001：OverlayWindow 只有带参数的构造函数（它必须有整屏截图和屏幕信息
+      才能建起来），所以 Avalonia 的设计期加载器找不到它的无参构造函数。
+      这是有意的 —— 为了消警告而加一个假的无参构造函数，会让「这窗口能凭空 new」
+      变成一个看起来成立、运行时必然错的 API。
+      运行期走 AvaloniaXamlLoader.Load(this)，不受影响；已由 xaml-selftest 验证。
+    -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- BitmapUtil 里直接往 WriteableBitmap 的帧缓冲写指针，需要 unsafe -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- 别让 SDK 去扫 native/ 上层目录里的其它 csproj -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Themes.Simple" Version="12.1.2" />
+    <!--
+      内嵌字体是必要的，不是美化：面板里全是中文，还有 ✓ ✕ ⚡ ⇧ ▾ 这类符号。
+      Avalonia 默认字体在部分 macOS 环境下拿不到中文字形，会显示成豆腐块，
+      而「条目卡片必须永远清晰可读」是这个项目的可读性底线。
+    -->
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+  </ItemGroup>
+
+  <!-- 共享数据层：与 Windows 版是同一份文件 -->
+  <ItemGroup>
+    <Compile Include="../src/Json.cs" Link="src/Json.cs" />
+    <Compile Include="../src/Store.cs" Link="src/Store.cs" />
+  </ItemGroup>
+
+</Project>
