@@ -740,11 +740,16 @@ namespace RemeberEr
 
         // ---------------- 演示加速 ----------------
         //
-        // 「试试让时间以 N 倍流逝」是一次**有始有终的演示**，不是个开关：
+        // 「试试让时间以 N 倍流逝」是一次**有始有终、而且不留痕迹**的演示：
         // 点一下开始，画面每秒重算一次（看得到磁贴真的在褪色），
-        // 等所有还在的 Wantdo 都掉进纸篓，就自动结束并留一句话。
+        // 等所有还在的 Wantdo 都掉进纸篓，自动结束、**把数据原样还给你**，留一句话。
+        //
+        // 还原的做法不是逐条逆转 binCount / binStints 这些记账（漏一个就留疤），
+        // 而是**开演前把每条待褪色的条目整个深拷贝一份，结束时原样写回**。
 
-        public const string DemoSlogan = "希望梦想不再褪色，就好好注意它噢~";
+        public const string DemoSloganMoral = "希望梦想不再褪色，就好好注意它噢~";
+        public const string DemoSloganFirst = "这次我帮你把 WantDo 全都注意了一遍噢~ 下不为例~";
+        public const string DemoSloganAgain = "这次不会帮你了噢~";
 
         /// <summary>演示正常跑完了（不是被手动停下的）。</summary>
         bool _demoFinished;
@@ -758,8 +763,19 @@ namespace RemeberEr
             }
         }
 
+        /// <summary>这一轮是不是「第一次」—— 第一次会顺手把所有 Wantdo 的生命复原。</summary>
+        bool _demoWasFirst;
+        public bool DemoWasFirst
+        {
+            get { return _demoWasFirst; }
+            set { Set(ref _demoWasFirst, value, "DemoWasFirst"); }
+        }
+
         /// <summary>开演的时候还剩几条念想 —— 用来判断「跑完了」。</summary>
         int _demoWantsAtStart;
+
+        /// <summary>演示开始前的条目快照（深拷贝），结束或手动停下时原样写回。</summary>
+        List<Dictionary<string, object>> _demoBackup;
 
         public bool ShowDemoBanner { get { return _demoOn || _demoFinished; } }
 
@@ -767,9 +783,14 @@ namespace RemeberEr
         {
             get
             {
-                if (_demoFinished) return DemoSlogan;
-                if (NDemoLeft <= 0) return string.Format("时间正以 {0} 倍流逝…", (int)Decay.DEMO_TIME_SCALE);
-                return string.Format("时间正以 {0} 倍流逝 · 还有 {1} 个念想没被碰过",
+                if (_demoFinished)
+                {
+                    var line = _demoWasFirst ? DemoSloganFirst : DemoSloganAgain;
+                    return line + "\n" + DemoSloganMoral;
+                }
+                if (NDemoLeft <= 0)
+                    return string.Format("时间正以 {0} 倍流逝…（演示，看完原样还给你）", (int)Decay.DEMO_TIME_SCALE);
+                return string.Format("时间正以 {0} 倍流逝 · 还有 {1} 个念想没被碰过（演示，看完原样还给你）",
                     (int)Decay.DEMO_TIME_SCALE, NDemoLeft);
             }
         }
@@ -785,7 +806,29 @@ namespace RemeberEr
         public void StartDemo()
         {
             _demoFinished = false;
+
+            // 第一次点：把所有还在的 Wantdo 生命复原（就当我都替你看过一遍了）
+            int runs = (int)J.Num(_store.Settings, "demoRunCount", 0);
+            _demoWasFirst = runs == 0;
+            _store.SetSetting("demoRunCount", (double)(runs + 1));
+            if (_demoWasFirst)
+            {
+                int n = _store.RefreshAllWantsLife();
+                Program.Log("  第一次演示：先把 " + n + " 条念想的生命复原（我帮你都注意了一遍）");
+            }
+
             _demoWantsAtStart = NWant;
+
+            // 备份放在「生命复原」之后 —— 复原是要留下的，还原不能把它也抹掉
+            _demoBackup = new List<Dictionary<string, object>>();
+            foreach (var o in _store.Items)
+            {
+                var it = J.Obj(o);
+                if (J.Str(it, "room", "") != "want") continue;
+                if (J.Str(it, "state", "") != "active") continue;
+                _demoBackup.Add((Dictionary<string, object>)Json.Parse(Json.Stringify(it)));
+            }
+
             // 记下起跑时刻：倍率只作用于**这一刻之后**流逝的时间，
             // 否则一条一小时前放下的念想会在点击瞬间就变成 3.4 年年龄，直接被清空。
             _store.SetSetting("demoStartedAt", (double)Store.RealNow());
@@ -793,34 +836,61 @@ namespace RemeberEr
             // 切回主视图 —— 站在设置页里是看不到磁贴在褪色的
             View = "main";
             Refresh();
-            Program.Log(string.Format("  演示加速开始：倍率 {0}，当前想褪色的有 {1} 条",
-                (int)Decay.DEMO_TIME_SCALE, _demoWantsAtStart));
+            Program.Log(string.Format("  演示加速开始：倍率 {0}，待褪色 {1} 条，第一次={2}",
+                (int)Decay.DEMO_TIME_SCALE, _demoWantsAtStart, _demoWasFirst));
             Raise("ShowDemoBanner"); Raise("DemoBannerText");
-            if (_demoWantsAtStart == 0)
-            {
-                // 一条都没有就没什么可看的，直接把话说清楚
-                FinishDemo();
-            }
+            if (_demoWantsAtStart == 0) FinishDemo();   // 一条都没有就没什么可看的
         }
 
         public void StopDemo()
         {
+            RollbackDemo();
             _store.SetSetting("demoFastDecay", false);
-            _store.SetSetting("demoStartedAt", 0.0);   // 回到真实时间，年龄照旧算
+            _store.SetSetting("demoStartedAt", 0.0);
             _demoFinished = false;
             Refresh();
-            Program.Log("  演示加速已停下");
+            Program.Log("  演示加速已停下，数据已还原");
             Raise("ShowDemoBanner"); Raise("DemoBannerText");
         }
 
         void FinishDemo()
         {
+            RollbackDemo();
             _store.SetSetting("demoFastDecay", false);
             _store.SetSetting("demoStartedAt", 0.0);
             _demoFinished = true;
             Refresh();
-            Program.Log("  演示加速跑完 -> 出标语");
+            Program.Log("  演示跑完，数据已还原 -> 标语：" + (_demoWasFirst ? DemoSloganFirst : DemoSloganAgain));
             Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        /// <summary>
+        /// 把演示动过的条目原样写回。
+        /// 只写回**真的被改动过**的（state 或 lastTouchedAt 变了），
+        /// 免得演示什么都没发生也要重写一遍数据文件。
+        /// </summary>
+        void RollbackDemo()
+        {
+            if (_demoBackup == null) return;
+            var items = _store.Items;
+            int n = 0;
+            foreach (var saved in _demoBackup)
+            {
+                string id = J.Str(saved, "id", "");
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var cur = J.Obj(items[i]);
+                    if (J.Str(cur, "id", "") != id) continue;
+                    bool changed =
+                        J.Str(cur, "state", "") != J.Str(saved, "state", "") ||
+                        Math.Abs(J.Num(cur, "lastTouchedAt", 0) - J.Num(saved, "lastTouchedAt", 0)) > 0.5;
+                    if (changed) { items[i] = saved; n++; }
+                    break;
+                }
+            }
+            _demoBackup = null;
+            if (n > 0) _store.Save();
+            Program.Log("  演示回滚：还原了 " + n + " 条");
         }
 
         public void DismissDemo()

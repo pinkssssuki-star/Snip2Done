@@ -309,6 +309,28 @@ namespace RemeberEr
             return it;
         }
 
+        /// <summary>
+        /// 把所有还在的 Wantdo 生命复原（lastTouchedAt = 现在）。
+        ///
+        /// 只动生命值，**不动 touchCount / viewCount** —— 那两个是「你真的看过它几次」的
+        /// 记录，替用户"注意一遍"不该往里面灌水，不然完成记录里会出现一看就是假的数字。
+        /// </summary>
+        public int RefreshAllWantsLife()
+        {
+            double now = Now();
+            int n = 0;
+            foreach (var o in Items)
+            {
+                var it = J.Obj(o);
+                if (J.Str(it, "room", "") != "want") continue;
+                if (J.Str(it, "state", "") != "active") continue;
+                it["lastTouchedAt"] = now;
+                n++;
+            }
+            if (n > 0) Save();
+            return n;
+        }
+
         public Dictionary<string, object> Done(string id, bool hasReflection, string reflection, bool file)
         {
             var it = Get(id);

@@ -152,42 +152,80 @@ namespace RemeberEr
             else if (Program.Flow == "accel") ScheduleFlowAccel();
         }
 
+        void DumpWants(string tag)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var o in _store.Items)
+            {
+                var it = J.Obj(o);
+                if (J.Str(it, "room", "") != "want") continue;
+                string id = J.Str(it, "id", "");
+                if (id.Length > 8) id = id.Substring(0, 8);
+                sb.AppendLine(string.Format("{0}  {1,-7} last={2:0}  binCount={3}  binnedAt={4}  touches={5}",
+                    id, J.Str(it, "state", ""), J.Num(it, "lastTouchedAt", 0),
+                    J.Num(it, "binCount", 0), J.Num(it, "binnedAt", 0), J.Num(it, "touchCount", 0)));
+            }
+            File.WriteAllText(Path.Combine(Program.Root, ".guide", "wants-" + tag + ".txt"),
+                sb.ToString(), new System.Text.UTF8Encoding(false));
+            Program.Log("  want 快照 -> .guide\\wants-" + tag + ".txt");
+        }
+
         /// <summary>
-        /// 验收演示加速：每秒记一次「还剩几条念想 / 纸篓里有几条 / 透明度」，
-        /// 确认它是**慢慢褪色**而不是点下去一次性清空，并且跑完会出标语。
+        /// 验收演示加速：连跑两轮，确认
+        ///   1. 第一轮会把所有 Wantdo 的生命复原，第二轮不会
+        ///   2. 每轮跑完数据都**原样还原**（状态、binCount、binnedAt 一个都不许变）
+        ///   3. 标语按第一次 / 以后分两种
         /// </summary>
         void ScheduleFlowAccel()
         {
             var steps = new List<Tuple<int, Action>>();
             steps.Add(Tuple.Create<int, Action>(600, () =>
             {
-                Program.Log(string.Format("  开始前：Wantdo {0} 条，纸篓 {1} 条",
-                    _vm.NWant, _vm.NBin));
+                Program.Log(string.Format("  【原样】Wantdo {0} 条，纸篓 {1} 条", _vm.NWant, _vm.NBin));
+                DumpWants("原样");
                 Shot("accel-00");
                 _vm.StartDemo();
             }));
 
+            // 第一轮：边跑边记，确认是「慢慢褪色」而不是一次性清空
             int last = 0;
-            for (int sec = 5; sec <= 90; sec += 5)
+            for (int sec = 10; sec <= 70; sec += 10)
             {
-                int delay = (sec - last) * 1000;
-                last = sec;
-                int at = sec;
+                int delay = (sec - last) * 1000; last = sec; int at = sec;
                 steps.Add(Tuple.Create<int, Action>(delay, () =>
                 {
                     double minOp = 1.0;
                     foreach (var w in _vm.Wants) if (w.Opacity < minOp) minOp = w.Opacity;
-                    Program.Log(string.Format(
-                        "    t={0,2}s  念想 {1} 条（最淡 {2:0.00}）· 纸篓 {3} 条 · 演示中={4} 已完成={5}",
-                        at, _vm.NWant, minOp, _vm.NBin, _vm.DemoOn, _vm.DemoFinished));
+                    Program.Log(string.Format("    第1轮 t={0,2}s  念想 {1} 条（最淡 {2:0.00}）· 纸篓 {3} 条 · 完成={4}",
+                        at, _vm.NWant, minOp, _vm.NBin, _vm.DemoFinished));
                     if (at == 20) Shot("accel-20");
                     if (at == 40) Shot("accel-40");
                 }));
             }
-            steps.Add(Tuple.Create<int, Action>(400, () =>
+            steps.Add(Tuple.Create<int, Action>(500, () =>
             {
-                Program.Log("  横幅文字 = " + _vm.DemoBannerText);
+                Program.Log("  【第1轮结束】标语 = " + _vm.DemoBannerText.Replace("\n", " / "));
+                DumpWants("第1轮后");
                 Shot("accel-done");
+                _vm.DismissDemo();
+                _vm.StartDemo();
+            }));
+
+            // 第二轮
+            last = 0;
+            for (int sec = 10; sec <= 70; sec += 10)
+            {
+                int delay = (sec - last) * 1000; last = sec; int at = sec;
+                steps.Add(Tuple.Create<int, Action>(delay, () =>
+                {
+                    Program.Log(string.Format("    第2轮 t={0,2}s  念想 {1} 条 · 纸篓 {2} 条 · 完成={3}",
+                        at, _vm.NWant, _vm.NBin, _vm.DemoFinished));
+                }));
+            }
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                Program.Log("  【第2轮结束】标语 = " + _vm.DemoBannerText.Replace("\n", " / "));
+                DumpWants("第2轮后");
                 Program.Log("  演示加速流程结束");
                 Close();
             }));
