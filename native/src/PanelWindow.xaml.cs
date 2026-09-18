@@ -487,6 +487,25 @@ namespace RemeberEr
 
         // ------------------------------------------------------------ 拖窗 / 折叠
 
+        /// <summary>
+        /// 用户在别处又双击了一次 exe（已经被单实例挡掉，那个进程自己退了）。
+        /// 他多半是因为找不到面板才又点了一次，所以这里把它弄回眼前：
+        /// 贴边藏着就滑出来、折叠着就这样、隐藏了就显示，然后抢焦点。
+        /// </summary>
+        public void ActivateFromSecondLaunch()
+        {
+            if (_docked) RevealDock(true);
+            if (!IsVisible) Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Activate();
+            // 不置顶的话可能被别的窗口压着，Activate 看不出效果
+            if (!_vm.AlwaysOnTop)
+            {
+                Topmost = true;
+                Topmost = false;
+            }
+        }
+
         void OnHeaderDrag(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton != MouseButton.Left) return;

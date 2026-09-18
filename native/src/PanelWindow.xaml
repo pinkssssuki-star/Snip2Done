@@ -883,6 +883,19 @@
                                           IsChecked="{Binding QuickCapture, Mode=TwoWay}"/>
                         </Grid>
 
+                        <Grid Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="开机自启" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{StaticResource Tx2}"/>
+                                <TextBlock Text="开机就把它挂到桌面上，不用每次自己点。写当前用户的注册表，不需要管理员。" FontSize="10"
+                                           Foreground="#9a9aa0" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
+                                          VerticalAlignment="Top" Margin="0,2,0,0"
+                                          IsChecked="{Binding AutoStartOn, Mode=TwoWay}"/>
+                        </Grid>
+
                         <StackPanel Margin="0,0,0,10">
                             <Grid Margin="0,0,0,5">
                                 <TextBlock Text="面板透明度" FontSize="11.5" FontWeight="Medium"

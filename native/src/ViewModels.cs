@@ -588,6 +588,27 @@ namespace RemeberEr
 
         public void ToggleTopmost() { AlwaysOnTop = !_alwaysOnTop; }
 
+        /// <summary>
+        /// 开机自启。**不存在 data.json 里** —— 真正的状态在注册表，
+        /// 这里只做读写转发。启动时也从注册表读，免得两处对不上。
+        /// </summary>
+        public bool AutoStartOn
+        {
+            get { return AutoStart.IsEnabled; }
+            set
+            {
+                if (value == AutoStart.IsEnabled)
+                {
+                    Raise("AutoStartOn");
+                    return;
+                }
+                bool ok = AutoStart.Set(value);
+                Program.Log(string.Format("  开机自启 -> {0}（{1}）exe={2}",
+                    value ? "开" : "关", ok ? "成功" : "失败", AutoStart.ExePath));
+                Raise("AutoStartOn");
+            }
+        }
+
         /// <summary>贴边隐藏中（只露一条窄边在外面）。</summary>
         bool _isDocked;
         public bool IsDocked
