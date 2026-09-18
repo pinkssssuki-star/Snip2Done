@@ -708,11 +708,11 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                     <Border Grid.Row="1" CornerRadius="9" Background="#b8ffffff" BorderBrush="#1f000000"
-                            BorderThickness="1" Padding="10,9,10,9" Margin="0,0,0,10">
-                        <TextBlock FontSize="11" LineHeight="17.6" Foreground="{DynamicResource Tx3}" TextWrapping="Wrap">
-                            这里分开摆两种「没做成」。<LineBreak/>
-                            <Run FontWeight="SemiBold" Foreground="{DynamicResource Red}">使命 Todo</Run> 是你主动舍弃的 —— 可以倒垃圾一次清空。<LineBreak/>
-                            <Run FontWeight="SemiBold" Foreground="{StaticResource AccentDeep}">初心 Wantdo</Run> 是慢慢淡掉的 —— 永远留着，点一下就能捡回来。
+                            BorderThickness="1" Padding="10,11,10,11" Margin="0,0,0,10">
+                        <!-- 纸篓的一句话。两个分区各自的性质，看标签页和空态提示就懂了 -->
+                        <TextBlock FontSize="11.5" LineHeight="19" Foreground="{DynamicResource Tx3}"
+                                   TextWrapping="Wrap" TextAlignment="Center">
+                            童年的纸飞机，<LineBreak/>是否还能飞回你手里~
                         </TextBlock>
                     </Border>
 
