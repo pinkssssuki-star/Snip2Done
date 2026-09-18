@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RemeberEr"
         x:Class="RemeberEr.PanelWindow"
         Width="340" Height="500"
         CanResize="False"
@@ -10,66 +11,357 @@
         Topmost="True"
         Title="记忆面板">
 
-  <!--
-    P1 骨架窗口：先把「窗口能不能正确地透明、无边框、置顶、按物理像素定位」
-    这几件 mac 上最容易出错的事验证掉，再往里面填真实 UI。
+  <Window.Resources>
+    <!--
+      两个条目模板。
+      注意模板里要访问面板级命令（勾选完成、打开详情），用
+      $parent[Window].DataContext 往回找 —— 条目 VM 自己不该持有面板命令，
+      否则每一条都要复制一堆引用。
+    -->
 
-    这里显示的诊断信息是移植期的验收工具，后面会收进设置页，不删。
-    面板本体用半透明底色 —— 一眼就能看出透明是否真的生效
-    （若不透明，桌面不会从面板后面透出来）。
-  -->
-  <Border x:Name="RootBorder"
-          Background="#CC1A1720"
-          BorderBrush="#3A333F55"
-          BorderThickness="1"
-          CornerRadius="14">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="14">
+        <!-- ================================================ Todo 卡片 -->
+    <DataTemplate x:Key="TodoCardTpl">
+      <Border Classes="TodoCard"
+              Classes.done="{Binding IsDone}"
+              PointerReleased="OnTodoCardClick">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
 
-      <!-- 顶栏 -->
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-        <TextBlock Grid.Column="0"
-                   Text="记忆面板"
-                   FontSize="15" FontWeight="SemiBold"
-                   Foreground="#FFF2EFF7"
-                   VerticalAlignment="Center" />
-        <Border Grid.Column="1"
-                Background="#227C5CFF"
-                CornerRadius="6"
-                Padding="7,3">
-          <TextBlock Text="P1 骨架"
-                     FontSize="11"
-                     Foreground="#FFB9A8FF" />
-        </Border>
+          <!-- 勾选框：先只标记完成，留在原地让你能反悔 -->
+          <Button Grid.Column="0" Classes="Check"
+                  Classes.checked="{Binding IsDone}"
+                  Command="{Binding $parent[Window].DataContext.ToggleDoneCmd}"
+                  CommandParameter="{Binding Id}">
+            <TextBlock Text="✓"/>
+          </Button>
+
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}"
+                       FontSize="12.5" LineHeight="16.5" FontWeight="Medium"
+                       Foreground="{StaticResource Tx1}"
+                       TextWrapping="Wrap" MaxHeight="33" ClipToBounds="True"
+                       IsVisible="{Binding HasTitle}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+              <Border Classes="Pill"
+                      Classes.today="{Binding PillKind, Converter={StaticResource AsIs}}"
+                      IsVisible="{Binding HasPill}">
+                <TextBlock Text="{Binding PillText}"/>
+              </Border>
+              <!-- 没标题时补来源，避免卡片看起来是空的 -->
+              <TextBlock Text="{Binding MetaSource}" FontSize="10"
+                         Foreground="{StaticResource Tx3}" VerticalAlignment="Center"
+                         IsVisible="{Binding ShowMetaSource}"/>
+              <TextBlock Text="{Binding MetaTime}" FontSize="10"
+                         Foreground="{StaticResource TxFaint}" VerticalAlignment="Center"/>
+            </StackPanel>
+          </StackPanel>
+
+          <Border Grid.Column="3" Classes="CardThumb" IsVisible="{Binding HasThumb}">
+            <Image Source="{Binding Thumb}" Stretch="UniformToFill"/>
+          </Border>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <!-- ================================================ Wantdo 磁贴 -->
+    <DataTemplate x:Key="WantTileTpl">
+      <Border Classes="Tile" PointerReleased="OnWantTileClick">
+        <Grid RowDefinitions="*,Auto">
+          <Grid Grid.Row="0">
+            <!-- 有图铺图，没图用标题首字做占位块 -->
+            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
+                   IsVisible="{Binding HasThumb}"/>
+            <Border Background="{StaticResource AccentDeep}" IsVisible="{Binding !HasThumb}">
+              <TextBlock Text="{Binding FirstChar}"
+                         FontSize="30" FontWeight="SemiBold" Foreground="#ffffff"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+          </Grid>
+          <StackPanel Grid.Row="1" Margin="7,5,7,6" Spacing="3">
+            <TextBlock Text="{Binding Caption}" FontSize="10.5"
+                       Foreground="{StaticResource Tx2}"
+                       TextTrimming="CharacterEllipsis"/>
+            <ProgressBar Classes="LifeBar"
+                         Classes.low="{Binding LifePercent, Converter={StaticResource LifeClass}}"
+                         Minimum="0" Maximum="100"
+                         Value="{Binding LifePercent}"/>
+            <TextBlock Text="{Binding FadingHint}" FontSize="9.5"
+                       Foreground="{StaticResource Red}"
+                       IsVisible="{Binding ShowFadingHint}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Border CornerRadius="14" BorderThickness="1"
+          Background="{Binding PanelBackground}"
+          BorderBrush="{StaticResource ShellBorder}"
+          ClipToBounds="True">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+      <!-- ============================================ 顶栏（可拖动） -->
+      <Border Grid.Row="0" Padding="12,9,10,9"
+              BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+              Background="Transparent" PointerPressed="OnHeaderDrag">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="记忆面板" FontSize="13" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <!-- 环境诊断开关：移植期用来查看平台层实情，后面收进设置页 -->
+            <Button Classes="IconBtn" Content="?" ToolTip.Tip="环境诊断"
+                    Click="OnDiagToggle"/>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1">
+            <Button Classes="IconBtn" Content="✂" ToolTip.Tip="截图（⌘⇧A）"
+                    Command="{Binding SnipCmd}"/>
+            <Button Classes="IconBtn" Content="＋" ToolTip.Tip="手动记一笔"
+                    Command="{Binding ToggleQuickCmd}"/>
+            <Button Classes="IconBtn" Content="⚡" ToolTip.Tip="演示加速：约 5 分钟跑完一次完整淡出"
+                    Tag="{Binding DemoOn, Converter={StaticResource TagOn}}"
+                    Command="{Binding DemoToggleCmd}"/>
+            <Button Classes="IconBtn" Content="⚙" ToolTip.Tip="设置"
+                    Tag="{Binding SettingsOn, Converter={StaticResource TagOn}}"
+                    Command="{Binding SettingsCmd}"/>
+            <Button Classes="IconBtn" Content="⇧" ToolTip.Tip="窗口置顶（关掉就不会一直压在最上面）"
+                    Tag="{Binding AlwaysOnTop, Converter={StaticResource TagOn}}"
+                    Command="{Binding ToggleTopmostCmd}"/>
+            <Button Classes="IconBtn" Content="{Binding CollapseGlyph}" ToolTip.Tip="折叠"
+                    Command="{Binding CollapseCmd}"/>
+            <Button Classes="IconBtn" Content="✕" Tag="danger" ToolTip.Tip="退出（⌘⇧Q）"
+                    Command="{Binding QuitCmd}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- ============================================ 手动记一笔 -->
+      <Border Grid.Row="1" Padding="10,9"
+              BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
+              IsVisible="{Binding QuickOpen}">
+        <StackPanel Spacing="7">
+          <TextBox Text="{Binding QuickText}" PlaceholderText="记一笔…" FontSize="12"/>
+          <Grid ColumnDefinitions="*,6,*">
+            <Button Grid.Column="0" Content="Todo" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Tag="{Binding QuickTodoOn, Converter={StaticResource TagOn}}"
+                    Command="{Binding SetRoomCmd}" CommandParameter="todo"/>
+            <Button Grid.Column="2" Content="Wantdo" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center"
+                    Tag="{Binding QuickWantOn, Converter={StaticResource TagOn}}"
+                    Command="{Binding SetRoomCmd}" CommandParameter="want"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ============================================ 诊断面板（默认隐藏） -->
+      <Border Grid.Row="2" Padding="10" IsVisible="{Binding $parent[Window].DiagOn}">
+        <ScrollViewer>
+          <TextBlock x:Name="DiagText" FontSize="11" Foreground="{StaticResource Tx2}"
+                     TextWrapping="Wrap" LineHeight="17"/>
+        </ScrollViewer>
+      </Border>
+
+      <!-- ============================================ 主体 -->
+      <Grid Grid.Row="2" Margin="10" IsVisible="{Binding !$parent[Window].DiagOn}">
+
+        <!-- ········ 主视图 ········ -->
+        <Grid IsVisible="{Binding IsMainView}" RowDefinitions="208*,10,120*">
+
+          <!-- Todo -->
+          <Grid Grid.Row="0" RowDefinitions="Auto,*">
+            <Grid Grid.Row="0" Margin="1,0,1,6" ColumnDefinitions="Auto,Auto,*">
+              <TextBlock Grid.Column="0" Classes="SecTitle" Text="TODO" VerticalAlignment="Center"/>
+              <Border Grid.Column="1" Classes="CountBadge" Margin="6,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding NTodo}"/>
+              </Border>
+            </Grid>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <ItemsControl ItemsSource="{Binding Todos}" ItemTemplate="{StaticResource TodoCardTpl}"/>
+                <Border Classes="EmptyBox" IsVisible="{Binding !HasTodos}">
+                  <TextBlock Text="还没有 Todo。按 ⌘⇧A 截一张，或点 ＋ 手动记一笔。"/>
+                </Border>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+
+          <!-- Wantdo -->
+          <Grid Grid.Row="2" RowDefinitions="Auto,*">
+            <Grid Grid.Row="0" Margin="1,0,1,6" ColumnDefinitions="Auto,Auto,*">
+              <TextBlock Grid.Column="0" Classes="SecTitle" Text="WANTDO" VerticalAlignment="Center"/>
+              <Border Grid.Column="1" Classes="CountBadge" Margin="6,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding NWant}"/>
+              </Border>
+            </Grid>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <ItemsControl ItemsSource="{Binding Wants}" ItemTemplate="{StaticResource WantTileTpl}"/>
+                <Border Classes="EmptyBox" IsVisible="{Binding !HasWants}">
+                  <TextBlock Text="还没有 Wantdo。想做的事记在这里，你不碰它，它就会慢慢变淡。"/>
+                </Border>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+        </Grid>
+
+        <!-- ········ 纸篓视图 ········ -->
+        <Grid IsVisible="{Binding IsBinView}" RowDefinitions="Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="1,0,1,8">
+            <Button Grid.Column="0" Classes="IconBtn" Content="←" ToolTip.Tip="返回"
+                    Command="{Binding BackCmd}"/>
+            <TextBlock Grid.Column="1" Classes="SecTitle" Text="PAPER PLANE BIN"
+                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+          </Grid>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <ItemsControl ItemsSource="{Binding Bins}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Classes="TodoCard" PointerReleased="OnBinCardClick">
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0" Classes="CardThumb" Margin="0,0,8,0"
+                                IsVisible="{Binding HasThumb}">
+                          <Image Source="{Binding Thumb}" Stretch="UniformToFill"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Caption}" FontSize="12"
+                                     TextTrimming="CharacterEllipsis"/>
+                          <TextBlock Text="{Binding RoomName}" FontSize="9.5"
+                                     Foreground="{StaticResource TxFaint}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="IconBtn" Content="↩" ToolTip.Tip="捞回来"
+                                Command="{Binding $parent[Window].DataContext.RestoreCmd}"
+                                CommandParameter="{Binding Id}"/>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="EmptyBox" IsVisible="{Binding !HasBins}">
+                <TextBlock Text="纸篓是空的。放下的东西会在这里等你，随时能捞回来。"/>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+
+        <!-- ········ 完成列表 ········ -->
+        <Grid IsVisible="{Binding IsDoneView}" RowDefinitions="Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="1,0,1,8">
+            <Button Grid.Column="0" Classes="IconBtn" Content="←" ToolTip.Tip="返回"
+                    Command="{Binding BackCmd}"/>
+            <TextBlock Grid.Column="1" Classes="SecTitle" Text="DONE"
+                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+          </Grid>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <ItemsControl ItemsSource="{Binding DoneGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Margin="0,0,0,10">
+                      <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="Bold"
+                                 Foreground="{StaticResource Tx3}" Margin="1,0,0,5"/>
+                      <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Border Classes="TodoCard" PointerReleased="OnDoneCardClick">
+                              <Grid ColumnDefinitions="Auto,*,Auto">
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding Title}" FontSize="12"
+                                             TextTrimming="CharacterEllipsis"/>
+                                  <TextBlock Text="{Binding MetaText}" FontSize="9.5"
+                                             Foreground="{StaticResource TxFaint}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding RoomName}"
+                                           FontSize="9.5" VerticalAlignment="Center"
+                                           Foreground="{StaticResource Tx3}"/>
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="EmptyBox" IsVisible="{Binding !HasDoneGroups}">
+                <TextBlock Text="还没有完成记录。完成不是丢弃 —— 这里会记下你用了多久、写了什么。"/>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+
+        <!-- ········ 设置视图 ········ -->
+        <ScrollViewer IsVisible="{Binding IsSetView}" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="12" Margin="0,0,4,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Button Grid.Column="0" Classes="IconBtn" Content="←" Command="{Binding BackCmd}"/>
+              <TextBlock Grid.Column="1" Classes="SecTitle" Text="设置"
+                         VerticalAlignment="Center" Margin="6,0,0,0"/>
+            </Grid>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="快速模式" FontSize="12" FontWeight="SemiBold"/>
+              <CheckBox IsChecked="{Binding QuickCapture}" Content="框选松手即定，不用再点 ✓"/>
+              <TextBlock Text="一框，一分类 —— 对熟手来说少一步就是少一步。"
+                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="面板透明度" FontSize="12" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1" Text="{Binding OpacityText}" FontSize="11"
+                           Foreground="{StaticResource Tx3}"/>
+              </Grid>
+              <Slider Minimum="30" Maximum="100" Value="{Binding OpacityPercent}"/>
+              <TextBlock Text="只影响面板底色；条目卡片始终不透明，保证任何桌面背景下都读得清。"
+                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Wantdo 保护期" FontSize="12" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1" Text="{Binding FadeText}" FontSize="11"
+                           Foreground="{StaticResource Tx3}"/>
+              </Grid>
+              <Slider Minimum="1" Maximum="60" Value="{Binding FadeStartDays}"/>
+              <TextBlock Text="这期间完全不衰减。只影响 Wantdo，Todo 永远不受影响。"
+                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="多久后放手" FontSize="12" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="1" Text="{Binding BinText}" FontSize="11"
+                           Foreground="{StaticResource Tx3}"/>
+              </Grid>
+              <Slider Minimum="2" Maximum="180" Value="{Binding BinAfterDays}"/>
+              <TextBlock Text="超过就滑进 Paper Plane Bin，随时能捞回来。"
+                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="保存衰减设置" Click="OnSaveDecay"/>
+              <Button Content="灌演示数据" Command="{Binding SeedCmd}"
+                      IsVisible="{Binding ShowSeedRow}"/>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
       </Grid>
 
-      <!-- 分隔线 -->
-      <Border Grid.Row="1" Height="1" Background="#2AFFFFFF" Margin="0,10,0,12" />
-
-      <!-- 诊断信息 -->
-      <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="2">
-          <TextBlock Text="环境诊断" FontSize="12" FontWeight="SemiBold"
-                     Foreground="#FFB9A8FF" Margin="0,0,0,6" />
-          <TextBlock x:Name="DiagText"
-                     FontFamily="Menlo,Consolas,monospace"
-                     FontSize="11"
-                     Foreground="#FFD8D4E0"
-                     TextWrapping="Wrap"
-                     LineHeight="17" />
-        </StackPanel>
-      </ScrollViewer>
-
-      <!-- 底栏：透明验证用色块 -->
-      <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="6" Margin="0,10,0,0">
-        <Border Width="52" Height="22" CornerRadius="4" Background="#FF7C5CFF" />
-        <Border Width="52" Height="22" CornerRadius="4" Background="#FF4ADE80" />
-        <Border Width="52" Height="22" CornerRadius="4" Background="#FFFACC15" />
-        <Border Width="52" Height="22" CornerRadius="4" Background="#80FFFFFF" />
-        <TextBlock Text="← 透明/颜色验证"
-                   FontSize="10" Foreground="#FF8A8496"
-                   VerticalAlignment="Center" />
-      </StackPanel>
-
+      <!-- ============================================ 底栏 -->
+      <Border Grid.Row="3" Padding="12,7"
+              BorderBrush="{StaticResource Hair}" BorderThickness="0,1,0,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding Stats}" FontSize="10"
+                     Foreground="{StaticResource Tx3}" VerticalAlignment="Center"/>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+            <Button Classes="IconBtn" Content="Bin" FontSize="10" ToolTip.Tip="Paper Plane Bin"
+                    Command="{Binding ShowBinCmd}"/>
+            <Button Classes="IconBtn" Content="Done" FontSize="10" ToolTip.Tip="完成列表"
+                    Command="{Binding ShowDoneCmd}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
     </Grid>
   </Border>
 </Window>

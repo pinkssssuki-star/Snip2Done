@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Platform;
 using Avalonia.Threading;
 
 namespace RemeberEr
@@ -11,61 +14,71 @@ namespace RemeberEr
     /// <summary>
     /// 常驻面板窗口。
     ///
-    /// P1 阶段只验证窗口层面的平台行为（透明 / 无边框 / 置顶 / 按物理像素定位到
-    /// 右下角 / Retina 缩放换算），并把诊断信息直接画在窗口里 ——
-    /// 因为 GUI 程序没有控制台，把「我以为的坐标系」和「系统实际的坐标系」同时摆在
-    /// 眼前，是移植期最快的排错方式。
+    /// 数据全部走 PanelViewModel（与 WPF 版同一套逻辑），窗口只负责：
+    ///   · 窗口层面的平台行为（透明/无边框/置顶/右下角定位/拖动）
+    ///   · 把点击/拖动这类输入翻译成对 VM 或其它窗口的调用
+    ///   · 缩略图解码完之后刷新那几行（由 VM 抛事件驱动，不额外读一次盘）
+    ///
+    /// 一个刻意的设计：诊断面板留在这里而不是删掉。
+    /// GUI 程序没有控制台，把「平台层实际看到什么」画在面板上一眼可见，
+    /// 是移植期排错最快的手段；收进设置页后对普通使用没有打扰。
     /// </summary>
     public partial class PanelWindow : Window
     {
         const double PANEL_MARGIN = 20;
 
+        Store _store;
+        PanelViewModel _vm;
         TextBlock _diag;
+
+        /// <summary>诊断视图是否打开。普通属性即可 —— 它不参与数据绑定到 VM。</summary>
+        public bool DiagOn { get; private set; }
+
+        public PanelViewModel Vm { get { return _vm; } }
 
         public PanelWindow()
         {
             Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
             _diag = this.FindControl<TextBlock>("DiagText");
 
+            _store = new Store(Program.DataDir);
+            _vm = new PanelViewModel(_store);
+            _vm.ImageRefreshNeeded += OnImageRefreshNeeded;
+            _vm.TopmostChanged += on => Topmost = on;
+
+            _vm.SnipRequested += () => Program.Log("  [面板] 请求截图（P3 待接热键与归类窗）");
+            _vm.QuitRequested += () => { Program.Platform.UnregisterAllHotkeys(); Close(); };
+            _vm.CollapseRequested += ToggleCollapse;
+            _vm.OpenDetailRequested += id => Program.Log("  [面板] 打开详情：" + id + "（P4 待做）");
+            _vm.OpenRecordRequested += id => Program.Log("  [面板] 打开完成记录：" + id + "（P4 待做）");
+
+            DataContext = _vm;
             Opened += OnOpened;
         }
+
+        // ============================================================ 生命周期
 
         void OnOpened(object sender, EventArgs e)
         {
             PositionBottomRight();
+            ApplyStartView();
+            _vm.Refresh();
+            Topmost = _vm.AlwaysOnTop;
             UpdateDiag();
-            LogScreens();
+
             Program.Log("  [t=" + Program.Boot.ElapsedMilliseconds + "ms] 面板已显示");
             Program.Log("    位置(物理) = " + Position + " 尺寸(逻辑) = " + Width + "x" + Height);
             Program.Log("    RenderScaling = " + RenderScaling);
+            LogScreens();
         }
 
-        /// <summary>
-        /// 把 Avalonia 看到的屏幕信息落进日志。
-        ///
-        /// 为什么值得专门写一段：抓屏拿的是**物理像素**，窗口用**逻辑像素**，
-        /// 两者的换算全靠 Scaling。移植期必须能事后核对「我以为的屏幕」和
-        /// 「系统实际的屏幕」是否一致 —— 只画在窗口里没法事后比对，
-        /// 而 GUI 程序又没有控制台可抓。
-        /// </summary>
-        void LogScreens()
+        /// <summary>--view=main|bin|done|set 启动时直接进某一页（与 Windows 版同名参数）。</summary>
+        void ApplyStartView()
         {
-            var screens = Screens;
-            if (screens == null) { Program.Log("    !! Screens 为 null"); return; }
-
-            Program.Log("    Avalonia 屏幕数 = " + screens.All.Count);
-            int i = 0;
-            foreach (var s in screens.All)
-            {
-                bool primary = ReferenceEquals(s, screens.Primary);
-                Program.Log(string.Format("      [{0}]{1} scaling={2}", i, primary ? " 主屏" : "", s.Scaling));
-                Program.Log(string.Format("         bounds(逻辑)  = {0}", s.Bounds));
-                Program.Log(string.Format("         work(逻辑)    = {0}", s.WorkingArea));
-                Program.Log(string.Format("         bounds(物理)  = {0}x{1} @ ({2},{3})",
-                    s.Bounds.Width * s.Scaling, s.Bounds.Height * s.Scaling,
-                    s.Bounds.X * s.Scaling, s.Bounds.Y * s.Scaling));
-                i++;
-            }
+            var v = Program.StartView;
+            if (string.IsNullOrEmpty(v) || v == "main") return;
+            _vm.View = v;
+            Program.Log("  启动视图 = " + v);
         }
 
         /// <summary>
@@ -73,7 +86,6 @@ namespace RemeberEr
         ///
         /// 注意换算：Avalonia 的 Window.Position 要**物理像素**，
         /// 而 Screens 给的 Bounds 是**逻辑像素** —— 混用会让窗口跑到屏幕外或错位。
-        /// 这里显式用 Screen.Scaling 把逻辑换算成物理，并把过程写进诊断文本。
         /// </summary>
         void PositionBottomRight()
         {
@@ -84,43 +96,117 @@ namespace RemeberEr
             if (screen == null) return;
 
             double s = screen.Scaling > 0 ? screen.Scaling : 1.0;
-            var b = screen.Bounds;          // 逻辑像素
             var wa = screen.WorkingArea;    // 逻辑像素
 
-            // 面板自己的逻辑尺寸 -> 物理尺寸
             double wPhys = Width * s;
             double hPhys = Height * s;
-
             double xPhys = wa.X * s + wa.Width * s - wPhys - PANEL_MARGIN * s;
             double yPhys = wa.Y * s + wa.Height * s - hPhys - PANEL_MARGIN * s;
 
             Position = new Avalonia.PixelPoint((int)Math.Round(xPhys), (int)Math.Round(yPhys));
         }
 
+        // ============================================================ 交互
+
+        /// <summary>顶栏拖动 = 移动窗口（无边框窗口没有系统标题栏可拖）。</summary>
+        void OnHeaderDrag(object sender, PointerPressedEventArgs e)
+        {
+            var p = e.GetCurrentPoint(this);
+            if (!p.Properties.IsLeftButtonPressed) return;
+            // 拖到顶栏的按钮上时不要抢走点击
+            if (e.Source is Button) return;
+            try { BeginMoveDrag(e); }
+            catch (Exception ex) { Program.Log("  拖动失败：" + ex.Message); }
+        }
+
+        void OnTodoCardClick(object sender, PointerReleasedEventArgs e)
+        {
+            var vm = (sender as Control)?.DataContext as TodoVm;
+            if (vm == null) return;
+            _vm.OpenCmd.Execute(vm.Id);
+        }
+
+        void OnWantTileClick(object sender, PointerReleasedEventArgs e)
+        {
+            var vm = (sender as Control)?.DataContext as WantVm;
+            if (vm == null) return;
+            _vm.OpenCmd.Execute(vm.Id);
+        }
+
+        void OnBinCardClick(object sender, PointerReleasedEventArgs e)
+        {
+            var vm = (sender as Control)?.DataContext as BinVm;
+            if (vm == null) return;
+            // 点纸篓里的卡片 = 捞回来（和面板上的 ↩ 同一个动作）
+            _vm.RestoreCmd.Execute(vm.Id);
+        }
+
+        void OnDoneCardClick(object sender, PointerReleasedEventArgs e)
+        {
+            var vm = (sender as Control)?.DataContext as DoneVm;
+            if (vm == null) return;
+            _vm.OpenDoneCmd.Execute(vm.Id);
+        }
+
+        void OnSaveDecay(object sender, RoutedEventArgs e)
+        {
+            _vm.SaveDecay();
+            _vm.SaveOpacity();
+            Program.Log("  衰减/透明度设置已保存");
+        }
+
+        void OnDiagToggle(object sender, RoutedEventArgs e)
+        {
+            DiagOn = !DiagOn;
+            UpdateDiag();
+        }
+
+        void ToggleCollapse()
+        {
+            _vm.Collapsed = !_vm.Collapsed;
+            // 折叠成一条：只留顶栏。高度是「量着顶栏实际需要」定的，
+            // 不会把按钮挤变形（原版的做法，这里按顶栏实际高度取）。
+            Height = _vm.Collapsed ? 44 : 500;
+            PositionBottomRight();
+            Program.Log("  折叠 = " + _vm.Collapsed + "，高度 = " + Height);
+        }
+
+        /// <summary>缩略图解码完成后刷新那几项 —— 不改任何业务状态，只让界面重画。</summary>
+        void OnImageRefreshNeeded()
+        {
+            // VM 属性本身已经 Raise 过，这里只需要在 UI 线程上让绑定重新求值。
+            // Dispatcher.Post 是幂等且便宜的，重复调用没有副作用。
+            Dispatcher.UIThread.Post(() =>
+            {
+                // 触发一次集合级刷新：ItemsControl 会重新读取每一项的 Thumb
+                var t = _vm.Todos; int a = t.Count;
+                var w = _vm.Wants; int b = w.Count;
+            });
+        }
+
+        // ============================================================ 诊断
+
         void UpdateDiag()
         {
+            if (_diag == null) return;
+            if (!DiagOn) { _diag.Text = ""; return; }
+
             var sb = new StringBuilder();
             try
             {
-                var screens = Screens;
-                sb.AppendLine("平台: " + Program.Platform.Name);
+                sb.AppendLine("平台层: " + Program.Platform.Name);
                 sb.AppendLine("Avalonia: " + typeof(Window).Assembly.GetName().Version);
                 sb.AppendLine();
 
+                var screens = Screens;
                 if (screens != null)
                 {
                     sb.AppendLine("屏幕数: " + screens.All.Count);
-                    int i = 0;
                     foreach (var s in screens.All)
                     {
-                        sb.AppendLine(string.Format("  [{0}]{1} scaling={2}", i,
-                            ReferenceEquals(s, screens.Primary) ? " 主屏" : "", s.Scaling));
-                        sb.AppendLine(string.Format("     bounds(逻辑)  {0}", s.Bounds));
-                        sb.AppendLine(string.Format("     work(逻辑)    {0}", s.WorkingArea));
-                        sb.AppendLine(string.Format("     bounds(物理)  {0}x{1} @ ({2},{3})",
-                            s.Bounds.Width * s.Scaling, s.Bounds.Height * s.Scaling,
-                            s.Bounds.X * s.Scaling, s.Bounds.Y * s.Scaling));
-                        i++;
+                        sb.AppendLine(string.Format("  scaling={0} bounds(逻辑)={1}",
+                            s.Scaling, s.Bounds));
+                        sb.AppendLine(string.Format("  work(逻辑)={0}", s.WorkingArea));
                     }
                 }
                 sb.AppendLine();
@@ -129,11 +215,9 @@ namespace RemeberEr
                 sb.AppendLine("  RenderScaling = " + RenderScaling);
                 sb.AppendLine("  Position(物理) = " + Position);
                 sb.AppendLine("  尺寸(逻辑) = " + Width + " x " + Height);
-                sb.AppendLine("  尺寸(物理) = " + (Width * RenderScaling) + " x " + (Height * RenderScaling));
                 sb.AppendLine();
 
-                var cur = Program.Platform.GetCursorPosition();
-                sb.AppendLine("光标(物理) = " + cur);
+                sb.AppendLine("光标(物理) = " + Program.Platform.GetCursorPosition());
                 sb.AppendLine();
 
                 sb.AppendLine("权限:");
@@ -144,24 +228,37 @@ namespace RemeberEr
                 sb.AppendLine("数据目录:");
                 sb.AppendLine("  " + Program.DataDir);
                 sb.AppendLine();
-
-                var st = new Store(Program.DataDir);
-                var snap = st.Snapshot();
-                sb.AppendLine("数据层: 已接通");
-                sb.AppendLine("  snapshot 长度 = " + (Json.Stringify(snap) ?? "").Length + " 字节");
-                sb.AppendLine();
-
-                sb.AppendLine("（平台层显示器的真假值见 native.log，");
-                sb.AppendLine("  这里只画 Avalonia 自己的口径，便于两处对照）");
+                sb.AppendLine("数据: Todo " + _vm.Todos.Count + " / Wantdo " + _vm.Wants.Count
+                    + " / 纸篓 " + _vm.Bins.Count + " / 完成组 " + _vm.DoneGroups.Count);
             }
             catch (Exception ex)
             {
                 sb.AppendLine();
-                sb.AppendLine("!! 诊断失败: " + ex.GetType().Name);
-                sb.AppendLine(ex.Message);
+                sb.AppendLine("!! 诊断失败: " + ex.GetType().Name + " " + ex.Message);
             }
 
-            if (_diag != null) _diag.Text = sb.ToString();
+            _diag.Text = sb.ToString();
+        }
+
+        void LogScreens()
+        {
+            var screens = Screens;
+            if (screens == null) { Program.Log("    !! Screens 为 null"); return; }
+            Program.Log("    Avalonia 屏幕数 = " + screens.All.Count);
+            foreach (var s in screens.All)
+            {
+                Program.Log(string.Format("      scaling={0} bounds(逻辑)={1} work(逻辑)={2}",
+                    s.Scaling, s.Bounds, s.WorkingArea));
+                Program.Log(string.Format("      bounds(物理) = {0}x{1} @ ({2},{3})",
+                    s.Bounds.Width * s.Scaling, s.Bounds.Height * s.Scaling,
+                    s.Bounds.X * s.Scaling, s.Bounds.Y * s.Scaling));
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            Program.Platform.UnregisterAllHotkeys();
+            base.OnClosed(e);
         }
     }
 }

@@ -315,6 +315,14 @@ namespace RemeberEr
         public event Action SnipRequested;
         public event Action CollapseRequested;
         public event Action QuitRequested;
+
+        /// <summary>
+        /// 有一张缩略图解码完成，界面可以重画了。
+        ///
+        /// 为什么不复用 Refresh()：解码回填只改了 VM 上的 Thumb 一个字段，
+        /// 为此重读一遍 JSON 再重建所有集合是浪费（原版也是这么分的）。
+        /// </summary>
+        public event Action ImageRefreshNeeded;
         public event Action<string> OpenDetailRequested;
         public event Action<string> OpenRecordRequested;
 
@@ -838,7 +846,7 @@ namespace RemeberEr
         /// </summary>
         const int ThumbWidth = 256;
 
-        static void QueueThumb(object vm, string imagePath, int decodeWidth, bool gray = false)
+        void QueueThumb(object vm, string imagePath, int decodeWidth, bool gray = false)
         {
             if (Program.NoThumb) return;   // A/B 用：彻底跳过解码，隔离瓶颈
             if (string.IsNullOrEmpty(imagePath)) return;
@@ -936,12 +944,18 @@ namespace RemeberEr
             catch (Exception) { }
         }
 
-        static void ApplyThumb(object vm, Bitmap img)
+        /// <summary>把解好的图回填到对应条目，并通知界面重画。</summary>
+        void ApplyThumb(object vm, Bitmap img)
         {
-            var a = vm as TodoVm; if (a != null) { a.Thumb = img; return; }
-            var b = vm as WantVm; if (b != null) { b.Thumb = img; return; }
-            var c = vm as BinVm; if (c != null) { c.Thumb = img; return; }
-            var d = vm as DoneVm; if (d != null) { d.Thumb = img; }
+            bool hit = false;
+            var a = vm as TodoVm; if (a != null) { a.Thumb = img; hit = true; }
+            var b = vm as WantVm; if (b != null) { b.Thumb = img; hit = true; }
+            var c = vm as BinVm; if (c != null) { c.Thumb = img; hit = true; }
+            var d = vm as DoneVm; if (d != null) { d.Thumb = img; hit = true; }
+            if (!hit) return;
+
+            var h = ImageRefreshNeeded;
+            if (h != null) h();
         }
 
         static string FirstCharOf(string s)

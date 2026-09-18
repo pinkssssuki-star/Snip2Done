@@ -1,0 +1,80 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:RemeberEr">
+
+  <!--
+    设计 token 与控件样式。
+
+    颜色/圆角/字号全部照抄自 WPF 版 native/src/Theme.xaml（那份又照抄自 Electron 版
+    panel.css），这样两个平台的视觉是同源的，不会各长一套。
+
+    与原版的一处必要差异：原版用 WPF 的 DataTrigger 在模板里切配色，
+    Avalonia 的样式触发器语法不同（需要 `[!]` 选择器），
+    因此改成「用转换器算出一个样式类，样式表按类上色」——
+    效果等价，而且配色集中在 Styles.axaml 里，更好改。
+
+    注意：样式**不能**写在本文件里（ResourceDictionary 只放资源），
+    否则 Avalonia 会报 AVLN3000；控件样式在 Styles.axaml。
+  -->
+
+  <!-- ============================================================ 颜色 -->
+  <SolidColorBrush x:Key="Tx1" Color="#1a1a1f"/>
+  <SolidColorBrush x:Key="Tx2" Color="#4a4a55"/>
+  <SolidColorBrush x:Key="Tx3" Color="#8a8a95"/>
+  <SolidColorBrush x:Key="TxFaint" Color="#c4c4c9"/>
+  <SolidColorBrush x:Key="Accent" Color="#8b5cf6"/>
+  <SolidColorBrush x:Key="AccentDeep" Color="#7c3aed"/>
+  <SolidColorBrush x:Key="Green" Color="#10b981"/>
+  <SolidColorBrush x:Key="Red" Color="#dc2626"/>
+  <SolidColorBrush x:Key="Hair" Color="#12000000"/>
+  <SolidColorBrush x:Key="CardBg" Color="#ffffff"/>
+  <SolidColorBrush x:Key="TileBg" Color="#ffffff"/>
+  <SolidColorBrush x:Key="ShellBorder" Color="#14000000"/>
+
+  <!-- pill 三色（对应 .pill-today / .pill-soon / .pill-bad） -->
+  <SolidColorBrush x:Key="PillTodayBg" Color="#fef3c7"/>
+  <SolidColorBrush x:Key="PillTodayFg" Color="#b45309"/>
+  <SolidColorBrush x:Key="PillSoonBg" Color="#dbeafe"/>
+  <SolidColorBrush x:Key="PillSoonFg" Color="#1d4ed8"/>
+  <SolidColorBrush x:Key="PillBadBg" Color="#fee2e2"/>
+  <SolidColorBrush x:Key="PillBadFg" Color="#b91c1c"/>
+  <SolidColorBrush x:Key="PillPlainBg" Color="#0f000000"/>
+
+  <!-- ============================================================ 转换器 -->
+  <local:BoolToVis x:Key="BoolToVis"/>
+  <local:EmptyToVis x:Key="EmptyToVis"/>
+  <local:Not x:Key="Not"/>
+  <local:FirstChar x:Key="FirstChar"/>
+  <local:RatioToPercent x:Key="RatioToPercent"/>
+  <local:TagOn x:Key="TagOn"/>
+  <local:AsIs x:Key="AsIs"/>
+  <local:LifeClass x:Key="LifeClass"/>
+
+  <!-- ============================================================ 字体与基础 -->
+  <FontFamily x:Key="UiFont">Inter, -apple-system, Helvetica Neue, PingFang SC, Microsoft YaHei</FontFamily>
+
+  <!-- ============================================================ 顶栏图标按钮 -->
+
+  <!-- 开关处于打开状态（Tag=on）：用强调色标出来 -->
+
+  <!-- ============================================================ 分区标题 -->
+
+  <!-- ============================================================ 空态 -->
+
+  <!-- ============================================================ Todo 卡片 -->
+
+  <!-- 已完成的卡片整体降调，和 HTML 版的 .done 一致 -->
+
+  <!-- 勾选框 -->
+
+  <!-- pill 徽章 -->
+
+  <!-- 卡片里的小缩略图 -->
+
+  <!-- ============================================================ Wantdo 磁贴 -->
+
+  <!-- 生命条：一根细线，颜色随剩余生命变化 -->
+
+  <!-- ============================================================ 滚轮 -->
+
+</ResourceDictionary>

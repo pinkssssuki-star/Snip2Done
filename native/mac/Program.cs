@@ -6,6 +6,9 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace RemeberEr
@@ -366,9 +369,20 @@ namespace RemeberEr
             }, TimeSpan.FromMilliseconds(1200));
         }
 
-        /// <summary>只用来承载自检窗口的应用对象，不带 Theme。</summary>
-        public class SelfTestApp : Application
+        /// <summary>
+        /// 自检用的应用对象。
+        ///
+        /// 刻意**继承 App** 而不是直接继承 Application：App.Initialize 里加载了
+        /// Theme.axaml / Styles.axaml，如果自检绕开它，测的就不是真实启动路径 ——
+        /// 曾经因此漏掉过一次「Static resource not found」。
+        /// 只把「自动建主窗口」这一步让掉，好让自检自己造窗口。
+        /// </summary>
+        public class SelfTestApp : App
         {
+            public override void OnFrameworkInitializationCompleted()
+            {
+                // 不建主窗口，也不调 base（base 会去建 PanelWindow）
+            }
         }
 
         /// <summary>
@@ -505,14 +519,60 @@ namespace RemeberEr
     /// </summary>
     public class App : Application
     {
+        /// <summary>
+        /// 主题与样式的加载开关。
+        ///
+        /// 为什么需要它：Application.Initialize 在 Avalonia 里**只能被调用一次**
+        /// （再次 Setup 会抛 “Cannot re-initialize”）。而自检要建自己的应用实例，
+        /// 于是 Initialize 会被再走一遍。用一个静态开关保证只加载一次，
+        /// 同时让自检复用**同一份**加载代码 —— 否则自检测的就不是真实路径了。
+        /// </summary>
+        public static bool ThemeLoaded;
+
         public override void Initialize()
         {
-            // 刻意**不**引入 FluentTheme。
-            // 原版面板是自绘的（Theme.xaml 里一套 token + 控件模板），
-            // 引入 Fluent 只会在自绘控件上叠加一层不需要的默认样式，
-            // 而且它的默认窗口背景会干扰「面板半透明」这个核心视觉。
-            // 未自绘的部分（如 ScrollViewer 滚动条）后面在 Theme.axaml 里补。
-            Styles.Add(new Avalonia.Themes.Simple.SimpleTheme());
+            LoadTheme();
+        }
+
+        /// <summary>
+        /// 加载主题与样式。刻意抽成静态方法，App 与自检共用。
+        ///
+        /// 刻意**不**引入 FluentTheme：原版面板是自绘的（Theme.xaml 里一套 token
+        /// + 控件模板），引入 Fluent 会往自绘控件上叠一层不需要的默认样式，
+        /// 而且它的默认窗口背景会干扰「面板半透明」这个核心视觉。
+        /// SimpleTheme 只提供滚动条这类基础件，其余全部由我们自己的样式接管。
+        /// </summary>
+        public static void LoadTheme()
+        {
+            if (ThemeLoaded) return;
+            ThemeLoaded = true;
+
+            var app = Application.Current;
+            if (app == null) return;
+
+
+            // 设计 token（颜色/转换器/字体），照抄 WPF 版 native/src/Theme.xaml。
+            //
+            // 用 AvaloniaXamlLoader.Load(uri) 直接按 URI 载入字典，而不是
+            // new ResourceInclude { Source = ... } —— 后者在 Avalonia 12 里
+            // 有个坑：Source 必须通过对象初始化器赋值，用构造函数传会留下
+            // 未赋值的 Source，运行时抛 “ResourceInclude.Source must be set.”。
+            var themeUri = new Uri("avares://RemeberEr.Mac/Theme.axaml");
+            var theme = (ResourceDictionary)AvaloniaXamlLoader.Load(themeUri);
+
+            // 注意顺序：先把资源放进应用，再挂样式。
+            // SimpleTheme 的样式在求值时就会去查这些 token，反了会解析不到。
+            app.Resources.MergedDictionaries.Add(theme);
+
+            // SimpleTheme 只提供滚动条等基础控件模板，放在我们自己的样式之前
+            app.Styles.Add(new Avalonia.Themes.Simple.SimpleTheme());
+
+            // 同样的坑，而且更深一层：StyleInclude 的 ctor(Uri) 参数是 **baseUri** 而不是
+            // Source，且 Source 是 init 属性（没有无参构造，没法用对象初始化器补）。
+            // 直接按 URI 载入，和上面 Theme.axaml 一样走 AvaloniaXamlLoader，最省事也最明确。
+            var styles = (IStyle)AvaloniaXamlLoader.Load(
+                new Uri("avares://RemeberEr.Mac/Styles.axaml"));
+            app.Styles.Add(styles);
         }
 
         public override void OnFrameworkInitializationCompleted()

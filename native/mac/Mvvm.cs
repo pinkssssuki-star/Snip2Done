@@ -166,7 +166,36 @@ namespace RemeberEr
         public object ConvertBack(object v, Type t, object p, CultureInfo c) { throw new NotSupportedException(); }
     }
 
-    /// <summary>0~1 或 0~100 的比例 → 0~100，喂给生命条。</summary>
+    /// <summary>
+    /// 把一个字符串值原样透出，专门给 <c>Classes.xxx="{Binding ...}"</c> 用。
+    /// 配合 Avalonia 的类选择器（如 <c>Border.Pill.today</c>）实现
+    /// WPF 版 DataTrigger 那种「按数据切样式」的效果。
+    /// </summary>
+    public class AsIs : IValueConverter
+    {
+        public object Convert(object v, Type t, object p, CultureInfo c) { return v; }
+        public object ConvertBack(object v, Type t, object p, CultureInfo c) { return v; }
+    }
+
+    /// <summary>
+    /// 生命值 → 样式类：正常 "" / 偏低 "low" / 危急 "critical"。
+    /// 阈值和 panel.js 里生命条的配色分档一致。
+    /// </summary>
+    public class LifeClass : IValueConverter
+    {
+        public object Convert(object v, Type t, object p, CultureInfo c)
+        {
+            double d = v is double ? (double)v : 100.0;
+            if (d <= 15) return "critical";
+            if (d <= 40) return "low";
+            return "";
+        }
+        public object ConvertBack(object v, Type t, object p, CultureInfo c) { throw new NotSupportedException(); }
+    }
+
+    /// <summary>
+    /// 0~1 或 0~100 的比例 → 0~100，喂给生命条。
+    /// </summary>
     public class RatioToPercent : IValueConverter
     {
         public object Convert(object v, Type t, object p, CultureInfo c)

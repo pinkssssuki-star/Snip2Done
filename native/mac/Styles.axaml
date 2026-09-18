@@ -1,0 +1,211 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    控件样式。设计 token（颜色、转换器、字体）在 Theme.axaml 里，
+    这里只放「长什么样」。
+
+    Avalonia 要求样式放在 <Styles> 根下，不能塞进 ResourceDictionary
+    （塞了会报 AVLN3000），所以拆成两个文件。
+  -->
+
+  <Style Selector="Window">
+    <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+  </Style>
+
+  <Style Selector="Button.IconBtn">
+    <Setter Property="Width" Value="26"/>
+    <Setter Property="Height" Value="24"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style Selector="Button.IconBtn:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#12000000"/>
+  </Style>
+
+  <Style Selector="Button.IconBtn[Tag=on]">
+    <Setter Property="Foreground" Value="{StaticResource AccentDeep}"/>
+  </Style>
+
+  <Style Selector="Button.IconBtn[Tag=danger]:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1adc2626"/>
+  </Style>
+
+  <Style Selector="Button.IconBtn[Tag=danger]:pointerover">
+    <Setter Property="Foreground" Value="{StaticResource Red}"/>
+  </Style>
+
+  <Style Selector="TextBlock.SecTitle">
+    <Setter Property="FontSize" Value="10.5"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+  </Style>
+
+  <Style Selector="Border.CountBadge">
+    <Setter Property="Background" Value="#12000000"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="6,1"/>
+  </Style>
+
+  <Style Selector="Border.CountBadge > TextBlock">
+    <Setter Property="FontSize" Value="9.5"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+  </Style>
+
+  <Style Selector="Border.EmptyBox">
+    <Setter Property="Background" Value="#08000000"/>
+    <Setter Property="CornerRadius" Value="9"/>
+    <Setter Property="Padding" Value="12,14"/>
+  </Style>
+
+  <Style Selector="Border.EmptyBox > TextBlock">
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="Foreground" Value="{StaticResource TxFaint}"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
+
+  <Style Selector="Border.TodoCard">
+    <Setter Property="CornerRadius" Value="10"/>
+    <Setter Property="Background" Value="{StaticResource CardBg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Hair}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="9,8"/>
+    <Setter Property="Margin" Value="0,0,0,6"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+
+  <Style Selector="Border.TodoCard:pointerover">
+    <Setter Property="BorderBrush" Value="#33000000"/>
+  </Style>
+
+  <Style Selector="Border.TodoCard.done">
+    <Setter Property="Background" Value="#f4f4f6"/>
+  </Style>
+
+  <Style Selector="Button.Check">
+    <Setter Property="Width" Value="16"/>
+    <Setter Property="Height" Value="16"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="CornerRadius" Value="5"/>
+    <Setter Property="Background" Value="#ffffff"/>
+    <Setter Property="BorderBrush" Value="#38000000"/>
+    <Setter Property="BorderThickness" Value="1.5"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Margin" Value="0,0,8,0"/>
+  </Style>
+
+  <Style Selector="Button.Check:pointerover">
+    <Setter Property="BorderBrush" Value="{StaticResource Green}"/>
+  </Style>
+
+  <Style Selector="Button.Check.checked">
+    <Setter Property="Background" Value="{StaticResource Green}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Green}"/>
+  </Style>
+
+  <Style Selector="Button.Check > TextBlock">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="Foreground" Value="Transparent"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style Selector="Button.Check.checked > TextBlock">
+    <Setter Property="Foreground" Value="#ffffff"/>
+  </Style>
+
+  <Style Selector="Border.Pill">
+    <Setter Property="Padding" Value="6,1"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Margin" Value="0,0,5,0"/>
+    <Setter Property="Background" Value="{StaticResource PillPlainBg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill > TextBlock">
+    <Setter Property="FontSize" Value="9"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.today">
+    <Setter Property="Background" Value="{StaticResource PillTodayBg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.today > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource PillTodayFg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.soon">
+    <Setter Property="Background" Value="{StaticResource PillSoonBg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.soon > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource PillSoonFg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.bad">
+    <Setter Property="Background" Value="{StaticResource PillBadBg}"/>
+  </Style>
+
+  <Style Selector="Border.Pill.bad > TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource PillBadFg}"/>
+  </Style>
+
+  <Style Selector="Border.CardThumb">
+    <Setter Property="Width" Value="46"/>
+    <Setter Property="Height" Value="34"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Background" Value="#f0f0f2"/>
+    <Setter Property="Margin" Value="8,0,0,0"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="ClipToBounds" Value="True"/>
+  </Style>
+
+  <Style Selector="Border.Tile">
+    <Setter Property="Width" Value="150"/>
+    <Setter Property="Height" Value="112"/>
+    <Setter Property="CornerRadius" Value="10"/>
+    <Setter Property="Background" Value="{StaticResource TileBg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Hair}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="ClipToBounds" Value="True"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Margin" Value="0,0,8,0"/>
+  </Style>
+
+  <Style Selector="Border.Tile:pointerover">
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+  </Style>
+
+  <Style Selector="ProgressBar.LifeBar">
+    <Setter Property="Height" Value="3"/>
+    <Setter Property="CornerRadius" Value="2"/>
+    <Setter Property="Background" Value="#14000000"/>
+    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+  </Style>
+
+  <Style Selector="ProgressBar.LifeBar.low">
+    <Setter Property="Foreground" Value="#f59e0b"/>
+  </Style>
+
+  <Style Selector="ProgressBar.LifeBar.critical">
+    <Setter Property="Foreground" Value="{StaticResource Red}"/>
+  </Style>
+
+  <Style Selector="ScrollViewer">
+    <Setter Property="Background" Value="Transparent"/>
+  </Style>
+</Styles>
