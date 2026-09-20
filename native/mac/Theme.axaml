@@ -40,6 +40,31 @@
   <SolidColorBrush x:Key="PillBadFg" Color="#b91c1c"/>
   <SolidColorBrush x:Key="PillPlainBg" Color="#0f000000"/>
 
+
+  <!-- ==== 以下 token 是 v0.9.1 新增/新用到的，值取自上游 Theme.xaml ====
+       这些 key 同时是 Palette 换主题时要改的目标：
+       Theme.axaml 里定义出画刷实例，Palette.Apply 按同名 key 查出来原地改 Color，
+       因为 StaticResource 解析出来的就是同一个实例，所有引用处会一起跟着变。 -->
+  <SolidColorBrush x:Key="Tx4" Color="#86868c"/>
+  <SolidColorBrush x:Key="Tx5" Color="#a1a1a6"/>
+  <SolidColorBrush x:Key="Cx1" Color="#1c1c1e"/>          <!-- 卡片正文，不随主题变 -->
+  <SolidColorBrush x:Key="Cx2" Color="#2c2c2e"/>          <!-- 卡片次级，不随主题变 -->
+  <SolidColorBrush x:Key="SurfaceBg" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="ChipBg" Color="#12000000"/>
+  <SolidColorBrush x:Key="HintTx" Color="#9a9aa0"/>
+  <SolidColorBrush x:Key="BtnBg" Color="#b8ffffff"/>
+  <SolidColorBrush x:Key="BtnBgHover" Color="#ffffff"/>
+  <SolidColorBrush x:Key="BtnBorder" Color="#1a000000"/>
+  <SolidColorBrush x:Key="TabOnBg" Color="#ffffff"/>
+  <SolidColorBrush x:Key="InputBg" Color="#ffffff"/>
+  <SolidColorBrush x:Key="TrackBg" Color="#21000000"/>
+  <SolidColorBrush x:Key="ThumbBg" Color="#ffffff"/>
+  <SolidColorBrush x:Key="EmptyBg" Color="#80ffffff"/>
+  <SolidColorBrush x:Key="EmptyBorder" Color="#1f000000"/>
+  <SolidColorBrush x:Key="HoverBg" Color="#14000000"/>
+  <SolidColorBrush x:Key="SwatchRing" Color="#33000000"/>
+  <SolidColorBrush x:Key="RoomBorder" Color="#33000000"/>
+
   <!-- ============================================================ 转换器 -->
   <local:BoolToVis x:Key="BoolToVis"/>
   <local:EmptyToVis x:Key="EmptyToVis"/>

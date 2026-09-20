@@ -4,8 +4,10 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 
 namespace RemeberEr
 {
@@ -34,8 +36,7 @@ namespace RemeberEr
 
         /// <summary>
         /// 同步取图（已经缓存时便宜；没缓存则阻塞解码）。
-        ///
-        /// 文件先整个读进 MemoryStream 再交给解码器：这样解码器不会持有文件句柄，
+        /// 文件先整个读进 MemoryStream 再解码，这样解码器不持有文件句柄，
         /// 用户删除/替换条目图片时不会遇到「文件被占用」。
         /// </summary>
         public static Bitmap Get(string absolutePath, int decodeWidth)
@@ -87,7 +88,7 @@ namespace RemeberEr
                 if (done == null) return;
                 // 回 UI 线程再交给调用方：缩略图要写进被绑定的 VM 属性，
                 // 跨线程改属性会让绑定系统抛异常。
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => done(img));
+                Dispatcher.UIThread.Post(() => done(img));
             });
         }
 
@@ -228,9 +229,19 @@ namespace RemeberEr
         public Bitmap BigImage { get { return Thumb; } }
     }
 
-    public class BinVm : ObservableObject
+    /// <summary>设置页里一个背景色选项（白 / 灰 / 黑）。</summary>
+    public class ThemeOptionVm : ObservableObject
     {
-        public string Id { get; set; }
+        public string Key { get; set; }
+        public string Name { get; set; }
+        /// <summary>色块本身要显示的颜色 —— 直接给色块比写「白/灰/黑」直观。</summary>
+        public Avalonia.Media.IBrush Swatch { get; set; }
+        bool _on;
+        public bool On { get { return _on; } set { Set(ref _on, value, "On"); } }
+    }
+
+    public class BinVm : ObservableObject
+    {        public string Id { get; set; }
         public string Caption { get; set; }
         public string RoomName { get; set; }
         public string ChipKind { get; set; }
@@ -243,6 +254,13 @@ namespace RemeberEr
         public string ImagePath { get; set; }
         public bool HasThumb { get { return Thumb != null; } }
         public string FirstChar { get; set; }
+
+        /// <summary>
+        /// 能不能点一下捡回来。
+        /// 使命 Todo 不行 —— 舍弃就是舍弃，只留一个「倒垃圾」一次清空；
+        /// 初心 Wantdo 可以，而且永远不会被删。
+        /// </summary>
+        public bool CanRestore { get; set; }
     }
 
     public class DoneVm : ObservableObject
@@ -279,7 +297,13 @@ namespace RemeberEr
         public ObservableCollection<TodoVm> Todos { get; private set; }
         public ObservableCollection<WantVm> Wants { get; private set; }
         public ObservableCollection<BinVm> Bins { get; private set; }
+        /// <summary>纸篓的两个分区：使命 Todo（可全清，不能捡回）/ 初心 Wantdo（能捡回，永不删）</summary>
+        public ObservableCollection<BinVm> TodoBins { get; private set; }
+        public ObservableCollection<BinVm> WantBins { get; private set; }
         public ObservableCollection<DoneGroupVm> DoneGroups { get; private set; }
+        /// <summary>完成列表也按房间分两个标签：Todo / WD</summary>
+        public ObservableCollection<DoneGroupVm> TodoDoneGroups { get; private set; }
+        public ObservableCollection<DoneGroupVm> WantDoneGroups { get; private set; }
 
         public Dictionary<string, object> Raw { get; private set; }
 
@@ -289,11 +313,29 @@ namespace RemeberEr
             Todos = new ObservableCollection<TodoVm>();
             Wants = new ObservableCollection<WantVm>();
             Bins = new ObservableCollection<BinVm>();
+            TodoBins = new ObservableCollection<BinVm>();
+            WantBins = new ObservableCollection<BinVm>();
             DoneGroups = new ObservableCollection<DoneGroupVm>();
+            TodoDoneGroups = new ObservableCollection<DoneGroupVm>();
+            WantDoneGroups = new ObservableCollection<DoneGroupVm>();
 
             SnipCmd = new RelayCommand(() => { if (SnipRequested != null) SnipRequested(); });
             ToggleQuickCmd = new RelayCommand(ToggleQuick);
             DemoToggleCmd = new RelayCommand(ToggleDemo);
+            StartDemoCmd = new RelayCommand(StartDemo);
+            StopDemoCmd = new RelayCommand(StopDemo);
+            DismissDemoCmd = new RelayCommand(DismissDemo);
+            PickThemeCmd = new RelayCommand(p => PanelTheme = (string)p);
+
+            ThemeOptions = new ObservableCollection<ThemeOptionVm>();
+            foreach (var e in Palette.All)
+            {
+                var b = new SolidColorBrush(e.Panel);
+                ThemeOptions.Add(new ThemeOptionVm
+                {
+                    Key = e.Key, Name = e.Name, On = e.Key == _panelTheme, Swatch = b,
+                });
+            }
             SettingsCmd = new RelayCommand(() => { View = View == "set" ? "main" : "set"; OpacityPreview = null; });
             CollapseCmd = new RelayCommand(() => { if (CollapseRequested != null) CollapseRequested(); });
             ToggleTopmostCmd = new RelayCommand(ToggleTopmost);
@@ -308,6 +350,9 @@ namespace RemeberEr
             ToggleDoneCmd = new RelayCommand(p => { _store.Done((string)p, false, null, false); Refresh(); });
             BinItemCmd = new RelayCommand(p => { _store.Bin((string)p); Refresh(); });
             RestoreCmd = new RelayCommand(p => { _store.Restore((string)p); Refresh(); });
+            EmptyTrashCmd = new RelayCommand(EmptyTrash);
+            BinTabCmd = new RelayCommand(p => SwitchBinTab((string)p));
+            DoneTabCmd = new RelayCommand(p => SwitchDoneTab((string)p));
             OpenCmd = new RelayCommand(p => Open((string)p));
             OpenDoneCmd = new RelayCommand(p => { if (OpenRecordRequested != null) OpenRecordRequested((string)p); });
         }
@@ -319,8 +364,10 @@ namespace RemeberEr
         /// <summary>
         /// 有一张缩略图解码完成，界面可以重画了。
         ///
-        /// 为什么不复用 Refresh()：解码回填只改了 VM 上的 Thumb 一个字段，
-        /// 为此重读一遍 JSON 再重建所有集合是浪费（原版也是这么分的）。
+        /// 这一条是 mac 侧独有的（上游 WPF 版没有）：WPF 的 BitmapSource 可以 Freeze 之后
+        /// 跨线程共享、由渲染线程自己处理；Avalonia 这边解码完成后要在 UI 线程回填属性，
+        /// 需要一个通知让界面重画那几行。
+        /// 不复用 Refresh()：回填只改了 Thumb 一个字段，为此重读 JSON、重建所有集合是浪费。
         /// </summary>
         public event Action ImageRefreshNeeded;
         public event Action<string> OpenDetailRequested;
@@ -329,6 +376,9 @@ namespace RemeberEr
         public RelayCommand SnipCmd { get; private set; }
         public RelayCommand ToggleQuickCmd { get; private set; }
         public RelayCommand DemoToggleCmd { get; private set; }
+        public RelayCommand StartDemoCmd { get; private set; }
+        public RelayCommand StopDemoCmd { get; private set; }
+        public RelayCommand DismissDemoCmd { get; private set; }
         public RelayCommand SettingsCmd { get; private set; }
         public RelayCommand CollapseCmd { get; private set; }
         public RelayCommand ToggleTopmostCmd { get; private set; }
@@ -342,6 +392,57 @@ namespace RemeberEr
         public RelayCommand ToggleDoneCmd { get; private set; }
         public RelayCommand BinItemCmd { get; private set; }
         public RelayCommand RestoreCmd { get; private set; }
+        public RelayCommand EmptyTrashCmd { get; private set; }
+
+        // ---------------- 倒垃圾 ----------------
+
+        /// <summary>
+        /// 「倒垃圾」是**整个程序里唯一不可逆的操作** —— 别的都能反悔，这个不能。
+        /// 所以点第一下只把按钮变成「确定清空？」，点第二下才真清；4 秒不点自己缩回去。
+        /// </summary>
+        bool _confirmingEmpty;
+        public bool ConfirmingEmpty
+        {
+            get { return _confirmingEmpty; }
+            set
+            {
+                if (!Set(ref _confirmingEmpty, value, "ConfirmingEmpty")) return;
+                Raise("EmptyTrashText");
+            }
+        }
+        public string EmptyTrashText { get { return _confirmingEmpty ? "确定清空？" : "倒垃圾"; } }
+
+        DispatcherTimer _emptyConfirmTimer;
+        void EmptyTrash()
+        {
+            if (!_confirmingEmpty)
+            {
+                ConfirmingEmpty = true;
+                if (_emptyConfirmTimer == null)
+                {
+                    _emptyConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                    _emptyConfirmTimer.Tick += (s, e) =>
+                    {
+                        _emptyConfirmTimer.Stop();
+                        ConfirmingEmpty = false;
+                    };
+                }
+                _emptyConfirmTimer.Stop();
+                _emptyConfirmTimer.Start();
+                return;
+            }
+
+            if (_emptyConfirmTimer != null) _emptyConfirmTimer.Stop();
+            ConfirmingEmpty = false;
+
+            // 只清「使命 Todo」那一区；初心 Wantdo 永远不动
+            var ids = new List<string>();
+            foreach (var b in TodoBins) ids.Add(b.Id);
+            foreach (var id in ids) _store.Remove(id);
+
+            Program.Log("  倒垃圾：清掉 " + ids.Count + " 条使命 Todo（初心 Wantdo 未动）");
+            Refresh();
+        }
         public RelayCommand OpenCmd { get; private set; }
         public RelayCommand OpenDoneCmd { get; private set; }
 
@@ -354,6 +455,8 @@ namespace RemeberEr
             set
             {
                 if (!Set(ref _view, value, "View")) return;
+                ConfirmingEmpty = false;   // 离开这一页，「确定清空？」就作废
+                AutoPickTab();
                 Raise("IsMainView"); Raise("IsBinView"); Raise("IsDoneView"); Raise("IsSetView");
                 Raise("SettingsOn");
             }
@@ -369,9 +472,30 @@ namespace RemeberEr
         public bool Collapsed
         {
             get { return _collapsed; }
-            set { if (Set(ref _collapsed, value, "Collapsed")) Raise("CollapseGlyph"); }
+            set
+            {
+                if (!Set(ref _collapsed, value, "Collapsed")) return;
+                Raise("CollapseGlyph"); Raise("ShowCollapseButton");
+            }
         }
         public string CollapseGlyph { get { return _collapsed ? "▸" : "▾"; } }
+
+        /// <summary>
+        /// 设置里可以把顶栏那个折叠按钮藏掉 —— 有了侧边收起，折叠基本是多余的。
+        /// 但**已经折叠着的时候必须还留着它**，否则用户没法再展开，面板就永远只剩一条了。
+        /// </summary>
+        bool _hideCollapseButton;
+        public bool HideCollapseButton
+        {
+            get { return _hideCollapseButton; }
+            set
+            {
+                if (!Set(ref _hideCollapseButton, value, "HideCollapseButton")) return;
+                _store.SetSetting("hideCollapseButton", value);
+                Raise("ShowCollapseButton");
+            }
+        }
+        public bool ShowCollapseButton { get { return !_hideCollapseButton || _collapsed; } }
 
         bool _quickOpen;
         public bool QuickOpen { get { return _quickOpen; } set { Set(ref _quickOpen, value, "QuickOpen"); } }
@@ -404,6 +528,83 @@ namespace RemeberEr
         public bool HasTodos { get { return Todos.Count > 0; } }
         public bool HasWants { get { return Wants.Count > 0; } }
         public bool HasBins { get { return Bins.Count > 0; } }
+        public bool HasTodoBins { get { return TodoBins.Count > 0; } }
+        public bool HasWantBins { get { return WantBins.Count > 0; } }
+        /// <summary>按「今天 / 昨天 / 更早」把完成条目分组（已按 doneAt 倒序）。</summary>
+        void BuildDoneGroups(List<Dictionary<string, object>> src, ObservableCollection<DoneGroupVm> target)
+        {
+            string lastKey = null;
+            DoneGroupVm g = null;
+            foreach (var it in src)
+            {
+                double doneAt = J.Num(it, "doneAt", 0);
+                string k = Fmt.DayKey(doneAt);
+                if (k != lastKey)
+                {
+                    g = new DoneGroupVm { Label = Fmt.DayLabel(doneAt), Items = new ObservableCollection<DoneVm>() };
+                    target.Add(g);
+                    lastKey = k;
+                }
+                g.Items.Add(MakeDone(it));
+                g.Count = g.Items.Count;
+            }
+        }
+
+        // ---------------- 标签页 ----------------
+        //
+        // 纸篓和完成列表都按房间分两个标签。纸篓那两个有名字（使命 / 初心），
+        // 完成列表就用朴素的名字（Todo / WD）—— 完成了就是完成了，不用再抒情。
+
+        string _binTab = "todo";
+        public string BinTab
+        {
+            get { return _binTab; }
+            set
+            {
+                if (!Set(ref _binTab, value, "BinTab")) return;
+                Raise("IsBinTodo"); Raise("IsBinWant"); Raise("BinTodoTabTag"); Raise("BinWantTabTag");
+            }
+        }
+        public bool IsBinTodo { get { return _binTab == "todo"; } }
+        public bool IsBinWant { get { return _binTab == "want"; } }
+
+        string _doneTab = "todo";
+        public string DoneTab
+        {
+            get { return _doneTab; }
+            set
+            {
+                if (!Set(ref _doneTab, value, "DoneTab")) return;
+                Raise("IsDoneTodo"); Raise("IsDoneWant");
+            }
+        }
+        public bool IsDoneTodo { get { return _doneTab == "todo"; } }
+        public bool IsDoneWant { get { return _doneTab == "want"; } }
+
+        public void SwitchBinTab(string t) { if (!string.IsNullOrEmpty(t)) BinTab = t; }
+        public void SwitchDoneTab(string t) { if (!string.IsNullOrEmpty(t)) DoneTab = t; }
+
+        public RelayCommand BinTabCmd { get; private set; }
+        public RelayCommand DoneTabCmd { get; private set; }
+
+        /// <summary>
+        /// 进某个标签页视图时，如果首选那个标签是空的、另一个有东西，就自动切过去 ——
+        /// 免得点进去看到的是一片空白，以为东西丢了。
+        /// </summary>
+        void AutoPickTab()
+        {
+            if (_view == "bin")
+            {
+                if (TodoBins.Count == 0 && WantBins.Count > 0) BinTab = "want";
+                else if (WantBins.Count == 0 && TodoBins.Count > 0) BinTab = "todo";
+            }
+            else if (_view == "done")
+            {
+                if (TodoDoneGroups.Count == 0 && WantDoneGroups.Count > 0) DoneTab = "want";
+                else if (WantDoneGroups.Count == 0 && TodoDoneGroups.Count > 0) DoneTab = "todo";
+            }
+        }
+
         public bool HasDoneGroups { get { return DoneGroups.Count > 0; } }
 
         string _stats = "—";
@@ -452,6 +653,28 @@ namespace RemeberEr
 
         public void ToggleTopmost() { AlwaysOnTop = !_alwaysOnTop; }
 
+        /// <summary>
+        /// 开机自启。**不存在 data.json 里** —— 真正的状态在系统那边
+        /// （Windows 是注册表 Run 键，macOS 是 ~/Library/LaunchAgents 下的 plist），
+        /// 这里只做读写转发。启动时也从系统那边读，免得两处对不上。
+        /// </summary>
+        public bool AutoStartOn
+        {
+            get { return AutoStart.IsEnabled; }
+            set
+            {
+                if (value == AutoStart.IsEnabled)
+                {
+                    Raise("AutoStartOn");
+                    return;
+                }
+                bool ok = AutoStart.Set(value);
+                Program.Log(string.Format("  开机自启 -> {0}（{1}）exe={2}",
+                    value ? "开" : "关", ok ? "成功" : "失败", AutoStart.ExePath));
+                Raise("AutoStartOn");
+            }
+        }
+
         /// <summary>贴边隐藏中（只露一条窄边在外面）。</summary>
         bool _isDocked;
         public bool IsDocked
@@ -496,18 +719,38 @@ namespace RemeberEr
             get { return (int)Math.Round(_panelAlpha * 100); }
             set { PanelAlpha = Math.Max(0.30, Math.Min(1.0, value / 100.0)); }
         }
-        /// <summary>
-        /// 面板底色，随透明度设置变化。
-        /// 注意：条目卡片始终不透明（设计原则第 5 条），只有面板底色用这个。
-        /// </summary>
         public Avalonia.Media.IBrush PanelBackground
         {
             get
             {
-                return new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromArgb(
-                    (byte)Math.Round(_panelAlpha * 255), 255, 255, 255));
+                var c = Palette.Current.Panel;
+                var b = new SolidColorBrush(Color.FromArgb(
+                    (byte)Math.Round(_panelAlpha * 255), c.R, c.G, c.B));
+                return b;
             }
         }
+
+        // ---------------- 背景颜色 ----------------
+
+        /// <summary>设置页里那三个色块（白 / 灰 / 黑）。</summary>
+        public ObservableCollection<ThemeOptionVm> ThemeOptions { get; private set; }
+
+        string _panelTheme = "white";
+        public string PanelTheme
+        {
+            get { return _panelTheme; }
+            set
+            {
+                if (!Set(ref _panelTheme, value, "PanelTheme")) return;
+                _store.SetSetting("panelTheme", value);
+                Palette.Apply(value);
+                foreach (var o in ThemeOptions) o.On = (o.Key == value);
+                Raise("PanelBackground");   // 面板底色也换了
+                Program.Log("  背景颜色 -> " + Palette.Current.Name);
+            }
+        }
+
+        public RelayCommand PickThemeCmd { get; private set; }
 
         double _fadeStartDays = 7;        public double FadeStartDays
         {
@@ -553,8 +796,182 @@ namespace RemeberEr
 
         public void ToggleDemo()
         {
-            _store.SetSetting("demoFastDecay", !_demoOn);
+            if (_demoOn) StopDemo(); else StartDemo();
+        }
+
+        // ---------------- 演示加速 ----------------
+        //
+        // 「试试让时间以 N 倍流逝」是一次**有始有终、而且不留痕迹**的演示：
+        // 点一下开始，画面每秒重算一次（看得到磁贴真的在褪色），
+        // 等所有还在的 Wantdo 都掉进纸篓，自动结束、**把数据原样还给你**，留一句话。
+        //
+        // 还原的做法不是逐条逆转 binCount / binStints 这些记账（漏一个就留疤），
+        // 而是**开演前把每条待褪色的条目整个深拷贝一份，结束时原样写回**。
+
+        public const string DemoSloganMoral = "希望梦想不再褪色，就好好注意它噢~";
+        public const string DemoSloganFirst = "这次我帮你把 WantDo 全都注意了一遍噢~ 下不为例~";
+        public const string DemoSloganAgain = "这次不会帮你了噢~";
+
+        /// <summary>演示正常跑完了（不是被手动停下的）。</summary>
+        bool _demoFinished;
+        public bool DemoFinished
+        {
+            get { return _demoFinished; }
+            set
+            {
+                if (!Set(ref _demoFinished, value, "DemoFinished")) return;
+                Raise("ShowDemoBanner"); Raise("DemoBannerText");
+            }
+        }
+
+        /// <summary>这一轮是不是「第一次」—— 第一次会顺手把所有 Wantdo 的生命复原。</summary>
+        bool _demoWasFirst;
+        public bool DemoWasFirst
+        {
+            get { return _demoWasFirst; }
+            set { Set(ref _demoWasFirst, value, "DemoWasFirst"); }
+        }
+
+        /// <summary>开演的时候还剩几条念想 —— 用来判断「跑完了」。</summary>
+        int _demoWantsAtStart;
+
+        /// <summary>演示开始前的条目快照（深拷贝），结束或手动停下时原样写回。</summary>
+        List<Dictionary<string, object>> _demoBackup;
+
+        public bool ShowDemoBanner { get { return _demoOn || _demoFinished; } }
+
+        public string DemoBannerText
+        {
+            get
+            {
+                if (_demoFinished)
+                {
+                    var line = _demoWasFirst ? DemoSloganFirst : DemoSloganAgain;
+                    return line + "\n" + DemoSloganMoral;
+                }
+                if (NDemoLeft <= 0)
+                    return string.Format("时间正以 {0} 倍流逝…（演示，看完原样还给你）", (int)Decay.DEMO_TIME_SCALE);
+                return string.Format("时间正以 {0} 倍流逝 · 还有 {1} 个念想没被碰过（演示，看完原样还给你）",
+                    (int)Decay.DEMO_TIME_SCALE, NDemoLeft);
+            }
+        }
+
+        /// <summary>演示中「还在的 Wantdo」有几条。</summary>
+        int _nDemoLeft;
+        public int NDemoLeft
+        {
+            get { return _nDemoLeft; }
+            set { if (Set(ref _nDemoLeft, value, "NDemoLeft")) Raise("DemoBannerText"); }
+        }
+
+        public void StartDemo()
+        {
+            _demoFinished = false;
+
+            // 第一次点：把所有还在的 Wantdo 生命复原（就当我都替你看过一遍了）
+            int runs = (int)J.Num(_store.Settings, "demoRunCount", 0);
+            _demoWasFirst = runs == 0;
+            _store.SetSetting("demoRunCount", (double)(runs + 1));
+            if (_demoWasFirst)
+            {
+                int n = _store.RefreshAllWantsLife();
+                Program.Log("  第一次演示：先把 " + n + " 条念想的生命复原（我帮你都注意了一遍）");
+            }
+
+            _demoWantsAtStart = NWant;
+
+            // 备份放在「生命复原」之后 —— 复原是要留下的，还原不能把它也抹掉
+            _demoBackup = new List<Dictionary<string, object>>();
+            foreach (var o in _store.Items)
+            {
+                var it = J.Obj(o);
+                if (J.Str(it, "room", "") != "want") continue;
+                if (J.Str(it, "state", "") != "active") continue;
+                _demoBackup.Add((Dictionary<string, object>)Json.Parse(Json.Stringify(it)));
+            }
+
+            // 记下起跑时刻：倍率只作用于**这一刻之后**流逝的时间，
+            // 否则一条一小时前放下的念想会在点击瞬间就变成 3.4 年年龄，直接被清空。
+            _store.SetSetting("demoStartedAt", (double)Store.RealNow());
+            _store.SetSetting("demoFastDecay", true);
+            // 切回主视图 —— 站在设置页里是看不到磁贴在褪色的
+            View = "main";
             Refresh();
+            Program.Log(string.Format("  演示加速开始：倍率 {0}，待褪色 {1} 条，第一次={2}",
+                (int)Decay.DEMO_TIME_SCALE, _demoWantsAtStart, _demoWasFirst));
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+            if (_demoWantsAtStart == 0) FinishDemo();   // 一条都没有就没什么可看的
+        }
+
+        public void StopDemo()
+        {
+            RollbackDemo();
+            _store.SetSetting("demoFastDecay", false);
+            _store.SetSetting("demoStartedAt", 0.0);
+            _demoFinished = false;
+            Refresh();
+            Program.Log("  演示加速已停下，数据已还原");
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        void FinishDemo()
+        {
+            RollbackDemo();
+            _store.SetSetting("demoFastDecay", false);
+            _store.SetSetting("demoStartedAt", 0.0);
+            _demoFinished = true;
+            Refresh();
+            Program.Log("  演示跑完，数据已还原 -> 标语：" + (_demoWasFirst ? DemoSloganFirst : DemoSloganAgain));
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        /// <summary>
+        /// 把演示动过的条目原样写回。
+        /// 只写回**真的被改动过**的（state 或 lastTouchedAt 变了），
+        /// 免得演示什么都没发生也要重写一遍数据文件。
+        /// </summary>
+        void RollbackDemo()
+        {
+            if (_demoBackup == null) return;
+            var items = _store.Items;
+            int n = 0;
+            foreach (var saved in _demoBackup)
+            {
+                string id = J.Str(saved, "id", "");
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var cur = J.Obj(items[i]);
+                    if (J.Str(cur, "id", "") != id) continue;
+                    bool changed =
+                        J.Str(cur, "state", "") != J.Str(saved, "state", "") ||
+                        Math.Abs(J.Num(cur, "lastTouchedAt", 0) - J.Num(saved, "lastTouchedAt", 0)) > 0.5;
+                    if (changed) { items[i] = saved; n++; }
+                    break;
+                }
+            }
+            _demoBackup = null;
+            if (n > 0) _store.Save();
+            Program.Log("  演示回滚：还原了 " + n + " 条");
+        }
+
+        public void DismissDemo()
+        {
+            _demoFinished = false;
+            Raise("ShowDemoBanner"); Raise("DemoBannerText");
+        }
+
+        /// <summary>
+        /// 演示期间的节拍器（由窗口每秒调一次）。
+        ///
+        /// 这一步是必须的：Sweep() 挂在 Snapshot() 里，而 Snapshot() 只有 _vm.Refresh()
+        /// 才会跑，程序里**本来没有任何周期性刷新** —— 所以以前的 ⚡ 打开之后画面上
+        /// 什么都不会发生，得去点个别的东西才重算一次。
+        /// </summary>
+        public void TickDemo()
+        {
+            if (!_demoOn) return;
+            Refresh();
+            if (_demoWantsAtStart > 0 && NWant == 0) FinishDemo();
         }
 
         void ToggleQuick()
@@ -569,8 +986,12 @@ namespace RemeberEr
         {
             string v = (_quickText ?? "").Trim();
             if (v.Length == 0) return;
+            // 这里只处理「Wantdo」那条路径。Todo 由 PanelWindow.StartManualAdd()
+            // 先弹一个时间面板再调 Store.Add —— 没期限的 Todo 是自相矛盾的。
             _store.Add(_quickRoom, v, "", null, null);
             QuickText = "";
+            // 加完就收起来 —— 没人会连着录好几条，留着这个框只会挡住列表
+            QuickOpen = false;
             Refresh();
         }
 
@@ -609,6 +1030,17 @@ namespace RemeberEr
             if (qc != _quickCapture) { _quickCapture = qc; Raise("QuickCapture"); }
             bool aot = J.Bool(settings, "alwaysOnTop", true);
             if (aot != _alwaysOnTop) { _alwaysOnTop = aot; Raise("AlwaysOnTop"); }
+            bool hcb = J.Bool(settings, "hideCollapseButton", false);
+            if (hcb != _hideCollapseButton) { _hideCollapseButton = hcb; Raise("HideCollapseButton"); Raise("ShowCollapseButton"); }
+            string th = J.Str(settings, "panelTheme", "white");
+            if (th != _panelTheme || Palette.Current.Key != th)
+            {
+                _panelTheme = th;
+                Palette.Apply(th);
+                if (ThemeOptions != null)
+                    foreach (var o in ThemeOptions) o.On = (o.Key == th);
+                Raise("PanelTheme"); Raise("PanelBackground");
+            }
             bool settingsDirty = false;
             if (OpacityPreview == null)
             {
@@ -686,30 +1118,30 @@ namespace RemeberEr
             Wants.Clear();
             foreach (var it in want) Wants.Add(MakeWant(it));
             Bins.Clear();
-            foreach (var it in bin) Bins.Add(MakeBin(it));
+            TodoBins.Clear();
+            WantBins.Clear();
+            foreach (var it in bin)
+            {
+                var vm = MakeBin(it);
+                Bins.Add(vm);
+                // 按房间分到两个分区：使命 Todo 能全清但不能捡回，初心 Wantdo 能捡回但永不删
+                if (J.Str(it, "room", "") == "todo") { vm.CanRestore = false; TodoBins.Add(vm); }
+                else { vm.CanRestore = true; WantBins.Add(vm); }
+            }
             long t3 = Program.Boot.ElapsedMilliseconds;
             Program.Log(string.Format("  [t={0}ms]   · Refresh: Snapshot={1}ms Todo={2}ms Want+Bin={3}ms",
                 t3, t1 - t0, t2 - t1, t3 - t2));
 
             DoneGroups.Clear();
-            string lastKey = null;
-            DoneGroupVm g = null;
-            foreach (var it in done)
-            {
-                double doneAt = J.Num(it, "doneAt", 0);
-                string k = Fmt.DayKey(doneAt);
-                if (k != lastKey)
-                {
-                    g = new DoneGroupVm { Label = Fmt.DayLabel(doneAt), Items = new ObservableCollection<DoneVm>() };
-                    DoneGroups.Add(g);
-                    lastKey = k;
-                }
-                g.Items.Add(MakeDone(it));
-                g.Count = g.Items.Count;
-            }
+            TodoDoneGroups.Clear();
+            WantDoneGroups.Clear();
+            BuildDoneGroups(done, DoneGroups);
+            BuildDoneGroups(done.FindAll(o => J.Str(o, "room", "") == "todo"), TodoDoneGroups);
+            BuildDoneGroups(done.FindAll(o => J.Str(o, "room", "") != "todo"), WantDoneGroups);
 
             NTodo = CountActive(todo);
             NWant = want.Count;
+            NDemoLeft = want.Count;   // 演示横幅上显示的「还有几条没被碰过」
             NBin = bin.Count;
             NDone = done.Count;
 
@@ -717,7 +1149,8 @@ namespace RemeberEr
             Stats = "本周完成 " + (long)J.Num(stats, "doneThisWeek", 0) + " 件 · 纸篓里 " + bin.Count + " 个想法";
             ShowSeedRow = items.Count == 0;
 
-            Raise("HasTodos"); Raise("HasWants"); Raise("HasBins"); Raise("HasDoneGroups");
+            Raise("HasTodos"); Raise("HasWants"); Raise("HasBins");
+            Raise("HasTodoBins"); Raise("HasWantBins"); Raise("HasDoneGroups");
         }
 
         static int CountActive(List<Dictionary<string, object>> list)
@@ -749,7 +1182,13 @@ namespace RemeberEr
             bool overdue = J.Bool(it, "overdue", false);
             string pill = null, kind = null;
             if (bucket == "today") { pill = overdue ? "逾期" : "Today"; kind = overdue ? "bad" : "today"; }
-            else if (bucket == "soon") { pill = overdue ? "逾期" : "Soon"; kind = overdue ? "bad" : "soon"; }
+            else if (bucket == "soon")
+            {
+                // 写了天数就显示具体天数，没写就是笼统的「两三天」
+                double dd = J.Num(it, "dueDays", 0);
+                pill = overdue ? "逾期" : (dd > 0 ? ((int)dd) + " 天" : "两三天");
+                kind = overdue ? "bad" : "soon";
+            }
 
             var vm = new TodoVm
             {
@@ -867,9 +1306,8 @@ namespace RemeberEr
         /// <summary>
         /// 纸篓卡片的去色。panel.css 用的是 <c>filter: grayscale(0.7)</c>。
         ///
-        /// WPF 版靠 FormatConvertedBitmap 转 Gray8 格式；Avalonia 没有等价的格式转换，
-        /// 所以这里直接把像素读出来按亮度公式改一遍再写回。
-        /// 只对缩略图做（几百像素宽），开销可忽略，不影响面板启动。
+        /// WPF 版靠 FormatConvertedBitmap 转 Gray8；Avalonia 没有等价的格式转换，
+        /// 所以把像素读出来按亮度公式改一遍再写回。只对缩略图做，开销可忽略。
         /// </summary>
         static Bitmap ToGray(Bitmap src)
         {
@@ -886,14 +1324,11 @@ namespace RemeberEr
                     buf, System.Runtime.InteropServices.GCHandleType.Pinned);
                 try
                 {
-                    // 显式写全限定名：本文件同时 using 了 Avalonia 和我们的平台层，
-                    // 而平台层里也有一个矩形类型。写清楚是哪一个，别靠编译器猜。
                     src.CopyPixels(new Avalonia.PixelRect(0, 0, w, h),
                         handle.AddrOfPinnedObject(), buf.Length, stride);
                 }
                 finally { handle.Free(); }
 
-                // 按 luminance 去色，保留 alpha
                 for (int i = 0; i + 3 < buf.Length; i += 4)
                 {
                     byte b = buf[i], g = buf[i + 1], r = buf[i + 2];
@@ -935,7 +1370,7 @@ namespace RemeberEr
                 if (img == null || string.IsNullOrEmpty(thumbPath)) return;
                 string tmp = thumbPath + ".tmp";
                 // 先写临时文件再改名：避免写到一半崩溃留下半个 PNG，
-                // 下次启动会把它当成有效缩略图读进来（原版同一个考虑）。
+                // 下次启动会把它当成有效缩略图读进来。
                 using (var fs = File.Create(tmp))
                     img.Save(fs, new PngBitmapEncoderOptions());
                 if (File.Exists(thumbPath)) File.Delete(thumbPath);

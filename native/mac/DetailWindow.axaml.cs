@@ -155,7 +155,11 @@ namespace RemeberEr
                 // 直接从原始条目取 life 会永远拿到 0 —— 所以这里按同一套 Decay 现算。
                 var cfg = Decay.CfgFor(_store.Settings);
                 double tscale = Decay.TimeScaleFor(_store.Settings);
-                double life = Decay.LifeFor(_item, Store.Now(), cfg, tscale);
+                // v0.9.1：LifeFor 多了一个 demoStartedAt —— 演示加速只应该加速
+                // 「演示开始之后」流逝的时间，否则一条一小时前放下的 Wantdo
+                // 会在演示开始那一瞬间变成 30000 倍年龄、第一次扫描就被塞进纸篓。
+                double life = Decay.LifeFor(_item, Store.Now(), cfg, tscale,
+                    Decay.DemoStartedAtFor(_store.Settings));
                 int pct = (int)Math.Round(Math.Min(1, Math.Max(0, life)) * 100);
                 _lifeText.Text = pct + "%　（被碰过 " + (long)J.Num(_item, "touchCount", 0) + " 次）";
             }

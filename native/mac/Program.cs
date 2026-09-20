@@ -101,6 +101,9 @@ namespace RemeberEr
         /// <summary>热键自检：核对注册与派发（免权限）。</summary>
         public static bool HotkeyTest;
 
+        /// <summary>主题自检：三个主题各渲染一张 PNG（免权限）。值是输出路径前缀。</summary>
+        public static string ThemeTest;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -208,6 +211,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 主题自检（免权限）
+            if (ThemeTest != null) { RunThemeTest(); return; }
 
             // 热键自检（免权限）
             if (HotkeyTest) { RunHotkeyTest(); return; }
@@ -638,6 +644,103 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 主题自检：三个主题各渲染一张 PNG。
+        ///
+        /// 验的是「Palette.Apply 改到的是不是 StaticResource 解析出来的那个画刷实例」——
+        /// 这是整个换主题机制唯一的命门。如果 Apply 改的是自己新建的画刷，
+        /// 界面不会有任何变化，而只看代码是看不出来的，必须渲染出来对比。
+        /// </summary>
+        static void RunThemeTest()
+        {
+            Log("=== 主题自检 ===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    // 先把主题写进数据，再建面板。
+                    // 必须这样：panel.Show() 触发 Refresh()，而 Refresh 会**从数据里读**
+                    // panelTheme 并重新应用 —— 只调 Palette.Apply 的话会被它覆盖回旧值
+                    // （踩过：黑色主题渲染出来仍是白色，查了半天才意识到是测试脚本的锅，
+                    //   不是主题机制的问题）。真实路径下 GUI 改主题时会同步写 store，
+                    // 所以不会出现这个现象。
+                    var seedStore = new Store(DataDir);
+                    seedStore.SetSetting("panelTheme", Palette.All[0].Key);
+                    foreach (var e in Palette.All)
+                    {
+                        seedStore.SetSetting("panelTheme", e.Key);
+                        Palette.Apply(e.Key);
+                        PumpUi(150);
+                        // 校验状态真的换了
+                        var cur = Palette.Current;
+                        Log(string.Format("  [校验] Apply({0}) 后 Palette.Current = {1} / Panel=#{2:X2}{3:X2}{4:X2}",
+                            e.Key, cur.Key, cur.Panel.R, cur.Panel.G, cur.Panel.B));
+
+                        var panel = new PanelWindow();
+                        panel.Show();
+                        PumpUi(600);
+
+                        int w = (int)Math.Ceiling(panel.Bounds.Width);
+                        int h = (int)Math.Ceiling(panel.Bounds.Height);
+
+                        // 查外壳 Border 的实际底色 —— 渲染出来是浅色但状态说黑色时，
+                        // 必须看这一步：到底是「没设上」还是「被绑定覆盖了」
+                        var shell = panel.FindControl<Avalonia.Controls.Border>("Shell");
+                        var sb = shell != null ? shell.Background as Avalonia.Media.SolidColorBrush : null;
+                        Log(string.Format("    [外壳] Background = {0}",
+                            sb == null ? "(null 或非纯色)" : sb.Color.ToString()));
+
+                        // 关键诊断：界面上的文字颜色到底是不是主题色？
+                        // 若 StaticResource 返回的不是 Palette 改的那个实例，
+                        // 这里就会看到旧颜色（白主题的深色），换主题只有底色会变。
+                        // 一次性的探针：StaticResource 与 DynamicResource 谁跟着变
+                        var probe = new ResourceProbe();
+                        Log("    [探针] 主题 " + e.Key + " -> " + probe.Report());
+
+                        object res;
+                        if (Application.Current.TryFindResource("Tx1", out res))
+                        {
+                            var rb = res as Avalonia.Media.SolidColorBrush;
+                            Log(string.Format("    [资源 Tx1] {0}（主题期望 #{1:X2}{2:X2}{3:X2}）",
+                                rb == null ? "(非纯色)" : rb.Color.ToString(),
+                                Palette.Current.Tx1.R, Palette.Current.Tx1.G, Palette.Current.Tx1.B));
+                        }
+                        else Log("    [资源 Tx1] 找不到");
+
+                        var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                            new PixelSize(w, h), new Vector(96, 96));
+                        rtb.Render(panel);
+                        string path = ThemeTest + "-" + e.Key + ".png";
+                        using (var fs = System.IO.File.Create(path))
+                            rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+
+                        Log(string.Format("  主题 {0}({1}) -> {2}（{3}x{4}）",
+                            e.Key, e.Name, path, w, h));
+
+                        // 顺便核对底色真的变了（不是三张一样的图）
+                        var col = e.Panel;
+                        Log(string.Format("    面板底色应为 #{0:X2}{1:X2}{2:X2}",
+                            col.R, col.G, col.B));
+
+                        panel.Close();
+                    }
+                    Log("=== 主题自检结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 主题自检失败：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -1093,6 +1196,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shot-detail=")) ShotDetail = a.Substring(14);
                 else if (a == "--dock-test") DockTest = true;
                 else if (a == "--hotkey-test") HotkeyTest = true;
+                else if (a.StartsWith("--theme-test=")) ThemeTest = a.Substring(13);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

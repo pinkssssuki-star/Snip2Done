@@ -38,7 +38,7 @@ namespace RemeberEr
         PanelViewModel _vm;
         CaptureController _capture;
         TextBlock _diag;
-        Border _dockGrip, _dockHintBar;
+        Border _dockGrip, _dockHintBar, _shell;
 
         // ---- 贴边隐藏状态 ----
         bool _docked;
@@ -66,6 +66,7 @@ namespace RemeberEr
             _diag = this.FindControl<TextBlock>("DiagText");
             _dockGrip = this.FindControl<Border>("DockGrip");
             _dockHintBar = this.FindControl<Border>("DockHintBar");
+            _shell = this.FindControl<Border>("Shell");
 
             _store = new Store(Program.DataDir);
             _vm = new PanelViewModel(_store);
@@ -80,6 +81,21 @@ namespace RemeberEr
             _vm.OpenRecordRequested += OpenRecord;
 
             DataContext = _vm;
+
+            // 换主题时主动把底色设上去。
+            //
+            // 为什么不能只靠 {Binding PanelBackground}：PanelBackground 是 VM 的
+            // 绑定属性，而 Palette.Apply 改的是**画笔实例的颜色** ——
+            // 前者不会因此重算，界面就不会跟着变（实测过：黑主题下面板还是浅色）。
+            // 原版同样要靠 Raise("PanelBackground") 才刷新，这里换成直接设，
+            // 少一层「谁负责 Raise」的耦合。
+            Palette.PaletteApplied += _ => ApplyPanelBackground();
+            _vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == "PanelBackground" || e.PropertyName == "PanelAlpha")
+                    ApplyPanelBackground();
+            };
+
             Opened += OnOpened;
 
             // 贴边隐藏：鼠标碰一下滑出来，移开再滑回去
@@ -91,11 +107,31 @@ namespace RemeberEr
 
         // ============================================================ 生命周期
 
+        /// <summary>
+        /// 把面板底色设到外壳上：主题给的底色 + 当前的透明度。
+        /// 注意**条目卡片不受影响** —— 卡片永远不透明，这是设计原则第 5 条。
+        /// </summary>
+        void ApplyPanelBackground()
+        {
+            try
+            {
+                var shell = _shell;
+                if (shell == null) return;
+                var c = Palette.Current.Panel;
+                byte a = (byte)Math.Round(_vm.PanelAlpha * 255);
+                shell.Background = new Avalonia.Media.SolidColorBrush(
+                    Avalonia.Media.Color.FromArgb(a, c.R, c.G, c.B));
+            }
+            catch (Exception ex) { Program.Log("  !! 设置面板底色失败：" + ex.Message); }
+        }
+
         void OnOpened(object sender, EventArgs e)
         {
             PositionBottomRight();
+            ApplyPanelBackground();
             ApplyStartView();
             _vm.Refresh();
+            ApplyPanelBackground();   // Refresh 会应用主题，之后把底色落实
             Topmost = _vm.AlwaysOnTop;
             UpdateDiag();
             _capture.RegisterHotkeys();

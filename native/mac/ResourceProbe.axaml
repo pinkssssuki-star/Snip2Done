@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="RemeberEr.ResourceProbe">
+  <!-- 两个 TextBlock 指向同一个颜色资源，一个 Static 一个 Dynamic -->
+  <StackPanel>
+    <TextBlock x:Name="Stat" Text="S" Foreground="{StaticResource Tx4}"/>
+    <TextBlock x:Name="Dyn"  Text="D" Foreground="{DynamicResource Tx4}"/>
+  </StackPanel>
+</UserControl>

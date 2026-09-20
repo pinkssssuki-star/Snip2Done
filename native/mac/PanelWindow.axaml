@@ -37,9 +37,14 @@
           </Button>
 
           <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <!--
+              卡片里的字一律用 Cx1 / Cx2，**不用** Tx1 / Tx2。
+              条目卡片永远白底（设计原则第 5 条），底色不跟主题走；
+              字色要是跟着主题走，黑主题下就会变成浅字压白底、几乎看不见 —— 实测踩到过。
+            -->
             <TextBlock Text="{Binding Title}"
                        FontSize="12.5" LineHeight="16.5" FontWeight="Medium"
-                       Foreground="{StaticResource Tx1}"
+                       Foreground="{StaticResource Cx1}"
                        TextWrapping="Wrap" MaxHeight="33" ClipToBounds="True"
                        IsVisible="{Binding HasTitle}"/>
             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
@@ -93,7 +98,7 @@
 
             <StackPanel Grid.Row="1" Margin="7,3,7,1" Spacing="2" ClipToBounds="True">
               <TextBlock Text="{Binding Caption}" FontSize="10.5"
-                         Foreground="{StaticResource Tx2}"
+                         Foreground="{StaticResource Cx2}"
                          TextWrapping="Wrap" MaxHeight="26" LineHeight="13"/>
             </StackPanel>
             <TextBlock Grid.Row="2" Text="{Binding FadingHint}" FontSize="9.5"
@@ -120,8 +125,14 @@
   </Window.Resources>
 
   <Grid>
-    <Border CornerRadius="14" BorderThickness="1"
-            Background="{Binding PanelBackground}"
+    <!--
+      外壳底色**刻意不绑** PanelBackground，由 code-behind 的 ApplyPanelBackground 独占设置。
+      原因：绑定和本地值会互相覆盖 —— Refresh() 里为了别的字段会 Raise("PanelBackground")，
+      绑定随即把旧值写回来，把刚设好的新主题底色冲掉（实测：黑色主题下面板仍是浅色，
+      而 Palette.Current 明明是黑的）。少了这个绑定，"谁负责底色" 就只有一处。
+    -->
+    <Border x:Name="Shell" CornerRadius="14" BorderThickness="1"
+            Background="#CCFFFFFF"
             BorderBrush="{StaticResource ShellBorder}"
             ClipToBounds="True">
     <Grid RowDefinitions="Auto,Auto,*,Auto">
