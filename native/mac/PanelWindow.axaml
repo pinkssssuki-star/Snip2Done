@@ -257,88 +257,256 @@
         </Grid>
 
         <!-- ········ 纸篓视图 ········ -->
-        <Grid IsVisible="{Binding IsBinView}" RowDefinitions="Auto,*">
-          <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="1,0,1,8">
-            <Button Grid.Column="0" Classes="IconBtn" Content="←" ToolTip.Tip="返回"
+        <!--
+          v0.9.1：纸篓按房间分成两个标签页。这不是「两个动作」，是**两种相反的态度**：
+            使命 Todo  —— 你主动 ✕ 舍弃的、有 DDL 的事 · 不能捡回 · 顶部「倒垃圾」一次清空
+            初心 Wantdo —— 长期不碰、自己淡进来的念想 · 点一下捡回 · 永远不删
+          「倒垃圾」是整个程序里唯一不可逆的操作，所以点第一下只把按钮变成红底的
+          「确定清空？」，4 秒不点自己缩回去，点第二下才真删。
+        -->
+        <Grid IsVisible="{Binding IsBinView}" RowDefinitions="Auto,Auto,Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="1,0,1,8">
+            <Button Grid.Column="0" Classes="GhostBtn" Content="← 返回"
                     Command="{Binding BackCmd}"/>
             <TextBlock Grid.Column="1" Classes="SecTitle" Text="PAPER PLANE BIN"
-                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Grid>
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-              <ItemsControl ItemsSource="{Binding Bins}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <Border Classes="TodoCard" PointerReleased="OnBinCardClick">
-                      <Grid ColumnDefinitions="Auto,*,Auto">
-                        <Border Grid.Column="0" Classes="CardThumb" Margin="0,0,8,0"
-                                IsVisible="{Binding HasThumb}">
-                          <Image Source="{Binding Thumb}" Stretch="UniformToFill"/>
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Caption}" FontSize="12"
-                                     TextTrimming="CharacterEllipsis"/>
-                          <TextBlock Text="{Binding RoomName}" FontSize="9.5"
-                                     Foreground="{StaticResource TxFaint}"/>
-                        </StackPanel>
-                        <Button Grid.Column="2" Classes="IconBtn" Content="↩" ToolTip.Tip="捞回来"
-                                Command="{Binding $parent[Window].DataContext.RestoreCmd}"
-                                CommandParameter="{Binding Id}"/>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <Border Classes="EmptyBox" IsVisible="{Binding !HasBins}">
-                <TextBlock Text="纸篓是空的。放下的东西会在这里等你，随时能捞回来。"/>
-              </Border>
-            </StackPanel>
+
+          <!-- 纸篓的一句话 -->
+          <Border Grid.Row="1" CornerRadius="9" Background="{StaticResource BtnBg}"
+                  BorderBrush="{StaticResource EmptyBorder}" BorderThickness="1"
+                  Padding="10,11" Margin="0,0,0,10">
+            <TextBlock FontSize="11.5" LineHeight="19" Foreground="{StaticResource Tx3}"
+                       TextWrapping="Wrap" TextAlignment="Center">
+              <Run Text="童年的纸飞机，"/><LineBreak/><Run Text="是否还能飞回你手里~"/>
+            </TextBlock>
+          </Border>
+
+          <!-- 两个标签页 -->
+          <Border Grid.Row="2" Background="{StaticResource ChipBg}" CornerRadius="9"
+                  Padding="3" Margin="0,0,0,10">
+            <UniformGrid Columns="2">
+              <Button Classes="TabBtn" Classes.on="{Binding IsBinTodo}"
+                      Content="使命 Todo"
+                      Command="{Binding BinTabCmd}" CommandParameter="todo"/>
+              <Button Classes="TabBtn" Classes.on="{Binding IsBinWant}"
+                      Content="初心 Wantdo"
+                      Command="{Binding BinTabCmd}" CommandParameter="want"/>
+            </UniformGrid>
+          </Border>
+
+          <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+            <Grid>
+              <!-- 使命 Todo：不能捡回，只能倒垃圾 -->
+              <StackPanel IsVisible="{Binding IsBinTodo}">
+                <Grid Margin="1,0,1,6">
+                  <TextBlock Text="主动舍弃的，倒掉就不再回来" FontSize="10"
+                             Foreground="{StaticResource Tx5}" VerticalAlignment="Center"/>
+                  <Button HorizontalAlignment="Right" Content="{Binding EmptyTrashText}"
+                          Classes="GhostBtn"
+                          Classes.danger="{Binding ConfirmingEmpty}"
+                          Command="{Binding EmptyTrashCmd}"
+                          IsVisible="{Binding HasTodoBins}"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding TodoBins}"
+                              IsVisible="{Binding HasTodoBins}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="BinCard"
+                              PointerReleased="OnBinCardClick"
+                              PointerEntered="OnCardHoverIn" PointerExited="OnCardHoverOut">
+                        <Grid RowDefinitions="*,Auto">
+                          <Grid Grid.Row="0" ClipToBounds="True">
+                            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
+                                   IsVisible="{Binding HasThumb}"/>
+                            <Border IsVisible="{Binding !HasThumb}">
+                              <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                  <GradientStop Color="#cbd5e1" Offset="0"/>
+                                  <GradientStop Color="#94a3b8" Offset="1"/>
+                                </LinearGradientBrush>
+                              </Border.Background>
+                              <TextBlock Text="{Binding FirstChar}" FontSize="20" FontWeight="SemiBold"
+                                         Foreground="#ffffff"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                          </Grid>
+                          <StackPanel Grid.Row="1" Margin="7,4,7,5">
+                            <StackPanel Orientation="Horizontal">
+                              <Border Padding="5,1" CornerRadius="4" Margin="0,0,5,0"
+                                      VerticalAlignment="Center"
+                                      Background="{StaticResource ChipBg}">
+                                <TextBlock Text="{Binding RoomName}" FontSize="8.5" FontWeight="Bold"
+                                           Foreground="{StaticResource Tx3}"/>
+                              </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Caption}" FontSize="10" Margin="0,3,0,0"
+                                       Foreground="{StaticResource Cx2}"
+                                       TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="EmptyBox" Height="86" IsVisible="{Binding !HasTodoBins}">
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="没有舍弃的 Todo。" FontSize="11"
+                               Foreground="{StaticResource Tx4}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="丢掉的会落到这里，攒着一起倒。" FontSize="10" Margin="0,4,0,0"
+                               Foreground="{StaticResource Tx5}" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+
+              <!-- 初心 Wantdo：能捡回，永不删 -->
+              <StackPanel IsVisible="{Binding IsBinWant}">
+                <TextBlock Text="慢慢淡掉的，点一下就能捡回来" FontSize="10"
+                           Foreground="{StaticResource Tx5}" Margin="1,0,1,6"/>
+                <ItemsControl ItemsSource="{Binding WantBins}"
+                              IsVisible="{Binding HasWantBins}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Classes="BinCard"
+                              PointerReleased="OnBinCardClick"
+                              PointerEntered="OnCardHoverIn" PointerExited="OnCardHoverOut">
+                        <Grid RowDefinitions="*,Auto">
+                          <Grid Grid.Row="0" ClipToBounds="True">
+                            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
+                                   IsVisible="{Binding HasThumb}"/>
+                            <Border IsVisible="{Binding !HasThumb}">
+                              <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                  <GradientStop Color="#cbd5e1" Offset="0"/>
+                                  <GradientStop Color="#94a3b8" Offset="1"/>
+                                </LinearGradientBrush>
+                              </Border.Background>
+                              <TextBlock Text="{Binding FirstChar}" FontSize="20" FontWeight="SemiBold"
+                                         Foreground="#ffffff"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                          </Grid>
+                          <StackPanel Grid.Row="1" Margin="7,4,7,5">
+                            <StackPanel Orientation="Horizontal">
+                              <Border Padding="5,1" CornerRadius="4" Margin="0,0,5,0"
+                                      VerticalAlignment="Center"
+                                      Background="#24a855f7">
+                                <TextBlock Text="{Binding RoomName}" FontSize="8.5" FontWeight="Bold"
+                                           Foreground="#6d28d9"/>
+                              </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Caption}" FontSize="10" Margin="0,3,0,0"
+                                       Foreground="{StaticResource Cx2}"
+                                       TextTrimming="CharacterEllipsis"/>
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="EmptyBox" Height="86" IsVisible="{Binding !HasWantBins}">
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="还没有淡掉的念想。" FontSize="11"
+                               Foreground="{StaticResource Tx4}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="说明你的注意力都还在。" FontSize="10" Margin="0,4,0,0"
+                               Foreground="{StaticResource Tx5}" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Grid>
           </ScrollViewer>
         </Grid>
 
         <!-- ········ 完成列表 ········ -->
-        <Grid IsVisible="{Binding IsDoneView}" RowDefinitions="Auto,*">
-          <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="1,0,1,8">
-            <Button Grid.Column="0" Classes="IconBtn" Content="←" ToolTip.Tip="返回"
+        <Grid IsVisible="{Binding IsDoneView}" RowDefinitions="Auto,Auto,*">
+          <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="1,0,1,8">
+            <Button Grid.Column="0" Classes="GhostBtn" Content="← 返回"
                     Command="{Binding BackCmd}"/>
             <TextBlock Grid.Column="1" Classes="SecTitle" Text="DONE"
-                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Grid>
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-              <ItemsControl ItemsSource="{Binding DoneGroups}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <StackPanel Margin="0,0,0,10">
-                      <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="Bold"
-                                 Foreground="{StaticResource Tx3}" Margin="1,0,0,5"/>
-                      <ItemsControl ItemsSource="{Binding Items}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate>
-                            <Border Classes="TodoCard" PointerReleased="OnDoneCardClick">
-                              <Grid ColumnDefinitions="Auto,*,Auto">
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+
+          <!-- 两个标签页。这里不用「使命/初心」那套抒情命名，就叫 Todo / WD -->
+          <Border Grid.Row="1" Background="{StaticResource ChipBg}" CornerRadius="9"
+                  Padding="3" Margin="0,0,0,10">
+            <UniformGrid Columns="2">
+              <Button Classes="TabBtn" Classes.on="{Binding IsDoneTodo}"
+                      Content="Todo"
+                      Command="{Binding DoneTabCmd}" CommandParameter="todo"/>
+              <Button Classes="TabBtn" Classes.on="{Binding IsDoneWant}"
+                      Content="WD"
+                      Command="{Binding DoneTabCmd}" CommandParameter="want"/>
+            </UniformGrid>
+          </Border>
+
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <Grid>
+              <StackPanel IsVisible="{Binding IsDoneTodo}">
+                <ItemsControl ItemsSource="{Binding TodoDoneGroups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="Bold"
+                                   Foreground="{StaticResource Tx3}" Margin="1,0,0,5"/>
+                        <ItemsControl ItemsSource="{Binding Items}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Classes="TodoCard" PointerReleased="OnDoneCardClick">
+                                <StackPanel VerticalAlignment="Center">
                                   <TextBlock Text="{Binding Title}" FontSize="12"
+                                             Foreground="{StaticResource Cx1}"
                                              TextTrimming="CharacterEllipsis"/>
                                   <TextBlock Text="{Binding MetaText}" FontSize="9.5"
                                              Foreground="{StaticResource TxFaint}"/>
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding RoomName}"
-                                           FontSize="9.5" VerticalAlignment="Center"
-                                           Foreground="{StaticResource Tx3}"/>
-                              </Grid>
-                            </Border>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel IsVisible="{Binding IsDoneWant}">
+                <ItemsControl ItemsSource="{Binding WantDoneGroups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="Bold"
+                                   Foreground="{StaticResource Tx3}" Margin="1,0,0,5"/>
+                        <ItemsControl ItemsSource="{Binding Items}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Border Classes="TodoCard" PointerReleased="OnDoneCardClick">
+                                <StackPanel VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding Title}" FontSize="12"
+                                             Foreground="{StaticResource Cx1}"
+                                             TextTrimming="CharacterEllipsis"/>
+                                  <TextBlock Text="{Binding MetaText}" FontSize="9.5"
+                                             Foreground="{StaticResource TxFaint}"/>
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
               <Border Classes="EmptyBox" IsVisible="{Binding !HasDoneGroups}">
                 <TextBlock Text="还没有完成记录。完成不是丢弃 —— 这里会记下你用了多久、写了什么。"/>
               </Border>
-            </StackPanel>
+            </Grid>
           </ScrollViewer>
         </Grid>
 

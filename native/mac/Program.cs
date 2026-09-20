@@ -105,6 +105,15 @@ namespace RemeberEr
         public static string ThemeTest;
 
         /// <summary>
+        /// 渲染时切到哪个标签页（todo / want）。配合 --view=bin|done 用，
+        /// 好把两个标签页分别渲染出来核对。
+        /// </summary>
+        public static string Tab;
+
+        /// <summary>渲染时把倒垃圾按钮设成「已进入二次确认」，用于核对那个危险态的样子。</summary>
+        public static bool ConfirmTrash;
+
+        /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
         /// </summary>
@@ -462,7 +471,13 @@ namespace RemeberEr
                 try
                 {
                     var panel = new PanelWindow();
+                    // 设标签页要在 Show 之前和之后各一次：
+                    // 之前是为了让首次布局就用对的标签页，之后是防 Refresh 把它重置。
+                    if (!string.IsNullOrEmpty(Tab)) panel.Vm.BinTab = panel.Vm.DoneTab = Tab;
+                    if (ConfirmTrash) panel.Vm.ConfirmingEmpty = true;
                     panel.Show();
+                    if (!string.IsNullOrEmpty(Tab)) panel.Vm.BinTab = panel.Vm.DoneTab = Tab;
+                    if (ConfirmTrash) panel.Vm.ConfirmingEmpty = true;
 
                     // 主动把排队的 UI 任务跑完。
                     //
@@ -1197,6 +1212,8 @@ namespace RemeberEr
                 else if (a == "--dock-test") DockTest = true;
                 else if (a == "--hotkey-test") HotkeyTest = true;
                 else if (a.StartsWith("--theme-test=")) ThemeTest = a.Substring(13);
+                else if (a.StartsWith("--tab=")) Tab = a.Substring(6);
+                else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

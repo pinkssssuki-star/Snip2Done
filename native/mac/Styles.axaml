@@ -215,6 +215,82 @@
     <Setter Property="Foreground" Value="{StaticResource Red}"/>
   </Style>
 
+  <!-- ============================================================ 标签页（纸篓/完成 分房间） -->
+  <Style Selector="Button.TabBtn">
+    <Setter Property="FontSize" Value="10.5"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Padding" Value="0,5"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Button.TabBtn:pointerover">
+    <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+  </Style>
+  <!-- 放在悬停之后：选中态要压过悬停 -->
+  <Style Selector="Button.TabBtn.on">
+    <Setter Property="Background" Value="{StaticResource TabOnBg}"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+
+  <!-- ============================================================ 幽灵按钮（返回 / 倒垃圾） -->
+  <Style Selector="Button.GhostBtn">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx4}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Padding" Value="8,3"/>
+    <Setter Property="Background" Value="{StaticResource BtnBg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Button.GhostBtn:pointerover">
+    <Setter Property="Background" Value="{StaticResource BtnBgHover}"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+  </Style>
+  <!-- 危险操作（倒垃圾的二次确认）：红底白字。
+       它是整个程序里唯一不可逆的操作，所以视觉上要明确区别于别的按钮。 -->
+  <Style Selector="Button.GhostBtn.danger">
+    <Setter Property="Background" Value="{StaticResource Red}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Red}"/>
+    <Setter Property="Foreground" Value="#ffffff"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="Button.GhostBtn.danger:pointerover">
+    <Setter Property="Background" Value="{StaticResource Red}"/>
+    <Setter Property="Foreground" Value="#ffffff"/>
+    <Setter Property="Opacity" Value="0.9"/>
+  </Style>
+
+  <!-- ============================================================ 纸篓小卡片 -->
+  <Style Selector="Border.BinCard">
+    <Setter Property="Height" Value="100"/>
+    <Setter Property="CornerRadius" Value="10"/>
+    <Setter Property="Background" Value="{StaticResource CardBg}"/>
+    <Setter Property="BorderBrush" Value="#29000000"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Margin" Value="3,0,3,6"/>
+    <Setter Property="Opacity" Value="0.72"/>
+    <Setter Property="ClipToBounds" Value="True"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Border.BinCard:pointerover">
+    <Setter Property="Opacity" Value="1"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+  </Style>
+  <!-- 使命 Todo：不能捡回，鼠标也不该显示成可点 -->
+  <Style Selector="Border.BinCard.norestore">
+    <Setter Property="Cursor" Value="Arrow"/>
+    <Setter Property="Opacity" Value="0.6"/>
+  </Style>
+
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent"/>
   </Style>

@@ -214,6 +214,17 @@ namespace RemeberEr
             {
                 var w = c.DataContext as WantVm;
                 if (w != null) path = w.ImagePath;
+                else
+                {
+                    // 纸篓/完成列表的卡片也有图，也该能悬停预览
+                    var b = c.DataContext as BinVm;
+                    if (b != null) path = b.ImagePath;
+                    else
+                    {
+                        var d = c.DataContext as DoneVm;
+                        if (d != null) path = d.ImagePath;
+                    }
+                }
             }
             if (string.IsNullOrEmpty(path)) return;   // 没图的条目不弹预览
 
@@ -240,7 +251,15 @@ namespace RemeberEr
         {
             var vm = (sender as Control)?.DataContext as BinVm;
             if (vm == null) return;
-            // 点纸篓里的卡片 = 捞回来（和面板上的 ↩ 同一个动作）
+
+            // v0.9.1：只有「初心 Wantdo」能捡回来。
+            // 「使命 Todo」是你主动舍弃的，点它不该有任何动作 ——
+            // 那一区的唯一出口是顶部的「倒垃圾」（真删除）。
+            if (!vm.CanRestore)
+            {
+                Program.Log("  纸篓：使命 Todo 不能捡回（只能倒垃圾）");
+                return;
+            }
             _vm.RestoreCmd.Execute(vm.Id);
         }
 
