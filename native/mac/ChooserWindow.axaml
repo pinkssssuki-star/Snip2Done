@@ -103,8 +103,22 @@
         </Button>
         <Button Grid.Column="2" Classes="ChoiceBtn soon" Click="OnPickSoon">
           <StackPanel>
-            <TextBlock Text="Soon" FontSize="12.5" FontWeight="Bold"/>
-            <TextBlock Text="三天内" FontSize="9" Opacity="0.82"/>
+            <TextBlock Text="Soon" FontSize="12.5" FontWeight="Bold"
+                       HorizontalAlignment="Center"/>
+            <!--
+              「两三天 or [ ]」：那个方框是**可以填数字的输入框**，不是三个字。
+              直接点 = 48~72 小时里随机一个（每次都不一样，免得所有 Todo 堆在同一天到期）；
+              填了 N 就是 N 天后，标签也会跟着显示「N 天」而不是笼统的「两三天」。
+            -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,1,0,0">
+              <TextBlock Text="两三天 or" FontSize="9" Opacity="0.82" VerticalAlignment="Center"/>
+              <TextBox x:Name="DaysBox" Width="30" Height="16" Padding="0"
+                       FontSize="9.5" FontWeight="SemiBold"
+                       Margin="3,0,0,0" CornerRadius="4"
+                       VerticalContentAlignment="Center"
+                       HorizontalContentAlignment="Center"
+                       KeyDown="OnDaysKeyDown" TextInput="OnDaysInput"/>
+            </StackPanel>
           </StackPanel>
         </Button>
         <Button Grid.Column="4" Classes="ChoiceBtn want" Click="OnPickWant">
@@ -118,7 +132,7 @@
       <Grid Grid.Row="3">
         <TextBlock Text="Esc 算了 · 1 2 3 直接选"
                    FontSize="9.5" Foreground="#b0b0b6" VerticalAlignment="Center"/>
-        <TextBlock Text="留空则用窗口标题" FontSize="9.5" Foreground="#b0b0b6"
+        <TextBlock Text="留空则自动给个两三天内的期限" FontSize="9.5" Foreground="#b0b0b6"
                    HorizontalAlignment="Right" VerticalAlignment="Center"/>
       </Grid>
     </Grid>

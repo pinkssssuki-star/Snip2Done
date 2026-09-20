@@ -41,10 +41,10 @@ namespace RemeberEr
 
         Image _thumb;
         TextBlock _srcText;
-        TextBox _titleBox;
+        TextBox _titleBox, _daysBox;
 
-        /// <summary>choice, typedTitle。choice 为 null 表示取消。</summary>
-        public event Action<string, string> Decided;
+        /// <summary>choice, typedTitle, days。「两三天」那一档的自定义天数，0 = 没写。</summary>
+        public event Action<string, string, int> Decided;
 
         public ChooserWindow(Payload p, DisplayInfo display,
                              int selX, int selY, int selW, int selH)
@@ -58,6 +58,7 @@ namespace RemeberEr
             _thumb = this.FindControl<Image>("Thumb");
             _srcText = this.FindControl<TextBlock>("SrcText");
             _titleBox = this.FindControl<TextBox>("TitleBox");
+            _daysBox = this.FindControl<TextBox>("DaysBox");
 
             if (p.Preview != null) _thumb.Source = p.Preview;
             BuildSourceLine(p.App, p.Title);
@@ -127,23 +128,44 @@ namespace RemeberEr
 
         void Pick(string choice)
         {
-            Dismiss(choice, (_titleBox.Text ?? "").Trim());
+            Dismiss(choice, (_titleBox.Text ?? "").Trim(), ReadDays());
+        }
+
+        /// <summary>
+        /// 「几天后」输入框里的数字。
+        /// 空着或写了 0 → 返回 0，交给数据层在 48~72 小时里随机挑一个。
+        /// </summary>
+        int ReadDays()
+        {
+            if (_daysBox == null) return 0;
+            string s = (_daysBox.Text ?? "").Trim();
+            if (s.Length == 0) return 0;
+            int n;
+            if (!int.TryParse(s, out n)) return 0;
+            return n < 0 ? 0 : (n > 365 ? 365 : n);   // 夹一下，免得填个天文数字
         }
 
         /// <summary>自动化验收用：不用手点，直接选一个。</summary>
         public void AutoPick(string choice) { Pick(choice); }
 
-        void Cancel() { Dismiss(null, null); }
+        /// <summary>自动化验收用：带一个「几天后」的天数再选。</summary>
+        public void AutoPickWithDays(string choice, int days)
+        {
+            if (_daysBox != null && days > 0) _daysBox.Text = days.ToString();
+            Pick(choice);
+        }
+
+        void Cancel() { Dismiss(null, null, 0); }
 
         /// <summary>
         /// 收摊：**先 Hide 再 Close**，并且回调放在 Hide 之后、Close 之前 ——
         /// 回调会去刷新面板，那时窗口得已经不在屏幕上了（原版的顺序）。
         /// </summary>
-        void Dismiss(string choice, string typed)
+        void Dismiss(string choice, string typed, int days)
         {
             try { Hide(); } catch (Exception) { }
             var d = Decided;
-            if (d != null) d(choice, typed);
+            if (d != null) d(choice, typed, days);
             Close();
         }
 
@@ -158,6 +180,24 @@ namespace RemeberEr
                 e.Handled = true;
                 Cancel();
             }
+        }
+
+        /// <summary>
+        /// 「几天后」只收数字 —— 这个框很小，敲进去一个字母就完全看不出填错了。
+        /// 直接拦掉非数字字符比事后校验友好。
+        /// </summary>
+        void OnDaysInput(object sender, TextInputEventArgs e)
+        {
+            foreach (var ch in e.Text ?? "")
+            {
+                if (ch < '0' || ch > '9') { e.Handled = true; return; }
+            }
+        }
+
+        /// <summary>在「几天后」框里按 Enter 也是确认（和主输入框一致）。</summary>
+        void OnDaysKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter) { e.Handled = true; Pick("soon"); }
         }
 
         void OnKeyDown(object sender, KeyEventArgs e)

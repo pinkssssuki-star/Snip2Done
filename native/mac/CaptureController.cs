@@ -271,20 +271,29 @@ namespace RemeberEr
                 Title = fg != null ? fg.Title : "",
             }, disp, ix, iy, iw, ih);
 
-            _chooser.Decided += (choice, typed) =>
+            _chooser.Decided += (choice, typed, days) =>
             {
-                Program.Log(string.Format("  [采集] 归类结果 = {0}，标题 = {1}",
-                    choice ?? "(取消)", typed));
-                if (choice != null) Save(choice, typed, png, fg);
+                Program.Log(string.Format("  [采集] 归类结果 = {0}，标题 = {1}，天数 = {2}",
+                    choice ?? "(取消)", typed, days > 0 ? days + " 天" : "（随机 48~72 小时）"));
+                if (choice != null) Save(choice, typed, days, png, fg);
                 _chooser = null;
                 _busy = false;
             };
 
+            // ⚠️ 顺序要紧：自动验收必须先接好 Decided 再触发选一个。
+            // 反过来写会先让归类窗自己关掉，然后 Show() 就抛
+            // 「Cannot re-show a closed window」（踩过）。
+            if (Program.AutoDays > 0 && !string.IsNullOrEmpty(Program.AutoChoose))
+            {
+                _chooser.AutoPickWithDays(Program.AutoChoose, Program.AutoDays);
+                return;   // 已经选完并关了，不要再 Show
+            }
+
             _chooser.Show();
         }
 
-        /// <summary>按归类结果落盘：room / dueBucket / 标题 / 来源 / 图片。</summary>
-        void Save(string choice, string typed, byte[] png, ForegroundInfo fg)
+        /// <summary>按归类结果落盘：room / dueBucket / 标题 / 来源 / 图片 / 自定义天数。</summary>
+        void Save(string choice, string typed, int days, byte[] png, ForegroundInfo fg)
         {
             string room, bucket;
             if (choice == "want") { room = "want"; bucket = null; }
@@ -296,7 +305,11 @@ namespace RemeberEr
             if (string.IsNullOrWhiteSpace(title) && fg != null) title = fg.Title;
             string source = fg != null ? fg.Source : "";
 
-            var item = _store.Add(room, title ?? "", source, null, bucket);
+            // dueDays 只有「两三天」那一档有意义：填了就是 N 天后，没填交给数据层随机 48~72 小时。
+            // Today 档必须传 0 —— 否则那个没意义的数字会被写进数据里
+            // （实测过：Today 也存了 dueDays=9，dueAt 虽然是对的，但这条字段是脏的）。
+            int dueDays = bucket == "soon" ? days : 0;
+            var item = _store.Add(room, title ?? "", source, null, bucket, null, dueDays);
             string id = J.Str(item, "id", null);
 
             if (png != null && id != null)
@@ -315,8 +328,9 @@ namespace RemeberEr
                 _store.Update(id, new Dictionary<string, object> { { "title", title ?? "" } });
             }
 
-            Program.Log(string.Format("  [采集] 已落盘：id={0} room={1} bucket={2} 图片={3}",
-                id, room, bucket ?? "—", png != null ? (png.Length / 1024) + "KB" : "无"));
+            Program.Log(string.Format("  [采集] 已落盘：id={0} room={1} bucket={2} dueDays={3} 图片={4}",
+                id, room, bucket ?? "—", dueDays > 0 ? dueDays.ToString() : "—",
+                png != null ? (png.Length / 1024) + "KB" : "无"));
 
             // 面板刷新（如果这次采集是 Wantdo，还顺手把它当作"被碰过"）
             _panel.Vm.Refresh();

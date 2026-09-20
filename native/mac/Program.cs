@@ -119,6 +119,9 @@ namespace RemeberEr
         /// <summary>补截图自检：给第一条条目补一张图（需要屏幕录制权限）。</summary>
         public static bool AttachTest;
 
+        /// <summary>自动验收时给「两三天」那一档填的天数（0 = 不填，走 48~72 小时随机）。</summary>
+        public static int AutoDays;
+
         /// <summary>多窗自检：详情窗/记录窗能不能同时开好几扇、重复点会不会开重复的。</summary>
         public static bool MultiWindowTest;
 
@@ -1461,6 +1464,7 @@ namespace RemeberEr
                 else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--pos-test") PosTest = true;
                 else if (a == "--attach-test") AttachTest = true;
+                else if (a.StartsWith("--autodays=")) AutoDays = int.Parse(a.Substring(11));
                 else if (a == "--multi-window-test") MultiWindowTest = true;
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
                 else if (a == "--bench") BenchMode = true;
