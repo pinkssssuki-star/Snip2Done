@@ -102,6 +102,9 @@ namespace RemeberEr
         [DllImport(SckLib)]
         static extern void remeber_hotkey_stop();
 
+        [DllImport(SckLib)]
+        static extern void remeber_post_hotkey_a();
+
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         internal delegate void HotkeyCallback(uint modifiers, uint keyCode);
 
@@ -156,6 +159,7 @@ namespace RemeberEr
                     {
                         if (rr.Value.Id != kv.Key) continue;
                         r = rr.Value;
+                        HitCount++;
                         Program.Log("  [热键] NSEvent 命中 " + kv.Key);
                         try { if (r.Callback != null) r.Callback(); }
                         catch (Exception ex) { Program.Log("!! 热键回调异常：" + ex.Message); }
@@ -347,6 +351,16 @@ namespace RemeberEr
 
         /// <summary>当前注册了几个热键，供自检核对。</summary>
         internal static int RegisteredCount { get { return _regs.Count; } }
+
+        /// <summary>自检用：合成一次 ⌘⇧A。</summary>
+        internal static void PostTestHotkey()
+        {
+            try { remeber_post_hotkey_a(); }
+            catch (Exception ex) { Program.Log("  合成按键失败：" + ex.Message); }
+        }
+
+        /// <summary>自检用：NSEvent 命中过几次。</summary>
+        internal static int HitCount;
 
         internal static void Unregister(string id)
         {

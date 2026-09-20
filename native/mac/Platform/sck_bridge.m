@@ -303,3 +303,22 @@ int remeber_ax_trusted(void)
 {
     return AXIsProcessTrusted() ? 1 : 0;
 }
+
+/* ------------------------------------------------------------------ 按键自检
+ *
+ * 合成一次 ⌘⇧A。用途：验证「全局监听能不能看到合成事件」——
+ * 能的话我就能在不麻烦真人的前提下自测热键；不能的话说明
+ * NSEvent 只认真实硬件按键，那这类验证只能靠人按。
+ */
+void remeber_post_hotkey_a(void)
+{
+    CGEventRef down = CGEventCreateKeyboardEvent(NULL, (CGKeyCode)0, true);
+    CGEventSetFlags(down, kCGEventFlagMaskCommand | kCGEventFlagMaskShift);
+    CGEventPost(kCGHIDEventTap, down);
+    CFRelease(down);
+
+    CGEventRef up = CGEventCreateKeyboardEvent(NULL, (CGKeyCode)0, false);
+    CGEventSetFlags(up, kCGEventFlagMaskCommand | kCGEventFlagMaskShift);
+    CGEventPost(kCGHIDEventTap, up);
+    CFRelease(up);
+}

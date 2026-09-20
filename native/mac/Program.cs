@@ -134,6 +134,9 @@ namespace RemeberEr
         /// <summary>手动记一笔自检：填标题 → 点加号 → 时间面板 → 选一个 → 落盘。</summary>
         public static bool ManualAddTest;
 
+        /// <summary>热键接收自检：合成一次 ⌘⇧A，看全局监听能否收到。</summary>
+        public static bool HotkeyRecvTest;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -277,6 +280,8 @@ namespace RemeberEr
             // 注意：--shot-chooser 这个分支在 --manual-chooser 之前，
             // 两者同时给的时候（用 --shot-chooser 指定输出路径 + --manual-chooser 切模式）
             // 必须在这里分流，否则下面那个独立分支永远轮不到（踩过）。
+            if (HotkeyRecvTest) { RunHotkeyRecvTest(); return; }
+
             if (ManualAddTest) { RunManualAddTest(); return; }
 
             if (ShotChooser != null)
@@ -754,6 +759,65 @@ namespace RemeberEr
         /// 重点验的是「没期限的 Todo 是自相矛盾的」这一条 ——
         /// 手动记的 Todo 必须走选时间那一步，而不是直接落库。
         /// </summary>
+        /// <summary>
+        /// 热键接收自检：合成一次 ⌘⇧A，看 NSEvent 全局监听能不能收到。
+        ///
+        /// 意义：如果能收到，说明「全局监听看不到合成事件」这个顾虑不成立，
+        /// 热键这条链就能在不麻烦真人的前提下自测；
+        /// 如果收不到，那说明 NSEvent 只认真实硬件按键，
+        /// 这类验证就只能靠人按 —— 两种结论都值得知道。
+        /// </summary>
+        static void RunHotkeyRecvTest()
+        {
+            Log("=== 热键接收自检（合成 ⌘⇧A）===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(600);
+
+                    Log(string.Format("  权限：辅助功能={0} 输入监控={1}",
+                        Program.Platform.HasAccessibilityPermission(),
+                        HasInputMonitoring()));
+                    Log("  合成一次 ⌘⇧A…");
+
+                    // 合成要在 UI 线程泵之外做，否则监听回调没机会跑
+                    System.Threading.Tasks.Task.Run(() =>
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            MacHotkeys.PostTestHotkey();
+                            // 合成之后主动泵一会儿，让 NSEvent 的回调有机会执行
+                            PumpUi(1500);
+                            Log(string.Format("  结果：命中 {0} 次 {1}",
+                                MacHotkeys.HitCount,
+                                MacHotkeys.HitCount > 0
+                                    ? "→ 全局监听**能**看到合成事件，热键链可自测"
+                                    : "→ 全局监听看不到合成事件（只认真实硬件按键），这类验证只能靠人按"));
+                            Log("=== 热键接收自检结束 ===");
+                        });
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 自检失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            // 给后台任务留出时间
+            System.Threading.Thread.Sleep(4000);
+            Environment.Exit(0);
+        }
+
         static void RunManualAddTest()
         {
             Log("=== 手动记一笔自检 ===");
@@ -1651,6 +1715,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
                 else if (a == "--manual-chooser") ManualChooser = true;
                 else if (a == "--manual-add-test") ManualAddTest = true;
+                else if (a == "--hotkey-recv-test") HotkeyRecvTest = true;
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
