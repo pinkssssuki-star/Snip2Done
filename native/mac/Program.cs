@@ -27,7 +27,7 @@ namespace RemeberEr
     public static class Program
     {
         /// <summary>发布版本号。与 Windows 版保持一致，不要各写一份。</summary>
-        public const string Version = "0.9.0";
+        public const string Version = "0.9.1";
 
         public static string Root;
         public static string DataDir;

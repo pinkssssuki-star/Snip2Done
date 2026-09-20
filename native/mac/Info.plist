@@ -16,9 +16,9 @@
     build-app.sh 会在打包时校验这一条，避免两处各写一份然后对不上。
   -->
   <key>CFBundleVersion</key>
-  <string>0.9.0</string>
+  <string>0.9.1</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.9.0</string>
+  <string>0.9.1</string>
 
   <key>CFBundlePackageType</key>
   <string>APPL</string>
