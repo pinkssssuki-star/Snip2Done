@@ -55,6 +55,9 @@ namespace RemeberEr
         DispatcherTimer _hoverTimer;
         string _hoverPath;
 
+        // ---- 演示加速的节拍器 ----
+        DispatcherTimer _demoTick;
+
         /// <summary>诊断视图是否打开。普通属性即可 —— 它不参与数据绑定到 VM。</summary>
         public bool DiagOn { get; private set; }
 
@@ -106,6 +109,16 @@ namespace RemeberEr
                 if (e.PropertyName == "PanelBackground" || e.PropertyName == "PanelAlpha")
                     ApplyPanelBackground();
             };
+
+            // 演示加速的节拍器：每秒一次，只在演示中才真的干活（TickDemo 自己判断）。
+            //
+            // 这一步是必须的，不是优化：Sweep()（把淡掉的 Wantdo 送进纸篓的动作）
+            // 挂在 Snapshot() 里，而 Snapshot() 只有 Refresh() 才会跑，
+            // 程序里**本来没有任何周期性刷新** —— 所以演示打开之后画面上什么都不会动，
+            // 得去点个别的东西才重算一次。上游 v0.9.1 的原话是「它根本不会播」。
+            _demoTick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _demoTick.Tick += (_, __) => _vm.TickDemo();
+            _demoTick.Start();
 
             Opened += OnOpened;
 
@@ -861,6 +874,7 @@ namespace RemeberEr
 
         protected override void OnClosed(EventArgs e)
         {
+            if (_demoTick != null) { _demoTick.Stop(); _demoTick = null; }
             Program.Platform.UnregisterAllHotkeys();
             // 子窗口是独立顶层窗，主窗关掉不会带走它们 —— 不显式关会留下孤儿窗口
             foreach (var w in _kids.ToArray())

@@ -116,6 +116,9 @@ namespace RemeberEr
         /// <summary>位置自检：置顶与折叠都不该改变窗口位置（免权限）。</summary>
         public static bool PosTest;
 
+        /// <summary>渲染时把演示横幅设成某个状态：running / finished。用于核对横幅外观。</summary>
+        public static string DemoBanner;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -479,11 +482,15 @@ namespace RemeberEr
                     var panel = new PanelWindow();
                     // 设标签页要在 Show 之前和之后各一次：
                     // 之前是为了让首次布局就用对的标签页，之后是防 Refresh 把它重置。
+                    // 标签页要在 Show 之前设（否则首次布局用的是默认页）；
+                    // 演示横幅则必须在 Show **之后** —— StartDemo 会切视图并刷新，
+                    // 放在前面会被 Opened 里的 Refresh 冲掉（踩过：横幅不出现）。
                     if (!string.IsNullOrEmpty(Tab)) panel.Vm.BinTab = panel.Vm.DoneTab = Tab;
-                    if (ConfirmTrash) panel.Vm.ConfirmingEmpty = true;
                     panel.Show();
                     if (!string.IsNullOrEmpty(Tab)) panel.Vm.BinTab = panel.Vm.DoneTab = Tab;
                     if (ConfirmTrash) panel.Vm.ConfirmingEmpty = true;
+                    if (DemoBanner == "finished") { panel.Vm.DemoFinished = true; panel.Vm.DemoWasFirst = true; }
+                    else if (DemoBanner == "running") panel.Vm.StartDemo();
 
                     // 主动把排队的 UI 任务跑完。
                     //
@@ -1289,6 +1296,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--tab=")) Tab = a.Substring(6);
                 else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--pos-test") PosTest = true;
+                else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

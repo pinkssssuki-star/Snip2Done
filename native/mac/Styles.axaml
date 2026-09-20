@@ -356,6 +356,16 @@
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
 
+  <!-- 演示横幅：橙色 = 正在发生，紫色 = 说完了 -->
+  <Style Selector="Border.DemoBanner">
+    <Setter Property="Background" Value="#16f59e0b"/>
+    <Setter Property="BorderBrush" Value="#33f59e0b"/>
+  </Style>
+  <Style Selector="Border.DemoBanner.finished">
+    <Setter Property="Background" Value="#168b5cf6"/>
+    <Setter Property="BorderBrush" Value="#338b5cf6"/>
+  </Style>
+
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent"/>
   </Style>
