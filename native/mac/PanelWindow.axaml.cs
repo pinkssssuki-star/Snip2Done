@@ -412,6 +412,8 @@ namespace RemeberEr
         {
             var d = new DetailWindow(_store, id);
             d.RecordRequested += rid => OpenRecord(rid);
+            // 补截图走主流程同一套框选层（CaptureController 里有说明）
+            d.AttachShotRequested += cid => _capture.StartCaptureForItem(cid);
             Track(d);
             d.Show();
             Program.Log("  [面板] 打开详情窗：" + id);
@@ -439,6 +441,22 @@ namespace RemeberEr
             Track(w);
             w.Show();
             Program.Log("  [面板] 打开完成记录窗：" + id + "（" + (done ? "view" : "write") + "）");
+        }
+
+        /// <summary>
+        /// 让指定条目的详情窗重读自己。补截图之后要调 ——
+        /// 否则那扇已经开着的窗口还显示着「补一张截图」的加号。
+        /// </summary>
+        public void ReloadDetailFor(string itemId)
+        {
+            foreach (var w in _kids)
+            {
+                var d = w as DetailWindow;
+                if (d == null) continue;
+                if (d.ItemId != itemId || !d.IsVisible) continue;
+                try { d.Reload(); Program.Log("  详情窗已重读：" + itemId); }
+                catch (Exception ex) { Program.Log("  !! 详情窗重读失败：" + ex.Message); }
+            }
         }
 
         void Track(Window w)

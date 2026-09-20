@@ -279,6 +279,46 @@ namespace RemeberEr
             return item;
         }
 
+        /// <summary>
+        /// 给一条已有条目挂上（或换掉）截图。用于详情窗的「补一张截图」。
+        ///
+        /// 为什么不走 Update(id, patch)：Update 只认 title / note / reflection 三个键，
+        /// 传 image 进去会被**静默忽略**（这个坑踩过：PNG 明明写出来了，
+        /// data.json 里 image 还是 null，条目显示成「没有截图」）。
+        /// 与其悄悄扩 Update 的语义（别的调用方可能依赖它只改那三个字段），
+        /// 不如给这个动作一个自己的名字 —— 调用处读起来也更清楚。
+        /// </summary>
+        public string AttachImage(string id, byte[] png)
+        {
+            var it = Get(id);
+            if (it == null || png == null) return null;
+            string rel = SaveImage(id, png);
+            it["image"] = rel;
+            Save();
+            return rel;
+        }
+
+        /// <summary>把某条条目的截图去掉（连文件一起）。</summary>
+        public bool DetachImage(string id)
+        {
+            var it = Get(id);
+            if (it == null) return false;
+            string img = J.Str(it, "image", null);
+            if (string.IsNullOrEmpty(img)) return false;
+            try
+            {
+                string abs = Path.Combine(DataDir, img.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(abs)) File.Delete(abs);
+                string thumb = Path.Combine(Path.GetDirectoryName(abs),
+                    Path.GetFileNameWithoutExtension(abs) + ".thumb.png");
+                if (File.Exists(thumb)) File.Delete(thumb);
+            }
+            catch (Exception) { }
+            it["image"] = null;
+            Save();
+            return true;
+        }
+
         public Dictionary<string, object> Get(string id)
         {
             foreach (var o in Items)

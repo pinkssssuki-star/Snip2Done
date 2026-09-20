@@ -102,10 +102,47 @@
                   HorizontalAlignment="Center" VerticalAlignment="Center">
             <Image x:Name="Pic" Stretch="Uniform"/>
           </Border>
-          <TextBlock x:Name="NoImage" Text="这条没有截图" FontSize="12"
-                     Foreground="{StaticResource TxFaint}"
-                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                     IsVisible="False"/>
+
+          <!--
+            没有图的时候，中间那块空位**直接就是一个大的「补一张截图」** ——
+            而不是先写一句「这条没有截图」再让用户去找按钮（上游收到的反馈就是
+            「至少在文字框后面加个加号吧，否则写完字以后不知道怎么加」）。
+          -->
+          <Button x:Name="AddShotBig" Click="OnAddShot" Cursor="Hand"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                  IsVisible="False">
+            <Button.Template>
+              <ControlTemplate>
+                <Border x:Name="b" CornerRadius="8" Background="#ffffff"
+                        BorderBrush="{StaticResource EmptyBorder}" BorderThickness="1">
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="+" FontSize="34" FontWeight="Light"
+                               Foreground="{StaticResource AccentDeep}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="补一张截图" FontSize="10.5" Margin="0,2,0,0"
+                               Foreground="{StaticResource Tx4}"
+                               HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
+
+          <!-- 有图的时候，加号缩成右下角一个小圆钮，不挡内容 -->
+          <Button x:Name="AddShotSmall" Click="OnAddShot" Cursor="Hand"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                  ToolTip.Tip="换一张截图" IsVisible="False">
+            <Button.Template>
+              <ControlTemplate>
+                <Border x:Name="sb" Width="30" Height="30" CornerRadius="15"
+                        Background="#e6ffffff" BorderBrush="#22000000" BorderThickness="1">
+                  <TextBlock Text="+" FontSize="17" FontWeight="Light"
+                             Foreground="{StaticResource AccentDeep}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
         </Grid>
       </Border>
 

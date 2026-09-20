@@ -116,6 +116,9 @@ namespace RemeberEr
         /// <summary>位置自检：置顶与折叠都不该改变窗口位置（免权限）。</summary>
         public static bool PosTest;
 
+        /// <summary>补截图自检：给第一条条目补一张图（需要屏幕录制权限）。</summary>
+        public static bool AttachTest;
+
         /// <summary>渲染时把演示横幅设成某个状态：running / finished。用于核对横幅外观。</summary>
         public static string DemoBanner;
 
@@ -226,6 +229,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 补截图自检
+            if (AttachTest) { RunAttachTest(); return; }
 
             // 位置自检（免权限）
             if (PosTest) { RunPosTest(); return; }
@@ -672,6 +678,71 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 补截图自检：造一条没有图的条目，然后走「补截图」流程给它挂一张。
+        ///
+        /// 走的是 CaptureController.StartCaptureForItem —— 也就是详情窗那个加号按下去的
+        /// 同一条路径（含框选层、自动选区、挂图、刷新）。
+        /// </summary>
+        static void RunAttachTest()
+        {
+            Log("=== 补截图自检 ===");
+            if (!Program.Platform.HasScreenCapturePermission())
+            {
+                Log("!! 缺少「屏幕录制」权限，无法做补截图验证");
+                Environment.Exit(1);
+            }
+            if (AutoRegionW <= 0) { AutoRegionW = 400; AutoRegionH = 300; }
+
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var store = new Store(DataDir);
+                    // 造一条没有图的条目
+                    var it = store.Add("todo", "补截图自检条目", "自检", null, "today");
+                    string id = J.Str(it, "id", null);
+                    Log("  目标条目 = " + id);
+                    Log("  补图前 image = " + (J.Str(it, "image", null) ?? "(空)"));
+
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(400);
+
+                    var ctl = new CaptureController(store, panel);
+                    ctl.StartCaptureForItem(id);
+                    PumpUi(2500);
+
+                    var after = new Store(DataDir);
+                    var it2 = after.Get(id);
+                    string rel = it2 != null ? J.Str(it2, "image", null) : null;
+                    Log("  补图后 image = " + (rel ?? "(还是空！)"));
+
+                    if (!string.IsNullOrEmpty(rel))
+                    {
+                        string abs = System.IO.Path.Combine(DataDir,
+                            rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                        if (System.IO.File.Exists(abs))
+                            Log(string.Format("  图片文件 = {0} 字节 ✓", new System.IO.FileInfo(abs).Length));
+                        else Log("  !! 图片文件不存在");
+                    }
+                    Log("=== 补截图自检结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 补截图自检失败：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -1296,6 +1367,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--tab=")) Tab = a.Substring(6);
                 else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--pos-test") PosTest = true;
+                else if (a == "--attach-test") AttachTest = true;
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);

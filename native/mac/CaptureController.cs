@@ -30,6 +30,12 @@ namespace RemeberEr
         ChooserWindow _chooser;
         bool _busy;
 
+        /// <summary>
+        /// 补截图的目标条目。非 null 时，框选完之后**跳过归类窗**直接挂图 ——
+        /// 归类早在这条被记下来的时候就定过了，再问一次是多余的。
+        /// </summary>
+        string _attachToId;
+
         public CaptureController(Store store, PanelWindow panel)
         {
             _store = store;
@@ -130,6 +136,47 @@ namespace RemeberEr
             return ds[0];
         }
 
+        /// <summary>
+        /// 给一条已有条目补一张截图。
+        ///
+        /// 走的是**和截图主流程同一套框选层** —— 不另写一份抓屏/选区代码，
+        /// 所以多屏、缩放、快速模式这些行为天然一致（上游也是这么做的）。
+        /// 区别只有一处：框选完之后不弹归类窗，直接把图挂到这条上。
+        /// </summary>
+        public void StartCaptureForItem(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return;
+            var it = _store.Get(itemId);
+            if (it == null) { Program.Log("  !! 补截图：目标条目已不存在"); return; }
+            if (_busy) { Program.Log("  [采集] 已有一次采集在进行，忽略补截图"); return; }
+            if (!Program.Platform.HasScreenCapturePermission())
+            {
+                Program.Log("  [补图] 没有「屏幕录制」权限，无法抓屏。");
+                return;
+            }
+
+            _attachToId = itemId;
+            Program.Log(string.Format("  补截图：目标 {0}「{1}」",
+                itemId.Length > 8 ? itemId.Substring(0, 8) : itemId, J.Str(it, "title", "")));
+
+            LiveCapture("补图");
+        }
+
+        /// <summary>把截好的图挂到目标条目上，并让已经开着的详情窗重读。</summary>
+        void AttachImage(string id, byte[] png)
+        {
+            if (png == null) { Program.Log("  !! 补图失败：没有图片数据"); return; }
+            string rel = _store.AttachImage(id, png);
+            if (rel == null) { Program.Log("  !! 补图失败：条目不存在"); return; }
+
+            Program.Log(string.Format("  补图成功 -> {0}（{1}KB）", rel, png.Length / 1024));
+
+            // 已经开着的那扇详情窗要重读 —— 不然它还杵着那个「补一张截图」的加号。
+            // （上游为此专门加了一次 Reload，理由写得很直白：加完图窗口不刷新很奇怪。）
+            _panel.ReloadDetailFor(id);
+            _panel.Vm.Refresh();
+        }
+
         // ============================================================ 框选 → 归类 → 落盘
 
         /// <summary>
@@ -157,6 +204,18 @@ namespace RemeberEr
                 {
                     Program.Log(string.Format("  [采集] 选定区域（物理像素，相对本屏）= ({0},{1}) {2}x{3}", ix, iy, iw, ih));
                     CloseOverlay();
+
+                    // 补截图：跳过归类窗，直接挂图
+                    if (_attachToId != null)
+                    {
+                        string to = _attachToId;
+                        _attachToId = null;
+                        var cropAttach = CropBgra(shot, ix, iy, iw, ih);
+                        AttachImage(to, EncodePng(cropAttach));
+                        _busy = false;
+                        return;
+                    }
+
                     ShowChooser(shot, disp, fg, ix, iy, iw, ih);
                 }
                 catch (Exception ex)
@@ -168,7 +227,8 @@ namespace RemeberEr
             };
             _overlay.Cancelled += () =>
             {
-                Program.Log("  [采集] 已取消");
+                Program.Log("  [采集] 已取消" + (_attachToId != null ? "（补图）" : ""));
+                _attachToId = null;
                 CloseOverlay();
                 _busy = false;
             };

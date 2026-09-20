@@ -40,7 +40,8 @@ namespace RemeberEr
         /// <summary>LoadItem 期间字段会被 TextChanged 打到，别让它误触发自动保存与「已保存」闪烁。</summary>
         bool _loading;
 
-        TextBlock _tagText, _srcText, _whenText, _lifeText, _savedText, _doneHint, _noImage;
+        TextBlock _tagText, _srcText, _whenText, _lifeText, _savedText, _doneHint;
+        Button _addShotBig, _addShotSmall;
         StackPanel _lifeRow;
         TextBox _titleField, _noteField;
         Image _pic;
@@ -48,6 +49,21 @@ namespace RemeberEr
 
         /// <summary>Wantdo 完成后要写心得，交给上层去开记录窗。</summary>
         public event Action<string> RecordRequested;
+
+        /// <summary>请求给这条补一张截图，交给上层去走框选流程。</summary>
+        public event Action<string> AttachShotRequested;
+
+        /// <summary>这扇窗在看哪一条。补截图之后上层要靠它找到该刷新的窗口。</summary>
+        public string ItemId { get { return _id; } }
+
+        /// <summary>重读条目内容。补截图之后要调，否则还显示着「补一张截图」的加号。</summary>
+        public void Reload()
+        {
+            // 保存一次再读，避免用户刚打的字被丢掉（重读会把字段覆盖成盘上的值）
+            SaveNow();
+            LoadItem();
+            Program.Log("  详情窗已重读：" + _id);
+        }
 
         public DetailWindow(Store store, string itemId)
         {
@@ -62,7 +78,8 @@ namespace RemeberEr
             _lifeRow = this.FindControl<StackPanel>("LifeRow");
             _savedText = this.FindControl<TextBlock>("SavedText");
             _doneHint = this.FindControl<TextBlock>("DoneHint");
-            _noImage = this.FindControl<TextBlock>("NoImage");
+            _addShotBig = this.FindControl<Button>("AddShotBig");
+            _addShotSmall = this.FindControl<Button>("AddShotSmall");
             _titleField = this.FindControl<TextBox>("TitleField");
             _noteField = this.FindControl<TextBox>("NoteField");
             _pic = this.FindControl<Image>("Pic");
@@ -179,8 +196,10 @@ namespace RemeberEr
                 _pic.Source = Images.Get(abs, 900);
             }
             bool hasImg = _pic.Source != null;
-            _noImage.IsVisible = !hasImg;
             _pic.IsVisible = hasImg;
+            // 没图 → 中间一个大按钮；有图 → 右下角小圆钮（不挡内容）
+            _addShotBig.IsVisible = !hasImg;
+            _addShotSmall.IsVisible = hasImg;
 
             _loading = false;
         }
@@ -246,6 +265,14 @@ namespace RemeberEr
             if (e.Source is Button) return;
             try { BeginMoveDrag(e); }
             catch (Exception ex) { Program.Log("  详情窗拖动失败：" + ex.Message); }
+        }
+
+        /// <summary>点加号：请求上层走补截图流程（复用同一套框选层）。</summary>
+        void OnAddShot(object sender, RoutedEventArgs e)
+        {
+            var h = AttachShotRequested;
+            if (h != null) h(_id);
+            else Program.Log("  补截图：上层没有接这个请求");
         }
 
         void OnClose(object sender, RoutedEventArgs e)
