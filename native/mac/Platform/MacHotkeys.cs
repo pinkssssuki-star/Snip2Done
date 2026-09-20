@@ -31,6 +31,7 @@ namespace RemeberEr
 
         const uint kEventClassKeyboard = 0x6B657962;   // 'keyb'
         const uint kEventHotKeyPressed = 1;
+        const uint kEventHotKeyReleased = 2;
 
         [StructLayout(LayoutKind.Sequential)]
         struct EventTypeSpec
@@ -54,6 +55,20 @@ namespace RemeberEr
         [DllImport(Carbon)]
         static extern IntPtr GetApplicationEventTarget();
 
+        /// <summary>
+        /// 让 Carbon 的事件循环先跑起来（kEventDurationSecond 表示处理完当前待办就返回）。
+        ///
+        /// 为什么需要它：最小验证程序里调了这句之后 RegisterEventHotKey 才从
+        /// err=-50 变成 err=0。更关键的是，Carbon 的热键事件要靠事件循环派发到
+        /// InstallEventHandler 装上的处理函数 —— app 里由 Avalonia/AppKit 跑主循环，
+        /// 但 Carbon 自己那一套（事件队列、application event target 的可用性）
+        /// 需要显式初始化一次。
+        /// </summary>
+        [DllImport(Carbon)]
+        static extern void RunCurrentEventLoop(double timeout);
+
+        const double kEventDurationSecond = 1.0;
+
         [DllImport(Carbon)]
         static extern int InstallEventHandler(
             IntPtr target, EventHandlerProc handler, uint numTypes,
@@ -73,6 +88,83 @@ namespace RemeberEr
             IntPtr actualType, uint bufferSize, IntPtr actualSize, ref EventHotKeyID data);
 
         const uint kEventParamDirectObject = 0x2D2D2D2D;   // '----'
+
+        // ---------------------------------------------------------- NSEvent 后端（桥接层）
+        //
+        // Carbon 在当前系统上「注册成功但事件从不派发」（实测 handler 一次都没被调用），
+        // 所以主路径走 NSEvent 的全局监听，Carbon 作为后备。
+        // 桥接层在 sck_bridge.m 里，理由与取舍写在那份文件的注释里。
+        const string SckLib = "libremeber_sck";
+
+        [DllImport(SckLib)]
+        static extern int remeber_hotkey_start(HotkeyCallback cb);
+
+        [DllImport(SckLib)]
+        static extern void remeber_hotkey_stop();
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        internal delegate void HotkeyCallback(uint modifiers, uint keyCode);
+
+        // 必须存活，否则 GC 之后 native 侧调用就是野指针
+        static HotkeyCallback _nativeCb;
+
+        /// <summary>待匹配的热键表：mods+keyCode → 回调。NSEvent 是监听式的，
+        /// 系统会把所有按键都送过来，得自己比对。</summary>
+        static readonly Dictionary<string, uint> _wantMods = new Dictionary<string, uint>();
+        static readonly Dictionary<string, uint> _wantKeys = new Dictionary<string, uint>();
+        static bool _nativeBackend;
+
+        /// <summary>启动 NSEvent 全局监听。成功返回 true。</summary>
+        static bool StartNativeBackend()
+        {
+            if (_nativeBackend) return true;
+            try
+            {
+                _nativeCb = OnNativeKey;
+                int rc = remeber_hotkey_start(_nativeCb);
+                if (rc == 0)
+                {
+                    _nativeBackend = true;
+                    Program.Log("  热键后端 = NSEvent 全局监听（Carbon 在此系统上不派发事件）");
+                    return true;
+                }
+                Program.Log("  !! NSEvent 后端启动失败，rc=" + rc
+                    + "（可能缺少「输入监控」权限）");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Program.Log("  !! NSEvent 后端不可用：" + ex.GetType().Name);
+                return false;
+            }
+        }
+
+        /// <summary>系统送来的每一个按键：自己比对是不是我们要的热键。</summary>
+        static void OnNativeKey(uint mods, uint keyCode)
+        {
+            try
+            {
+                foreach (var kv in _wantKeys)
+                {
+                    if (kv.Value != keyCode) continue;
+                    uint want;
+                    if (!_wantMods.TryGetValue(kv.Key, out want)) continue;
+                    if (want != mods) continue;
+
+                    Reg r;
+                    foreach (var rr in _regs)
+                    {
+                        if (rr.Value.Id != kv.Key) continue;
+                        r = rr.Value;
+                        Program.Log("  [热键] NSEvent 命中 " + kv.Key);
+                        try { if (r.Callback != null) r.Callback(); }
+                        catch (Exception ex) { Program.Log("!! 热键回调异常：" + ex.Message); }
+                        return;
+                    }
+                }
+            }
+            catch (Exception) { }
+        }
 
         // 回调闭包必须存活，否则 GC 之后 native 侧调用就是野指针
         static EventHandlerProc _proc;
@@ -104,13 +196,20 @@ namespace RemeberEr
         {
             if (_handlerRef != IntPtr.Zero) return;
 
+            // 先初始化 Carbon 事件循环，再装处理函数 —— 顺序反过来会拿不到事件
+            try { RunCurrentEventLoop(kEventDurationSecond); }
+            catch (Exception ex) { Program.Log("  !! RunCurrentEventLoop 失败：" + ex.Message); }
+
             _proc = OnHotkeyEvent;
+            // 两个事件都装上：按下是我们要的，Released 也一起收着 ——
+            // 有些系统版本/修饰键组合下只派发其中一个，两个都听更稳。
             var types = new[]
             {
                 new EventTypeSpec { EventClass = kEventClassKeyboard, EventKind = kEventHotKeyPressed },
+                new EventTypeSpec { EventClass = kEventClassKeyboard, EventKind = kEventHotKeyReleased },
             };
 
-            int err = InstallEventHandler(GetApplicationEventTarget(), _proc, 1, types,
+            int err = InstallEventHandler(GetApplicationEventTarget(), _proc, 2, types,
                 IntPtr.Zero, out _handlerRef);
             if (err != 0)
                 Program.Log("!! InstallEventHandler 失败，err=" + err);
@@ -118,12 +217,27 @@ namespace RemeberEr
 
         static int OnHotkeyEvent(IntPtr nextHandler, IntPtr theEvent, IntPtr userData)
         {
+            // 第一行就记一笔：这样能明确区分「Carbon 压根没调用处理函数」
+            // 和「调用了但后面解析失败」——两者是完全不同的故障，之前只在解析之后
+            // 记日志，导致分不清，白试了好几轮。
+            Console.Error.WriteLine("[hotkey] handler invoked");
+            Console.Error.Flush();
+
             try
             {
                 var id = new EventHotKeyID();
                 int err = GetEventParameter(theEvent, kEventParamDirectObject, (uint)0x686b6964 /*'hkid'*/,
                     IntPtr.Zero, (uint)Marshal.SizeOf(typeof(EventHotKeyID)), IntPtr.Zero, ref id);
-                if (err != 0) return 0;
+                if (err != 0)
+                {
+                    // 走到这里说明 Carbon 确实派发过来了，只是参数没取到 ——
+                    // 和「回调压根没被调用」是两种完全不同的故障，必须分开记。
+                    Program.Log("!! 热键事件到达但 GetEventParameter 失败，err=" + err);
+                    return 0;
+                }
+
+                Program.Log(string.Format("  [热键] 收到事件 sig=0x{0:X} id={1}",
+                    id.Signature, id.Id));
 
                 Reg r;
                 if (_regs.TryGetValue(id.Id, out r) && r.Callback != null)
@@ -132,6 +246,10 @@ namespace RemeberEr
                     // 后果不可预期。这里只负责安全地转出去。
                     try { r.Callback(); }
                     catch (Exception ex) { Program.Log("!! 热键回调异常：" + ex.Message); }
+                }
+                else
+                {
+                    Program.Log("  [热键] 事件 id 对不上任何已注册项（可能来自别的信号）");
                 }
             }
             catch (Exception ex)
@@ -147,9 +265,23 @@ namespace RemeberEr
         /// </summary>
         internal static void Register(string id, HotkeyModifiers mods, uint keyCode, Action callback)
         {
-            EnsureHandler();
-
             Unregister(id);
+
+            // 先记进「想要的热键」表 —— NSEvent 是监听式的，靠这张表比对
+            _wantMods[id] = ToCarbon(mods);
+            _wantKeys[id] = keyCode;
+
+            // 主路径：NSEvent 全局监听
+            if (StartNativeBackend())
+            {
+                _regs[_nextId++] = new Reg { Id = id, Callback = callback, Ref = IntPtr.Zero };
+                Program.Log(string.Format("  热键已注册 {0}（keyCode={1} mods={2}，NSEvent）",
+                    id, keyCode, mods));
+                return;
+            }
+
+            // 后备：Carbon（在能派发事件的系统上仍然可用）
+            EnsureHandler();
 
             uint hkId = _nextId++;
             var spec = new EventHotKeyID { Signature = SIGNATURE, Id = hkId };
@@ -165,7 +297,8 @@ namespace RemeberEr
             }
 
             _regs[hkId] = new Reg { Id = id, Callback = callback, Ref = hkRef };
-            Program.Log(string.Format("  热键已注册 {0}（keyCode={1} mods={2}）", id, keyCode, mods));
+            Program.Log(string.Format("  热键已注册 {0}（keyCode={1} mods={2} hkId={3} ref=0x{4:X}）",
+                id, keyCode, mods, hkId, hkRef.ToInt64()));
         }
 
         /// <summary>

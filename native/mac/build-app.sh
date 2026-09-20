@@ -87,7 +87,7 @@ echo
 echo "=== 编译并放入 ScreenCaptureKit 桥接层 ==="
 BRIDGE_DST="$APP/Contents/MacOS/libremeber_sck.dylib"
 if clang -fobjc-arc -O2 -dynamiclib \
-     -framework Foundation -framework ScreenCaptureKit -framework CoreGraphics -framework CoreMedia \
+     -framework Foundation -framework AppKit -framework ScreenCaptureKit -framework CoreGraphics -framework CoreMedia \
      -install_name @rpath/libremeber_sck.dylib \
      -o "$BRIDGE_DST" "$HERE/Platform/sck_bridge.m"; then
   echo "  ✓ libremeber_sck.dylib（$(du -h "$BRIDGE_DST" | cut -f1)）"

@@ -22,6 +22,7 @@
 
 #import <Foundation/Foundation.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+#import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreMedia/CoreMedia.h>
 #import <stdint.h>
@@ -183,4 +184,99 @@ const char *remeber_sck_error_text(int code)
         case kBridgeBadArgs:       return "参数非法";
         default:                   return "未知错误";
     }
+}
+
+/* ------------------------------------------------------------------ 全局热键（NSEvent 后端）
+ *
+ * 背景：Carbon 的 RegisterEventHotKey 在当前系统上注册会成功（err=0），
+ * 但事件**从未派发到我们装的 handler**（实测：handler 一次都没被调用）。
+ * 这在 macOS 26 上不是个例，社区里也有项目从 Carbon 转到了 NSEvent monitor。
+ *
+ * NSEvent 的 addGlobalMonitorForEventsMatchingMask 是现在的官方做法：
+ *   · 优点：不依赖已废弃的 Carbon；不需要辅助功能权限（要「输入监控」）
+ *   · 代价：它是**监听**，不能拦下按键 —— 目标应用仍会收到这个组合键。
+ *     对这个产品来说可以接受（⌘⇧A 在多数应用里没有绑定），
+ *     但这是与 Carbon 的本质区别，所以这里如实标出来。
+ *
+ * 回调签名：(modifiers, keyCode) -> void
+ *   modifiers 用 Carbon 的位定义（cmd 0x100 / shift 0x200 / option 0x800 / control 0x1000）
+ *   —— 和 C# 侧的 HotkeyModifiers 对齐，避免两套语义。
+ */
+typedef void (*remeber_hotkey_cb)(unsigned int modifiers, unsigned int keyCode);
+
+static id g_monitor = nil;
+static remeber_hotkey_cb g_hotkey_cb = NULL;
+
+int remeber_hotkey_start(remeber_hotkey_cb cb)
+{
+    if (cb == NULL) return -1;
+    if (g_monitor != nil) return 0;   /* 已经装了 */
+
+    g_hotkey_cb = cb;
+
+    NSEventMask mask = NSEventMaskKeyDown;
+    g_monitor = [NSEvent addGlobalMonitorForEventsMatchingMask:mask
+                                                       handler:^(NSEvent *event) {
+        if (g_hotkey_cb == NULL) return;
+
+        NSEventModifierFlags f = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+        unsigned int mods = 0;
+        if (f & NSEventModifierFlagCommand) mods |= 0x0100;   /* cmdKey */
+        if (f & NSEventModifierFlagShift)   mods |= 0x0200;   /* shiftKey */
+        if (f & NSEventModifierFlagOption)  mods |= 0x0800;   /* optionKey */
+        if (f & NSEventModifierFlagControl) mods |= 0x1000;   /* controlKey */
+
+        g_hotkey_cb(mods, (unsigned int)event.keyCode);
+    }];
+
+    return g_monitor != nil ? 0 : -2;
+}
+
+void remeber_hotkey_stop(void)
+{
+    if (g_monitor != nil) {
+        [NSEvent removeMonitor:g_monitor];
+        g_monitor = nil;
+    }
+    g_hotkey_cb = NULL;
+}
+
+/* 「输入监控」权限是否已授予 —— NSEvent 全局监听需要它 */
+int remeber_hotkey_has_permission(void)
+{
+    /* 没有一个专门的 preflight API，用尝试安装监听器是否成功来判断 */
+    return g_monitor != nil ? 1 : 0;
+}
+
+/* ------------------------------------------------------------------ 窗口不吃鼠标事件
+ *
+ * 悬浮预览窗需要**完全不接收鼠标事件**，否则会自己把自己踢掉：
+ *   鼠标停在条目左半边 → 预览弹在面板左边、正好盖住鼠标
+ *   → 窗口收到 PointerExited → 收起预览 → 鼠标又回到条目上 → 再弹出……
+ * 表现就是「预览一直频闪」。实测只在左半边复现，因为右半边时鼠标不在弹窗范围内。
+ *
+ * Avalonia 侧的 IsHitTestVisible 只影响控件命中测试，挡不住 AppKit 那一层的
+ * 窗口事件，所以这里直接设 NSWindow.ignoresMouseEvents。
+ *
+ * avaloniaHandle 是 Avalonia 的 INativeWindowHandle.Handle（就是 NSWindow*）。
+ */
+void remeber_window_ignore_mouse(void *nsWindow)
+{
+    if (nsWindow == NULL) return;
+    @try {
+        NSWindow *w = (__bridge NSWindow *)nsWindow;
+        w.ignoresMouseEvents = YES;
+    } @catch (NSException *e) {
+        /* 不是 NSWindow 就静默跳过：这只是个体验优化，不该让悬浮预览崩掉 */
+    }
+}
+
+/* 窗口层级：预览要浮在普通窗口之上但不抢焦点 */
+void remeber_window_make_panel(void *nsWindow)
+{
+    if (nsWindow == NULL) return;
+    @try {
+        NSWindow *w = (__bridge NSWindow *)nsWindow;
+        w.level = NSFloatingWindowLevel;
+    } @catch (NSException *e) { }
 }

@@ -46,7 +46,7 @@ fi
 
 mkdir -p "$(dirname "$BRIDGE_OUT")"
 if clang -fobjc-arc -O2 -dynamiclib \
-     -framework Foundation -framework ScreenCaptureKit -framework CoreGraphics -framework CoreMedia \
+     -framework Foundation -framework AppKit -framework ScreenCaptureKit -framework CoreGraphics -framework CoreMedia \
      -install_name @rpath/libremeber_sck.dylib \
      -o "$BRIDGE_OUT" "$BRIDGE_SRC"; then
   echo "  ✓ $BRIDGE_OUT"

@@ -864,6 +864,13 @@ namespace RemeberEr
         void StartHoverPreview(Control card, string imagePath)
         {
             if (string.IsNullOrEmpty(imagePath)) return;
+
+            // 已经为这个条目显示着预览了：什么都不做。
+            // 这一道保险是为了防「显示 → 失焦 → 收起 → 再显示」的残余抖动 ——
+            // 真正的修法是让预览窗不吃鼠标事件（见 PreviewWindow），
+            // 但多一道判断成本几乎为零，而频闪这类问题一旦回来很难查。
+            if (_preview != null && _preview.IsVisible && _hoverPath == imagePath) return;
+
             HidePreview();
             _hoverPath = imagePath;
 
