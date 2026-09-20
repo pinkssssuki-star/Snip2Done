@@ -85,11 +85,20 @@
         -->
         <Grid>
           <Grid RowDefinitions="54,*,Auto">
-            <Grid Grid.Row="0" ClipToBounds="True">
-              <!-- 有图铺图，没图用标题首字做占位块 -->
-              <Image Source="{Binding Thumb}" Stretch="UniformToFill"
-                     IsVisible="{Binding HasThumb}"/>
-              <Border Background="{StaticResource AccentDeep}" IsVisible="{Binding !HasThumb}">
+            <!--
+              图片走 Border 的**底色**（ImageBrush）而不是当子元素 ——
+              Border 的 CornerRadius 会裁剪它自己的底色，但**不会裁剪子元素**，
+              ClipToBounds 也只按矩形裁。用 Image 的话上面那张图会盖过圆角，
+              看起来上边缘是直角（上游踩过，我这边原来也是同一个写法）。
+            -->
+            <Grid Grid.Row="0">
+              <Border CornerRadius="10,10,0,0" IsVisible="{Binding HasThumb}">
+                <Border.Background>
+                  <ImageBrush Source="{Binding Thumb}" Stretch="UniformToFill"/>
+                </Border.Background>
+              </Border>
+              <Border CornerRadius="10,10,0,0" Background="{StaticResource AccentDeep}"
+                      IsVisible="{Binding !HasThumb}">
                 <TextBlock Text="{Binding FirstChar}"
                            FontSize="30" FontWeight="SemiBold" Foreground="#ffffff"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -362,10 +371,14 @@
                               PointerReleased="OnBinCardClick"
                               PointerEntered="OnCardHoverIn" PointerExited="OnCardHoverOut">
                         <Grid RowDefinitions="*,Auto">
-                          <Grid Grid.Row="0" ClipToBounds="True">
-                            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
-                                   IsVisible="{Binding HasThumb}"/>
-                            <Border IsVisible="{Binding !HasThumb}">
+                          <Grid Grid.Row="0">
+                            <!-- 同上：图片走底色，圆角才会生效 -->
+                            <Border CornerRadius="10,10,0,0" IsVisible="{Binding HasThumb}">
+                              <Border.Background>
+                                <ImageBrush Source="{Binding Thumb}" Stretch="UniformToFill"/>
+                              </Border.Background>
+                            </Border>
+                            <Border CornerRadius="10,10,0,0" IsVisible="{Binding !HasThumb}">
                               <Border.Background>
                                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                                   <GradientStop Color="#cbd5e1" Offset="0"/>
@@ -420,10 +433,14 @@
                               PointerReleased="OnBinCardClick"
                               PointerEntered="OnCardHoverIn" PointerExited="OnCardHoverOut">
                         <Grid RowDefinitions="*,Auto">
-                          <Grid Grid.Row="0" ClipToBounds="True">
-                            <Image Source="{Binding Thumb}" Stretch="UniformToFill"
-                                   IsVisible="{Binding HasThumb}"/>
-                            <Border IsVisible="{Binding !HasThumb}">
+                          <Grid Grid.Row="0">
+                            <!-- 同上：图片走底色，圆角才会生效 -->
+                            <Border CornerRadius="10,10,0,0" IsVisible="{Binding HasThumb}">
+                              <Border.Background>
+                                <ImageBrush Source="{Binding Thumb}" Stretch="UniformToFill"/>
+                              </Border.Background>
+                            </Border>
+                            <Border CornerRadius="10,10,0,0" IsVisible="{Binding !HasThumb}">
                               <Border.Background>
                                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                                   <GradientStop Color="#cbd5e1" Offset="0"/>
