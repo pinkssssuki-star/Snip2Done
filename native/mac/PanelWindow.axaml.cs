@@ -71,7 +71,18 @@ namespace RemeberEr
             _store = new Store(Program.DataDir);
             _vm = new PanelViewModel(_store);
             _vm.ImageRefreshNeeded += OnImageRefreshNeeded;
-            _vm.TopmostChanged += on => Topmost = on;
+            // 置顶只改 Z 序，**绝不该动位置**。
+            // 上游那个「点置顶跳到左上角」的根因是 SetWindowPos 少传了 SWP_NOMOVE，
+            // 位置按传进去的 0,0 生效了。mac 这边由 Avalonia 管 Topmost，
+            // 本来就没有这个问题 —— 但仍然显式记一笔位置，并加断言式日志，
+            // 免得以后有人换成直接摆窗口时又踩同一个坑。
+            _vm.TopmostChanged += on =>
+            {
+                var before = Position;
+                Topmost = on;
+                if (Position != before)
+                    Program.Log(string.Format("  !! 置顶不应改位置，却从 {0} 变成了 {1}", before, Position));
+            };
 
             _capture = new CaptureController(_store, this);
             _vm.SnipRequested += () => _capture.Trigger("面板 ✂ 按钮");
@@ -283,6 +294,9 @@ namespace RemeberEr
             UpdateDiag();
         }
 
+        /// <summary>自检用：把折叠切换暴露出来（正常路径是顶栏那个 ▾ 按钮）。</summary>
+        public void ToggleCollapseForTest() { ToggleCollapse(); }
+
         void ToggleCollapse()
         {
             _vm.Collapsed = !_vm.Collapsed;
@@ -290,12 +304,45 @@ namespace RemeberEr
             // 贴边藏着的时候先弹回来，不然收起来就找不着了（原版同样处理）
             if (_vm.Collapsed) Undock();
 
+            var before = Position;
+
             // 折叠成一条：只留顶栏。
-            // 原版在折叠时会实测顶栏宽度，避免写死导致按钮被挤变形；
-            // 这里宽度不变（面板宽度本就按顶栏按钮数定的），只改高度。
             Height = _vm.Collapsed ? COLLAPSED_H : PANEL_H;
-            PositionBottomRight();
-            Program.Log("  折叠 = " + _vm.Collapsed + "，高度 = " + Height);
+
+            // 原地缩放：只改尺寸，位置一个像素都不动。
+            //
+            // 之前这里调的是 PositionBottomRight() —— 于是每次折叠/展开都把面板
+            // 甩回右下角，用户拖到别处再折叠就被拽回去了。
+            // 这正是上游 v0.9.1 修的那个「点折叠甩到右下角」的同款缺陷
+            // （他们在 Windows 上是无条件写 Left/Top）。
+            ClampIntoWorkArea();
+
+            Program.Log(string.Format("  折叠 = {0}：位置 {1} -> {2}，高度 {3}",
+                _vm.Collapsed, before, Position, Height));
+        }
+
+        /// <summary>
+        /// 把窗口拉回它**当前所在那块屏**的工作区里。
+        ///
+        /// 尺寸变化后可能超出屏幕边界，但位置本身不该被改动 ——
+        /// 只做「拉回来」，不做「摆到某处」。这两件事混在一起正是那个 bug 的成因。
+        /// </summary>
+        void ClampIntoWorkArea()
+        {
+            Avalonia.Rect work, wr;
+            if (!WindowWorkArea(out work, out wr)) return;
+
+            double w = wr.Width, h = wr.Height;
+            if (w <= 0 || h <= 0) return;
+
+            double x = Clamp(wr.X, work.X, work.Right - w);
+            double y = Clamp(wr.Y, work.Y, work.Bottom - h);
+            if (Math.Abs(x - wr.X) > 0.5 || Math.Abs(y - wr.Y) > 0.5)
+            {
+                Program.Log(string.Format("  尺寸变了超出屏幕，拉回 ({0},{1}) -> ({2:0},{3:0})",
+                    wr.X, wr.Y, x, y));
+                MoveTo((int)Math.Round(x), (int)Math.Round(y));
+            }
         }
 
         /// <summary>缩略图解码完成后刷新那几项 —— 不改任何业务状态，只让界面重画。</summary>

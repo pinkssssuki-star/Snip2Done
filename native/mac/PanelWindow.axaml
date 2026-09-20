@@ -164,7 +164,14 @@
             <Button Classes="IconBtn" Content="⇧" ToolTip.Tip="窗口置顶（关掉就不会一直压在最上面）"
                     Tag="{Binding AlwaysOnTop, Converter={StaticResource TagOn}}"
                     Command="{Binding ToggleTopmostCmd}"/>
+            <!--
+              「隐藏折叠按钮」（v0.9.1 第 5 项）。一个必须加的保护：
+              **已经折叠着的时候按钮必须留着** —— 否则用户把 ▾ 藏了又正好折着，
+              就永远展不开了。规则是「显示 = 没隐藏 || 正折叠着」，
+              这条规则在 ViewModels 的 ShowCollapseButton 里。
+            -->
             <Button Classes="IconBtn" Content="{Binding CollapseGlyph}" ToolTip.Tip="折叠"
+                    IsVisible="{Binding ShowCollapseButton}"
                     Command="{Binding CollapseCmd}"/>
             <Button Classes="IconBtn" Content="✕" Tag="danger" ToolTip.Tip="退出（⌘⇧Q）"
                     Command="{Binding QuitCmd}"/>

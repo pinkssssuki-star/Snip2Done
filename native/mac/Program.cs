@@ -113,6 +113,9 @@ namespace RemeberEr
         /// <summary>渲染时把倒垃圾按钮设成「已进入二次确认」，用于核对那个危险态的样子。</summary>
         public static bool ConfirmTrash;
 
+        /// <summary>位置自检：置顶与折叠都不该改变窗口位置（免权限）。</summary>
+        public static bool PosTest;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -220,6 +223,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 位置自检（免权限）
+            if (PosTest) { RunPosTest(); return; }
 
             // 主题自检（免权限）
             if (ThemeTest != null) { RunThemeTest(); return; }
@@ -659,6 +665,74 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 位置自检：把面板摆到一个既不是右下角也不是原点的位置，然后
+        /// 依次点置顶 / 折叠 / 展开，核对位置始终不动。
+        ///
+        /// 对应上游 v0.9.1 修的两个缺陷（点置顶跳到左上角、点折叠甩到右下角）。
+        /// 这两个症状都不影响功能，但用起来非常恼人，而且光看代码很难发现
+        /// 「某处顺手调了一下摆窗口的函数」—— 必须真的摆出来量。
+        /// </summary>
+        static void RunPosTest()
+        {
+            Log("=== 位置自检（置顶 / 折叠 不该移动窗口）===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(500);
+
+                    // 摆到一个既不是右下角也不是原点的位置，这样「被甩走」才看得出来
+                    panel.Position = new Avalonia.PixelPoint(120, 90);
+                    PumpUi(200);
+
+                    string P() { return string.Format("({0},{1}) {2}x{3}",
+                        panel.Position.X, panel.Position.Y,
+                        (int)Math.Round(panel.Width), (int)Math.Round(panel.Height)); }
+
+                    Log("  初始      " + P());
+
+                    panel.Vm.ToggleTopmost(); PumpUi(200);
+                    Log("  点置顶    " + P() + "　置顶=" + panel.Topmost);
+
+                    panel.Vm.ToggleTopmost(); PumpUi(200);
+                    Log("  再点置顶  " + P() + "　置顶=" + panel.Topmost);
+
+                    panel.ToggleCollapseForTest(); PumpUi(300);
+                    Log("  折叠      " + P());
+
+                    panel.ToggleCollapseForTest(); PumpUi(300);
+                    Log("  展开      " + P());
+
+                    // 隐藏折叠按钮那条规则的核对
+                    Log(string.Format("  隐藏折叠按钮开关：折叠着时可见={0}（应 True）",
+                        panel.Vm.ShowCollapseButton));
+                    panel.Vm.HideCollapseButton = true; PumpUi(150);
+                    Log(string.Format("  设为隐藏后：未折叠可见={0}（应 False）", panel.Vm.ShowCollapseButton));
+                    panel.ToggleCollapseForTest(); PumpUi(300);
+                    Log(string.Format("  设为隐藏后：折叠着可见={0}（应 True，否则展不开）",
+                        panel.Vm.ShowCollapseButton));
+                    panel.Vm.HideCollapseButton = false;
+
+                    Log("=== 位置自检结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 位置自检失败：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -1214,6 +1288,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--theme-test=")) ThemeTest = a.Substring(13);
                 else if (a.StartsWith("--tab=")) Tab = a.Substring(6);
                 else if (a == "--confirm-trash") ConfirmTrash = true;
+                else if (a == "--pos-test") PosTest = true;
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;
