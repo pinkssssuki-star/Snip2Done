@@ -162,6 +162,18 @@ namespace RemeberEr
             if (Root == null) Root = AppContext.BaseDirectory;
 
             if (DataDir == null) DataDir = DefaultDataDir();
+
+            // ⚠️ 单实例判定要放在**碰日志和数据目录之前**。
+            // 第二个实例不该留下任何痕迹 —— 上游那边的原话是
+            // 「原来连日志都会被它清掉」（每次启动都重开一份日志）。
+            // 所以这一段必须在删日志、建目录、写任何东西之前跑完。
+            if (!SingleInstance.TryAcquire(DataDir))
+            {
+                // 已经把正在跑的那个叫醒了，自己悄悄退出
+                Console.Error.WriteLine("记忆面板已经在运行了 —— 已把它的面板叫到眼前，本次启动退出。");
+                return;
+            }
+
             try { Directory.CreateDirectory(DataDir); } catch (Exception) { }
             LogPath = Path.Combine(DataDir, "native.log");
             try { File.Delete(LogPath); } catch (Exception) { }

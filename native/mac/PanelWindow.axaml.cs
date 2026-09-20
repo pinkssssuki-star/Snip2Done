@@ -120,6 +120,10 @@ namespace RemeberEr
             _demoTick.Tick += (_, __) => _vm.TickDemo();
             _demoTick.Start();
 
+            // 第二个实例启动时会把我们叫醒：显示、取消贴边隐藏、提到前面。
+            // （对应上游那个命名事件；mac 侧走 FIFO，见 SingleInstance.cs）
+            SingleInstance.Woken += OnWoken;
+
             Opened += OnOpened;
 
             // 贴边隐藏：鼠标碰一下滑出来，移开再滑回去
@@ -421,6 +425,26 @@ namespace RemeberEr
 
         /// <summary>自检用：把折叠切换暴露出来（正常路径是顶栏那个 ▾ 按钮）。</summary>
         public void ToggleCollapseForTest() { ToggleCollapse(); }
+
+        /// <summary>
+        /// 被第二个实例叫醒：把面板叫到眼前。
+        /// 贴边藏着就滑出来、隐藏了就显示、缩起来了就展开 —— 总之让用户**看得见**它。
+        /// </summary>
+        void OnWoken()
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    if (_docked) RevealDock(true);
+                    if (_vm.Collapsed) ToggleCollapse();
+                    if (!IsVisible) Show();
+                    Activate();
+                    Program.Log("  已被叫到眼前");
+                }
+                catch (Exception ex) { Program.Log("  !! 叫醒失败：" + ex.Message); }
+            });
+        }
 
         void ToggleCollapse()
         {
@@ -1039,6 +1063,8 @@ namespace RemeberEr
         protected override void OnClosed(EventArgs e)
         {
             if (_demoTick != null) { _demoTick.Stop(); _demoTick = null; }
+            SingleInstance.Woken -= OnWoken;
+            SingleInstance.Release();
             Program.Platform.UnregisterAllHotkeys();
             // 子窗口是独立顶层窗，主窗关掉不会带走它们 —— 不显式关会留下孤儿窗口
             foreach (var w in _kids.ToArray())

@@ -189,7 +189,8 @@
       </Border>
 
       <!-- ============================================ 手动记一笔 -->
-      <Border Grid.Row="1" Padding="10,9"
+      <!-- 底部内边距 9 -> 12：按钮下沿离分隔线太近时，那 1px 描边会被视觉上"吃掉" -->
+      <Border Grid.Row="1" Padding="10,9,10,12"
               BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
               IsVisible="{Binding QuickOpen}">
         <StackPanel Spacing="7">
@@ -677,6 +678,8 @@
 
             <!-- 面板透明度：这一行**故意不加不透明底** ——
                  用户拖这个滑块时要能直接看到面板现在有多透 -->
+            <!-- 这一行故意不加不透明底：拖滑块时能直接看到面板现在有多透。
+                 上下各 7px 的间距就是两张圆角卡片之间那道缝。 -->
             <StackPanel Margin="12,7">
               <Grid Margin="0,0,0,5">
                 <TextBlock Text="面板透明度" Classes="SetTitle"/>

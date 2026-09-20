@@ -328,7 +328,10 @@
   </Style>
 
   <!-- ============================================================ 设置页的分区容器 -->
-  <!-- 整块不透明：面板一透明，灰色小字就糊在桌面上了 -->
+  <!-- 整块不透明：面板一透明，灰色小字就糊在桌面上了。
+       v0.9.1：两块都用**四角 11**，中间留一道缝，成为两张各自完整的圆角卡片。
+       （原来是上块 11,11,0,0 + 下块 0,0,11,11，断点处是直角 ——
+         中间那行「面板透明度」本来就是透明的，所以看起来像被劈开。） -->
   <Style Selector="Border.SettingsBlock">
     <Setter Property="Background" Value="{StaticResource SurfaceBg}"/>
     <Setter Property="CornerRadius" Value="11"/>
@@ -374,7 +377,14 @@
     <Setter Property="Cursor" Value="Hand"/>
     <Setter Property="Padding" Value="0,6"/>
     <Setter Property="Background" Value="{StaticResource BtnBg}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+    <!--
+      描边用 RoomBorder 而不是 BtnBorder。
+      v0.9.1 的原话：面板 50% 透明时，按钮那 1px 描边（#1a000000）几乎看不见，
+      而轮廓全靠它撑着 —— 底边一淡，按钮看起来就像被切了一截。
+      所以房间按钮单独抽了一个对比度更高的描边资源（白 #33 / 灰 #40 / 黑 #40FFFFFF）。
+      注意：这不是布局被裁（量过：实际高 30 = 期望高 30），纯粹是对比度问题。
+    -->
+    <Setter Property="BorderBrush" Value="{StaticResource RoomBorder}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="7"/>
     <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -384,6 +394,7 @@
   <Style Selector="Button.RoomBtn.on">
     <Setter Property="Background" Value="#268b5cf6"/>
     <Setter Property="BorderBrush" Value="#8c8b5cf6"/>
+    <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Foreground" Value="#6d28d9"/>
   </Style>
 
