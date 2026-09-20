@@ -410,13 +410,53 @@ namespace RemeberEr
         /// </summary>
         void OpenDetail(string id)
         {
+            // 同一条再点一次 → 跳到已经开着的那扇，不开重复的。
+            // （上游的原话是「重复点第 1 条 -> 仍是 3 扇」）
+            foreach (var w in _kids)
+            {
+                var ex = w as DetailWindow;
+                if (ex != null && ex.ItemId == id)
+                {
+                    try { ex.Activate(); } catch (Exception) { }
+                    Program.Log("  [面板] 详情窗已开着，跳到那一扇：" + id);
+                    return;
+                }
+            }
+
             var d = new DetailWindow(_store, id);
             d.RecordRequested += rid => OpenRecord(rid);
             // 补截图走主流程同一套框选层（CaptureController 里有说明）
             d.AttachShotRequested += cid => _capture.StartCaptureForItem(cid);
+            StaggerNext(d);
             Track(d);
             d.Show();
             Program.Log("  [面板] 打开详情窗：" + id);
+        }
+
+        /// <summary>
+        /// 新开的子窗口依次错开一点，免得几扇完全叠在一起看不出开了多个。
+        /// 错到第 6 扇绕回起点 —— 不绕的话开多了会跑到屏幕外面去。
+        /// </summary>
+        int _staggerCount;
+        void StaggerNext(Window w)
+        {
+            const int STEP = 26, CYCLE = 6;
+            int k = _staggerCount % CYCLE;
+            _staggerCount++;
+
+            // ⚠️ 必须在 Show() **之后**再挪。
+            // 这两个子窗口的 Opened 里都有 CenterOnScreen()，Show 之前设的位置
+            // 会被它覆盖掉 —— 实测三扇全部落在同一个点上，看起来还是叠在一起。
+            w.Opened += (_, __) =>
+            {
+                if (k == 0) return;   // 第一扇保持居中不动
+                try
+                {
+                    w.Position = new Avalonia.PixelPoint(w.Position.X + k * STEP,
+                                                         w.Position.Y + k * STEP);
+                }
+                catch (Exception ex) { Program.Log("  子窗口错开失败：" + ex.Message); }
+            };
         }
 
         /// <summary>
@@ -426,6 +466,18 @@ namespace RemeberEr
         /// </summary>
         void OpenRecord(string id)
         {
+            // 同样去重：同一条记录窗已经开着就跳过去
+            foreach (var k in _kids)
+            {
+                var ex = k as RecordWindow;
+                if (ex != null && ex.ItemId == id)
+                {
+                    try { ex.Activate(); } catch (Exception) { }
+                    Program.Log("  [面板] 记录窗已开着，跳到那一扇：" + id);
+                    return;
+                }
+            }
+
             var it = _store.Get(id);
             bool done = it != null && J.Str(it, "state", "") == "done";
             var w = new RecordWindow(_store, id, done ? "view" : "write");
@@ -438,6 +490,7 @@ namespace RemeberEr
                 _vm.Refresh();
             };
 
+            StaggerNext(w);
             Track(w);
             w.Show();
             Program.Log("  [面板] 打开完成记录窗：" + id + "（" + (done ? "view" : "write") + "）");
@@ -458,6 +511,15 @@ namespace RemeberEr
                 catch (Exception ex) { Program.Log("  !! 详情窗重读失败：" + ex.Message); }
             }
         }
+
+        /// <summary>自检用：暴露子窗口列表与打开动作。</summary>
+        public System.Collections.Generic.IReadOnlyList<Window> ChildrenForTest { get { return _kids; } }
+        public Window LastChildForTest
+        {
+            get { return _kids.Count > 0 ? _kids[_kids.Count - 1] : null; }
+        }
+        public void OpenDetailForTest(string id) { OpenDetail(id); }
+        public void OpenRecordForTest(string id) { OpenRecord(id); }
 
         void Track(Window w)
         {

@@ -119,6 +119,9 @@ namespace RemeberEr
         /// <summary>补截图自检：给第一条条目补一张图（需要屏幕录制权限）。</summary>
         public static bool AttachTest;
 
+        /// <summary>多窗自检：详情窗/记录窗能不能同时开好几扇、重复点会不会开重复的。</summary>
+        public static bool MultiWindowTest;
+
         /// <summary>渲染时把演示横幅设成某个状态：running / finished。用于核对横幅外观。</summary>
         public static string DemoBanner;
 
@@ -229,6 +232,9 @@ namespace RemeberEr
 
             // 把归类窗渲染成 PNG（免权限）
             if (ShotChooser != null) { RunShotChooser(); return; }
+
+            // 多窗自检
+            if (MultiWindowTest) { RunMultiWindowTest(); return; }
 
             // 补截图自检
             if (AttachTest) { RunAttachTest(); return; }
@@ -678,6 +684,93 @@ namespace RemeberEr
                 catch (Exception ex)
                 {
                     Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 多窗自检：连开 3 扇详情窗应为 3 扇；重复点第 1 条仍是 3 扇
+        /// （上游的验收标准就是这个）。记录窗同理。
+        ///
+        /// 上游那个「只能点开一个」的根因值得记一笔：它其实不是「只能开一个」，
+        /// 而是**回归** —— 开着 A 时点 B 只把 A 提到前面、内容还是 A，
+        /// 所以看起来像点了没反应。
+        /// </summary>
+        static void RunMultiWindowTest()
+        {
+            Log("=== 多窗自检 ===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var store = new Store(DataDir);
+                    // 取三个条目 id
+                    var ids = new System.Collections.Generic.List<string>();
+                    foreach (var o in store.Items)
+                    {
+                        var it = J.Obj(o);
+                        var id = J.Str(it, "id", null);
+                        if (!string.IsNullOrEmpty(id)) ids.Add(id);
+                        if (ids.Count >= 3) break;
+                    }
+                    if (ids.Count < 3) { Log("!! 需要至少 3 条数据，先用 --seed 造一份"); return; }
+
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(500);
+
+                    int CountDetails()
+                    {
+                        int n = 0;
+                        foreach (var w in panel.ChildrenForTest) if (w is DetailWindow) n++;
+                        return n;
+                    }
+
+                    foreach (var id in ids)
+                    {
+                        panel.OpenDetailForTest(id);
+                        PumpUi(250);
+                        // 错开位置要真的不一样，否则几扇完全叠着看不出开了多个
+                        var last = panel.LastChildForTest;
+                        Log(string.Format("    开第 {0} 扇 @ {1}  {2}x{3}",
+                            CountDetails(), last != null ? last.Position.ToString() : "?", 
+                            (int)Math.Round(last?.Width ?? 0), (int)Math.Round(last?.Height ?? 0)));
+                    }
+                    Log(string.Format("  连开 3 扇 -> 实际 {0} 扇（应 3）", CountDetails()));
+
+                    // 重复点第 1 条
+                    panel.OpenDetailForTest(ids[0]);
+                    PumpUi(250);
+                    Log(string.Format("  重复点第 1 条 -> 仍是 {0} 扇（应 3）", CountDetails()));
+
+                    // 记录窗也验一遍
+                    int CountRecords()
+                    {
+                        int n = 0;
+                        foreach (var w in panel.ChildrenForTest) if (w is RecordWindow) n++;
+                        return n;
+                    }
+                    panel.OpenRecordForTest(ids[0]);
+                    PumpUi(250);
+                    panel.OpenRecordForTest(ids[1]);
+                    PumpUi(250);
+                    panel.OpenRecordForTest(ids[0]);   // 重复
+                    PumpUi(250);
+                    Log(string.Format("  记录窗：开两条（其中一条重复点）-> {0} 扇（应 2）", CountRecords()));
+
+                    Log("=== 多窗自检结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 多窗自检失败：" + ex.GetType().Name + " " + ex.Message);
                 }
             });
 
@@ -1368,6 +1461,7 @@ namespace RemeberEr
                 else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--pos-test") PosTest = true;
                 else if (a == "--attach-test") AttachTest = true;
+                else if (a == "--multi-window-test") MultiWindowTest = true;
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);

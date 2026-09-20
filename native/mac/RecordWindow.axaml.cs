@@ -51,6 +51,9 @@ namespace RemeberEr
         /// <summary>点了 Get Done：id + 心得文本。</summary>
         public event Action<string, string> Committed;
 
+        /// <summary>这扇窗在看哪一条。用于「同一条再点一次就跳到已开着的那扇」去重。</summary>
+        public string ItemId { get { return _id; } }
+
         public RecordWindow(Store store, string itemId, string mode)
         {
             Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
