@@ -281,6 +281,35 @@ namespace RemeberEr
             _vm.OpenDoneCmd.Execute(vm.Id);
         }
 
+        /// <summary>点主题色块换背景颜色。</summary>
+        void OnThemeSwatchClick(object sender, PointerReleasedEventArgs e)
+        {
+            var vm = (sender as Control)?.DataContext as ThemeOptionVm;
+            if (vm == null) return;
+            _vm.PickThemeCmd.Execute(vm.Key);
+            ApplyPanelBackground();
+            Program.Log("  背景颜色 -> " + vm.Key);
+        }
+
+        /// <summary>
+        /// 透明度滑块松手才写盘 —— 和上游 panel.js 的 input/change 分工一致：
+        /// 拖动过程中只改画面（预演），松手才落盘，免得拖一次写几十遍文件。
+        /// </summary>
+        void OnOpacityCommitted(object sender, PointerReleasedEventArgs e)
+        {
+            _vm.SaveOpacity();
+            ApplyPanelBackground();
+            Program.Log("  透明度已保存 = " + _vm.OpacityText);
+        }
+
+        /// <summary>衰减两个滑块共用：松手才写盘。</summary>
+        void OnDecayCommitted(object sender, PointerReleasedEventArgs e)
+        {
+            _vm.SaveDecay();
+            Program.Log(string.Format("  衰减设置已保存：保护期 {0} / 放手期 {1}",
+                _vm.FadeText, _vm.BinText));
+        }
+
         void OnSaveDecay(object sender, RoutedEventArgs e)
         {
             _vm.SaveDecay();

@@ -291,6 +291,71 @@
     <Setter Property="Opacity" Value="0.6"/>
   </Style>
 
+  <!-- ============================================================ 设置页的开关 -->
+  <!--
+    自己写一份 ToggleButton 模板，而不是去改 CheckBox 模板的内部元素。
+    原因：模板里的元素名属于主题的实现细节，SimpleTheme 和 FluentTheme 不一样
+    （我第一版按 NormalRectangle 去改，结果样式没生效、开关渲染成一个空方框）。
+    自己写一份就与主题无关，也不会因为换主题而散架。
+  -->
+  <Style Selector="ToggleButton.Switch">
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Width" Value="42"/>
+    <Setter Property="Height" Value="24"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Background" Value="{StaticResource TrackBg}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="track" CornerRadius="12" Background="{TemplateBinding Background}"
+                Width="42" Height="24">
+          <Ellipse x:Name="knob" Width="18" Height="18" Fill="{StaticResource ThumbBg}"
+                   HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <!-- 打开：底色换成强调色、圆点滑到右边 -->
+  <Style Selector="ToggleButton.Switch:checked /template/ Border#track">
+    <Setter Property="Background" Value="{StaticResource Accent}"/>
+  </Style>
+  <Style Selector="ToggleButton.Switch:checked /template/ Ellipse#knob">
+    <Setter Property="HorizontalAlignment" Value="Right"/>
+    <Setter Property="Margin" Value="0,0,3,0"/>
+  </Style>
+  <Style Selector="ToggleButton.Switch:pointerover /template/ Border#track">
+    <Setter Property="Opacity" Value="0.9"/>
+  </Style>
+
+  <!-- ============================================================ 设置页的分区容器 -->
+  <!-- 整块不透明：面板一透明，灰色小字就糊在桌面上了 -->
+  <Style Selector="Border.SettingsBlock">
+    <Setter Property="Background" Value="{StaticResource SurfaceBg}"/>
+    <Setter Property="CornerRadius" Value="11"/>
+    <Setter Property="Padding" Value="12"/>
+  </Style>
+  <Style Selector="TextBlock.SetTitle">
+    <Setter Property="FontSize" Value="11.5"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx2}"/>
+  </Style>
+  <Style Selector="TextBlock.SetHint">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="Foreground" Value="{StaticResource HintTx}"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
+
+  <!-- 主题色块下的名字：选中时加粗变紫。
+       注意选择器写成 TextBlock.SwatchName 而不是光 TextBlock ——
+       通用 TextBlock 规则会误伤别处（字体大小、颜色全被改掉）。 -->
+  <Style Selector="TextBlock.SwatchName">
+    <Setter Property="FontSize" Value="10"/>
+  </Style>
+  <Style Selector="TextBlock.SwatchName.on">
+    <Setter Property="Foreground" Value="{StaticResource AccentDeep}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent"/>
   </Style>

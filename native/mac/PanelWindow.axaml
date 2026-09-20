@@ -518,59 +518,162 @@
         </Grid>
 
         <!-- ········ 设置视图 ········ -->
+        <!--
+          整页用**不透明**的 SurfaceBg —— 面板一透明，灰色小字就糊在桌面上（上游的反馈）。
+          只有两处故意留着透明，好让用户能判断当前有多透：
+            · 顶栏（在设置页外面，本来就跟着面板底色）
+            · 「面板透明度」那一行（拖滑块时能直接看到效果）
+        -->
         <ScrollViewer IsVisible="{Binding IsSetView}" VerticalScrollBarVisibility="Auto">
-          <StackPanel Spacing="12" Margin="0,0,4,0">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <Button Grid.Column="0" Classes="IconBtn" Content="←" Command="{Binding BackCmd}"/>
-              <TextBlock Grid.Column="1" Classes="SecTitle" Text="设置"
-                         VerticalAlignment="Center" Margin="6,0,0,0"/>
+          <StackPanel Margin="0,0,4,0" Spacing="0">
+
+            <Grid Margin="1,0,1,10">
+              <Button HorizontalAlignment="Left" Classes="GhostBtn" Content="← 返回"
+                      Command="{Binding BackCmd}"/>
+              <TextBlock Text="SETTINGS" Classes="SecTitle"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
 
-            <StackPanel Spacing="4">
-              <TextBlock Text="快速模式" FontSize="12" FontWeight="SemiBold"/>
-              <CheckBox IsChecked="{Binding QuickCapture}" Content="框选松手即定，不用再点 ✓"/>
-              <TextBlock Text="一框，一分类 —— 对熟手来说少一步就是少一步。"
-                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
-            </StackPanel>
+            <Border Classes="SettingsBlock" Padding="12,12,12,2">
+              <StackPanel>
 
-            <StackPanel Spacing="4">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="面板透明度" FontSize="12" FontWeight="SemiBold"/>
-                <TextBlock Grid.Column="1" Text="{Binding OpacityText}" FontSize="11"
-                           Foreground="{StaticResource Tx3}"/>
+                <!-- ==== 背景颜色 ==== -->
+                <StackPanel Margin="0,0,0,14">
+                  <TextBlock Text="背景颜色" Classes="SetTitle"/>
+                  <TextBlock Text="不喜欢白色的话可以换。条目卡片不受影响，永远是白底黑字。"
+                             Classes="SetHint" Margin="0,4,0,9"/>
+                  <!-- 直接给色块，比三个写着「白/灰/黑」的按钮直观得多 -->
+                  <ItemsControl ItemsSource="{Binding ThemeOptions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Margin="0,0,14,0" Cursor="Hand"
+                                    PointerReleased="OnThemeSwatchClick"
+                                    ToolTip.Tip="{Binding Name}">
+                          <Grid Width="40" Height="40">
+                            <!-- 选中圈：外面一圈紫色；没选中时不可见 -->
+                            <Ellipse Width="40" Height="40" StrokeThickness="2"
+                                     Stroke="{StaticResource Accent}"
+                                     IsVisible="{Binding On}"/>
+                            <!-- 描边必须跟着主题走：不然黑色主题下「黑」色块和底色一样、整个看不见 -->
+                            <Ellipse Width="30" Height="30" Fill="{Binding Swatch}"
+                                     Stroke="{StaticResource SwatchRing}" StrokeThickness="1.5"/>
+                          </Grid>
+                          <!-- 选中态的文字加粗变色：用 Classes 绑定而不是 Style 触发器 -->
+                          <TextBlock Text="{Binding Name}" Classes="SwatchName"
+                                     Margin="0,5,0,0" HorizontalAlignment="Center"
+                                     Classes.on="{Binding On}"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+
+                <!-- ==== 快速模式 ==== -->
+                <Grid Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="快速模式" Classes="SetTitle"/>
+                    <TextBlock Text="框完就定，跳过右下角那个 ✓。一框，一分类。"
+                               Classes="SetHint" Margin="0,4,0,0" MaxWidth="230"
+                               HorizontalAlignment="Left"/>
+                  </StackPanel>
+                  <ToggleButton Classes="Switch" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            IsChecked="{Binding QuickCapture, Mode=TwoWay}"/>
+                </Grid>
+
+                <!-- ==== 开机自启 ==== -->
+                <Grid Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="开机自启" Classes="SetTitle"/>
+                    <TextBlock x:Name="AutoStartHint"
+                               Text="开机就把它挂到桌面上，不用每次自己点。"
+                               Classes="SetHint" Margin="0,4,0,0" MaxWidth="230"
+                               HorizontalAlignment="Left"/>
+                  </StackPanel>
+                  <ToggleButton Classes="Switch" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            IsChecked="{Binding AutoStartOn, Mode=TwoWay}"/>
+                </Grid>
+
+                <!-- ==== 隐藏折叠按钮 ==== -->
+                <Grid Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="隐藏折叠按钮" Classes="SetTitle"/>
+                    <TextBlock Text="把顶栏的 ▾ 收起来。已经折叠着的时候它还会留着，不然你就展不开了。"
+                               Classes="SetHint" Margin="0,4,0,0" MaxWidth="230"
+                               HorizontalAlignment="Left"/>
+                  </StackPanel>
+                  <ToggleButton Classes="Switch" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            IsChecked="{Binding HideCollapseButton, Mode=TwoWay}"/>
+                </Grid>
+
+                <!-- ==== 演示加速 ==== -->
+                <StackPanel Margin="0,0,0,12">
+                  <TextBlock Text="演示加速" Classes="SetTitle"/>
+                  <TextBlock Text="想知道「不管它」最后会怎样，可以看一次。走完约一分钟，之后这些念想可以随便捡回来。"
+                             Classes="SetHint" Margin="0,4,0,6"/>
+                  <Button HorizontalAlignment="Left" Classes="GhostBtn" Padding="12,6"
+                          Foreground="{StaticResource AccentDeep}"
+                          Command="{Binding StartDemoCmd}"
+                          Content="试试让时间以 30000 倍流逝~"/>
+                </StackPanel>
+
+              </StackPanel>
+            </Border>
+
+            <!-- 面板透明度：这一行**故意不加不透明底** ——
+                 用户拖这个滑块时要能直接看到面板现在有多透 -->
+            <StackPanel Margin="12,7">
+              <Grid Margin="0,0,0,5">
+                <TextBlock Text="面板透明度" Classes="SetTitle"/>
+                <TextBlock Text="{Binding OpacityText}" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
               </Grid>
-              <Slider Minimum="30" Maximum="100" Value="{Binding OpacityPercent}"/>
-              <TextBlock Text="只影响面板底色；条目卡片始终不透明，保证任何桌面背景下都读得清。"
-                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
+              <Slider Minimum="30" Maximum="100"
+                      Value="{Binding OpacityPercent, Mode=TwoWay}"
+                      PointerReleased="OnOpacityCommitted"/>
             </StackPanel>
 
-            <StackPanel Spacing="4">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="Wantdo 保护期" FontSize="12" FontWeight="SemiBold"/>
-                <TextBlock Grid.Column="1" Text="{Binding FadeText}" FontSize="11"
-                           Foreground="{StaticResource Tx3}"/>
-              </Grid>
-              <Slider Minimum="1" Maximum="60" Value="{Binding FadeStartDays}"/>
-              <TextBlock Text="这期间完全不衰减。只影响 Wantdo，Todo 永远不受影响。"
-                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
-            </StackPanel>
+            <Border Classes="SettingsBlock" Padding="12,2,12,12">
+              <StackPanel>
+                <StackPanel Margin="0,0,0,10">
+                  <Grid Margin="0,0,0,5">
+                    <TextBlock Text="Wantdo 保护期" Classes="SetTitle"/>
+                    <TextBlock Text="{Binding FadeText}" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                  </Grid>
+                  <Slider Minimum="1" Maximum="60"
+                          Value="{Binding FadeStartDays, Mode=TwoWay}"
+                          PointerReleased="OnDecayCommitted"/>
+                </StackPanel>
 
-            <StackPanel Spacing="4">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Grid.Column="0" Text="多久后放手" FontSize="12" FontWeight="SemiBold"/>
-                <TextBlock Grid.Column="1" Text="{Binding BinText}" FontSize="11"
-                           Foreground="{StaticResource Tx3}"/>
-              </Grid>
-              <Slider Minimum="2" Maximum="180" Value="{Binding BinAfterDays}"/>
-              <TextBlock Text="超过就滑进 Paper Plane Bin，随时能捞回来。"
-                         FontSize="10.5" Foreground="{StaticResource TxFaint}" TextWrapping="Wrap"/>
-            </StackPanel>
+                <StackPanel Margin="0,0,0,10">
+                  <Grid Margin="0,0,0,5">
+                    <TextBlock Text="多久后放手" Classes="SetTitle"/>
+                    <TextBlock Text="{Binding BinText}" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource Tx4}" HorizontalAlignment="Right"/>
+                  </Grid>
+                  <Slider Minimum="2" Maximum="180"
+                          Value="{Binding BinAfterDays, Mode=TwoWay}"
+                          PointerReleased="OnDecayCommitted"/>
+                </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Content="保存衰减设置" Click="OnSaveDecay"/>
-              <Button Content="灌演示数据" Command="{Binding SeedCmd}"
-                      IsVisible="{Binding ShowSeedRow}"/>
-            </StackPanel>
+                <TextBlock Classes="SetHint" LineHeight="16.5" Margin="0,0,0,10">
+                  <Run Text="保护期内 Wantdo 完全不衰减；超过「放手」天数就滑进 Paper Plane Bin（随时能捞回来）。"/>
+                  <LineBreak/>
+                  <Run Text="Todo 永远不受这两个数字影响。"/>
+                </TextBlock>
+
+                <StackPanel IsVisible="{Binding ShowSeedRow}">
+                  <TextBlock Text="第一次用？" Classes="SetTitle" Margin="0,0,0,6"/>
+                  <Button Classes="GhostBtn" Content="灌入演示数据" Padding="12,6"
+                          HorizontalAlignment="Left" Command="{Binding SeedCmd}"/>
+                  <TextBlock Classes="SetHint" LineHeight="16.5" Margin="0,6,0,0"
+                             Text="只在还没有任何条目时出现。想先看看它长什么样、衰减怎么跑，点这个最快。"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </Grid>
