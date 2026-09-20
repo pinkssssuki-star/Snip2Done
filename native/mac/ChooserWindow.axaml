@@ -75,7 +75,7 @@
 
       <!-- 缩略图 + 「这一张是 Todo 还是 Wantdo？」 -->
       <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
-        <Border Grid.Column="0" Width="64" Height="46" Margin="0,0,10,0"
+        <Border x:Name="ThumbBox" Grid.Column="0" Width="64" Height="46" Margin="0,0,10,0"
                 CornerRadius="7" ClipToBounds="True" VerticalAlignment="Top"
                 Background="#f0f0f2">
           <Image x:Name="Thumb" Stretch="UniformToFill"/>
@@ -94,7 +94,14 @@
                Padding="9,7" Margin="0,8" FontSize="12.5"
                PlaceholderText="标题（留空则用窗口标题）"/>
 
-      <Grid Grid.Row="2" Margin="0,0,0,8" ColumnDefinitions="*,7,*,7,*">
+      <Grid x:Name="PickRow" Grid.Row="2" Margin="0,0,0,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="7"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="7"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <Button Grid.Column="0" Classes="ChoiceBtn today" Click="OnPickToday">
           <StackPanel>
             <TextBlock Text="Today" FontSize="12.5" FontWeight="Bold"/>
@@ -105,23 +112,11 @@
           <StackPanel>
             <TextBlock Text="Soon" FontSize="12.5" FontWeight="Bold"
                        HorizontalAlignment="Center"/>
-            <!--
-              「两三天 or [ ]」：那个方框是**可以填数字的输入框**，不是三个字。
-              直接点 = 48~72 小时里随机一个（每次都不一样，免得所有 Todo 堆在同一天到期）；
-              填了 N 就是 N 天后，标签也会跟着显示「N 天」而不是笼统的「两三天」。
-            -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,1,0,0">
-              <TextBlock Text="两三天 or" FontSize="9" Opacity="0.82" VerticalAlignment="Center"/>
-              <TextBox x:Name="DaysBox" Width="30" Height="16" Padding="0"
-                       FontSize="9.5" FontWeight="SemiBold"
-                       Margin="3,0,0,0" CornerRadius="4"
-                       VerticalContentAlignment="Center"
-                       HorizontalContentAlignment="Center"
-                       KeyDown="OnDaysKeyDown" TextInput="OnDaysInput"/>
-            </StackPanel>
+            <TextBlock Text="两三天" FontSize="9" Opacity="0.82"
+                       HorizontalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Grid.Column="4" Classes="ChoiceBtn want" Click="OnPickWant">
+        <Button x:Name="PickWant" Grid.Column="4" Classes="ChoiceBtn want" Click="OnPickWant">
           <StackPanel>
             <TextBlock Text="Wantdo" FontSize="12.5" FontWeight="Bold"/>
             <TextBlock Text="无期限" FontSize="9" Opacity="0.82"/>
@@ -129,11 +124,28 @@
         </Button>
       </Grid>
 
+      <!--
+        底部提示行。天数输入框放在这里而不是塞进 Soon 按钮里 ——
+        塞进去的话中间的选项就变成三层（大字 + 小字 + 输入框），
+        而两侧只有两层，一眼就看得出排版不一样（上游收到的反馈）。
+        右边原来是「留空则用窗口标题」，那条提示本来就多余（输入框里都写着呢），
+        换成「想指定天数就写 [__] 天」。
+      -->
       <Grid Grid.Row="3">
         <TextBlock Text="Esc 算了 · 1 2 3 直接选"
                    FontSize="9.5" Foreground="#b0b0b6" VerticalAlignment="Center"/>
-        <TextBlock Text="留空则自动给个两三天内的期限" FontSize="9.5" Foreground="#b0b0b6"
-                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <TextBlock Text="想指定天数就写" FontSize="9.5" Foreground="#b0b0b6"
+                     VerticalAlignment="Center"/>
+          <TextBox x:Name="DaysBox" Width="30" Height="16" Padding="0"
+                   FontSize="9.5" FontWeight="SemiBold"
+                   Margin="3,0,0,0" CornerRadius="4"
+                   VerticalContentAlignment="Center"
+                   HorizontalContentAlignment="Center"
+                   KeyDown="OnDaysKeyDown" TextInput="OnDaysInput"/>
+          <TextBlock Text="天" FontSize="9.5" Foreground="#b0b0b6"
+                     Margin="3,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
       </Grid>
     </Grid>
   </Border>

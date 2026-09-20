@@ -323,6 +323,89 @@ namespace RemeberEr
                 _vm.FadeText, _vm.BinText));
         }
 
+        // ============================================================ 手动记一笔
+
+        void OnQuickAdd(object sender, RoutedEventArgs e) { StartManualAdd(); }
+
+        /// <summary>输入框里按 Enter 等同于点那个加号。</summary>
+        void OnQuickKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            StartManualAdd();
+        }
+
+        /// <summary>
+        /// 「手动记一笔」的加号。
+        ///
+        /// Todo 是有 DDL 的东西，**没期限的 Todo 是自相矛盾的**（它永远不会逾期、也不会变红）。
+        /// 所以选了 Todo 就让用户挑个时间 —— 直接复用归类窗那三个按钮，
+        /// 只是没有截图、也没有标题框（标题就是刚输入的那句话）。
+        /// Wantdo 本来就没有期限，直接落库。
+        /// </summary>
+        void StartManualAdd()
+        {
+            string title = (_vm.QuickText ?? "").Trim();
+            if (title.Length == 0) return;
+
+            if (_vm.QuickRoom != "todo")
+            {
+                _vm.AddManualCmd.Execute(null);
+                return;
+            }
+
+            // 让时间面板贴着记忆面板摆。
+            //
+            // 归类窗的定位规则是「选区右下角往下 10px，下面放不下就翻到选区上方」，
+            // 所以这里**把面板自己当成那个「选区」**传进去 —— 面板在屏幕右下角时
+            // 下面必然放不下，它就翻到面板正上方、右边缘对齐。
+            // 不这么做（比如传 0,0,0,0）它会跑到屏幕角落去（上游踩过）。
+            var screen = Screens?.Primary;
+            if (screen == null) return;
+            double sc = screen.Scaling > 0 ? screen.Scaling : 1.0;
+            var wa = screen.WorkingArea;
+
+            var disp = new DisplayInfo
+            {
+                Id = 1,
+                X = wa.X * sc, Y = wa.Y * sc,
+                W = wa.Width * sc, H = wa.Height * sc,
+                Scale = sc, IsPrimary = true,
+            };
+
+            // 相对本屏左上角的物理矩形 —— 就是面板自己
+            int selX = (int)Math.Round(Position.X - disp.X);
+            int selY = (int)Math.Round(Position.Y - disp.Y);
+            int selW = (int)Math.Round(Width * sc);
+            int selH = (int)Math.Round(Height * sc);
+
+            var w = new ChooserWindow(new ChooserWindow.Payload
+            {
+                Title = title,
+                App = "",
+                Manual = true,
+            }, disp, selX, selY, selW, selH);
+
+            w.Decided += (choice, typed, days) =>
+            {
+                if (choice == null) return;   // 取消：什么都不做，输入框里的字留着
+                string room = choice == "want" ? "want" : "todo";
+                string bucket = choice == "today" ? "today" : (choice == "soon" ? "soon" : null);
+                int dueDays = bucket == "soon" ? days : 0;
+                // 标题用输入框里那句，不用归类窗的（手动模式没有标题框）
+                _store.Add(room, title, "", null, bucket, null, dueDays);
+                _vm.QuickText = "";
+                _vm.QuickOpen = false;     // 加完自动收起：没人会连着录好几条
+                _vm.Refresh();
+                Program.Log(string.Format("  手动记一笔已落盘：room={0} bucket={1} dueDays={2}「{3}」",
+                    room, bucket ?? "—", dueDays > 0 ? dueDays.ToString() : "—", title));
+            };
+
+            Track(w);   // 进 _kids：统一收尾，也方便自检找到它
+            w.Show();
+            Program.Log("  手动记一笔：弹时间面板");
+        }
+
         void OnSaveDecay(object sender, RoutedEventArgs e)
         {
             _vm.SaveDecay();
@@ -519,6 +602,7 @@ namespace RemeberEr
             get { return _kids.Count > 0 ? _kids[_kids.Count - 1] : null; }
         }
         public void OpenDetailForTest(string id) { OpenDetail(id); }
+        public void StartManualAddForTest() { StartManualAdd(); }
         public void OpenRecordForTest(string id) { OpenRecord(id); }
 
         void Track(Window w)

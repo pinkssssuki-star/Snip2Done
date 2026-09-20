@@ -128,6 +128,12 @@ namespace RemeberEr
         /// <summary>渲染时把演示横幅设成某个状态：running / finished。用于核对横幅外观。</summary>
         public static string DemoBanner;
 
+        /// <summary>渲染手动模式的时间面板（归类窗的两个按钮版本）。</summary>
+        public static bool ManualChooser;
+
+        /// <summary>手动记一笔自检：填标题 → 点加号 → 时间面板 → 选一个 → 落盘。</summary>
+        public static bool ManualAddTest;
+
         /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
@@ -234,7 +240,16 @@ namespace RemeberEr
             if (ShotPanel != null) { RunShotPanel(); return; }
 
             // 把归类窗渲染成 PNG（免权限）
-            if (ShotChooser != null) { RunShotChooser(); return; }
+            // 注意：--shot-chooser 这个分支在 --manual-chooser 之前，
+            // 两者同时给的时候（用 --shot-chooser 指定输出路径 + --manual-chooser 切模式）
+            // 必须在这里分流，否则下面那个独立分支永远轮不到（踩过）。
+            if (ManualAddTest) { RunManualAddTest(); return; }
+
+            if (ShotChooser != null)
+            {
+                if (ManualChooser) RunManualChooserShot(); else RunShotChooser();
+                return;
+            }
 
             // 多窗自检
             if (MultiWindowTest) { RunMultiWindowTest(); return; }
@@ -690,6 +705,139 @@ namespace RemeberEr
                 }
             });
 
+            Environment.Exit(0);
+        }
+
+        /// <summary>
+        /// 渲染手动模式的时间面板：应当是**两个按钮**（Today / 两三天），
+        /// 没有缩略图、没有 Wantdo —— 手动记的是 Todo，而 Todo 必须有期限，
+        /// 「无期限」在 Todo 语境下自相矛盾。
+        /// </summary>
+        /// <summary>
+        /// 手动记一笔自检：模拟用户填标题、点加号、在时间面板里选一个，
+        /// 核对落盘结果的 room / bucket / 标题 / 期限。
+        ///
+        /// 重点验的是「没期限的 Todo 是自相矛盾的」这一条 ——
+        /// 手动记的 Todo 必须走选时间那一步，而不是直接落库。
+        /// </summary>
+        static void RunManualAddTest()
+        {
+            Log("=== 手动记一笔自检 ===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var store = new Store(DataDir);
+                    int before = store.Items.Count;
+
+                    var panel = new PanelWindow();
+                    panel.Show();
+                    PumpUi(400);
+
+                    // 填标题 + 选 Todo 房间 + 点加号
+                    panel.Vm.QuickText = "手动记的一条 Todo";
+                    panel.Vm.SetRoomCmd.Execute("todo");
+                    panel.Vm.QuickOpen = true;
+                    PumpUi(200);
+                    Log("  已填标题并选 Todo，准备点加号");
+
+                    panel.StartManualAddForTest();
+                    PumpUi(500);
+
+                    // 时间面板应该开出来了：从 _kids 里找 ChooserWindow
+                    ChooserWindow ch = null;
+                    foreach (var w in panel.ChildrenForTest)
+                    {
+                        ch = w as ChooserWindow;
+                        if (ch != null) break;
+                    }
+                    if (ch == null)
+                    {
+                        Log("  !! 点加号之后没有弹出时间面板 —— 这正是要修的问题");
+                        return;
+                    }
+                    Log("  ✓ 时间面板已弹出（说明 Todo 走了选时间那一步）");
+
+                    // 在里面选 Today
+                    ch.AutoPick("today");
+                    PumpUi(500);
+
+                    var after = new Store(DataDir);
+                    Log(string.Format("  落盘：条目 {0} -> {1}", before, after.Items.Count));
+                    string newest = null; double ts = -1;
+                    foreach (var o in after.Items)
+                    {
+                        var it = J.Obj(o);
+                        double t = J.Num(it, "createdAt", 0);
+                        if (t > ts) { ts = t; newest = J.Str(it, "id", null); }
+                    }
+                    var n = after.Get(newest);
+                    Log(string.Format("  最新条目：room={0} bucket={1} title=「{2}」已有期限={3}",
+                        J.Str(n, "room", ""), J.Str(n, "dueBucket", "—"), J.Str(n, "title", ""),
+                        !J.IsNull(J.Get(n, "dueAt"))));
+                    Log(string.Format("  输入框已清空 = {0}（应 True）", (panel.Vm.QuickText ?? "") == ""));
+                    Log(string.Format("  输入区已收起 = {0}（应 True）", !panel.Vm.QuickOpen));
+                    Log("=== 手动记一笔自检结束 ===");
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 手动记一笔自检失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
+
+            Environment.Exit(0);
+        }
+
+        static void RunManualChooserShot()
+        {
+            Log("=== 手动模式时间面板渲染 ===");
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                try
+                {
+                    var disp = new DisplayInfo
+                    {
+                        Id = 1, X = 0, Y = 0, W = 2560, H = 1440, Scale = 1, IsPrimary = true,
+                    };
+                    var payload = new ChooserWindow.Payload
+                    {
+                        Title = "手动记一笔的标题",
+                        Manual = true,
+                    };
+                    Log(string.Format("  [测试] 传入前 payload hash={0} Manual={1}",
+                        payload.GetHashCode(), payload.Manual));
+                    var w = new ChooserWindow(payload, disp, 1200, 600, 340, 520);
+                    w.Show();
+                    PumpUi(400);
+                    Log("  摆放位置(物理) = " + w.Position);
+
+                    int cw = (int)Math.Ceiling(w.Bounds.Width);
+                    int ch = (int)Math.Ceiling(w.Bounds.Height);
+                    var rtb = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                        new PixelSize(cw, ch), new Vector(96, 96));
+                    rtb.Render(w);
+                    string path = Program.ShotChooser ?? "/tmp/manual-chooser.png";
+                    using (var fs = System.IO.File.Create(path))
+                        rtb.Save(fs, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+                    Log(string.Format("  已写出 {0}（{1}x{2}）", path, cw, ch));
+                }
+                catch (Exception ex)
+                {
+                    Log("!! 渲染失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+            });
             Environment.Exit(0);
         }
 
@@ -1467,6 +1615,8 @@ namespace RemeberEr
                 else if (a.StartsWith("--autodays=")) AutoDays = int.Parse(a.Substring(11));
                 else if (a == "--multi-window-test") MultiWindowTest = true;
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);
+                else if (a == "--manual-chooser") ManualChooser = true;
+                else if (a == "--manual-add-test") ManualAddTest = true;
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

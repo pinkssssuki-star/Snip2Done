@@ -184,15 +184,31 @@
               BorderBrush="{StaticResource Hair}" BorderThickness="0,0,0,1"
               IsVisible="{Binding QuickOpen}">
         <StackPanel Spacing="7">
-          <TextBox Text="{Binding QuickText}" PlaceholderText="记一笔…" FontSize="12"/>
+          <!-- 输入框后面跟一个加号：写完字得有个看得见的「加」可以点。
+               上游收到的反馈就是「写完字以后不知道怎么加」。 -->
+          <Grid ColumnDefinitions="*,6,Auto">
+            <TextBox x:Name="QuickBox" Grid.Column="0" Classes="QuickInput"
+                     Text="{Binding QuickText}" PlaceholderText="记一笔…"
+                     KeyDown="OnQuickKeyDown"/>
+            <Button Grid.Column="2" Click="OnQuickAdd" Cursor="Hand" ToolTip.Tip="加进去（Enter）">
+              <Button.Template>
+                <ControlTemplate>
+                  <Border x:Name="qb" Width="30" Height="30" CornerRadius="8"
+                          Background="{StaticResource Accent}" BorderThickness="0">
+                    <TextBlock Text="+" FontSize="18" FontWeight="SemiBold"
+                               Foreground="#ffffff"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
+          </Grid>
           <Grid ColumnDefinitions="*,6,*">
-            <Button Grid.Column="0" Content="Todo" HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Tag="{Binding QuickTodoOn, Converter={StaticResource TagOn}}"
+            <Button Grid.Column="0" Classes="RoomBtn" Content="Todo"
+                    Classes.on="{Binding QuickTodoOn}"
                     Command="{Binding SetRoomCmd}" CommandParameter="todo"/>
-            <Button Grid.Column="2" Content="Wantdo" HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center"
-                    Tag="{Binding QuickWantOn, Converter={StaticResource TagOn}}"
+            <Button Grid.Column="2" Classes="RoomBtn" Content="Wantdo"
+                    Classes.on="{Binding QuickWantOn}"
                     Command="{Binding SetRoomCmd}" CommandParameter="want"/>
           </Grid>
         </StackPanel>

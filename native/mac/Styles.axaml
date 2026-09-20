@@ -366,6 +366,42 @@
     <Setter Property="BorderBrush" Value="#338b5cf6"/>
   </Style>
 
+  <!-- ============================================================ 房间选择按钮（Todo / Wantdo） -->
+  <Style Selector="Button.RoomBtn">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="Medium"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx3}"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Padding" Value="0,6"/>
+    <Setter Property="Background" Value="{StaticResource BtnBg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="7"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+  </Style>
+  <!-- 选中态：紫色底 + 紫边 + 紫字（上游用 Tag=on，这里用 Classes.on） -->
+  <Style Selector="Button.RoomBtn.on">
+    <Setter Property="Background" Value="#268b5cf6"/>
+    <Setter Property="BorderBrush" Value="#8c8b5cf6"/>
+    <Setter Property="Foreground" Value="#6d28d9"/>
+  </Style>
+
+  <!-- ============================================================ 快速输入框 -->
+  <Style Selector="TextBox.QuickInput">
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="Foreground" Value="{StaticResource Tx1}"/>
+    <Setter Property="CaretBrush" Value="{StaticResource Tx1}"/>
+    <Setter Property="Padding" Value="8,6"/>
+    <Setter Property="Background" Value="{StaticResource InputBg}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="8"/>
+  </Style>
+  <Style Selector="TextBox.QuickInput:focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="#a68b5cf6"/>
+  </Style>
+
   <Style Selector="ScrollViewer">
     <Setter Property="Background" Value="Transparent"/>
   </Style>

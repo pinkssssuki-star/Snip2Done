@@ -33,6 +33,12 @@ namespace RemeberEr
             public string App;
             /// <summary>窗口标题。</summary>
             public string Title;
+            /// <summary>
+            /// 手动记一笔模式：不显示缩略图，并**藏掉 Wantdo 按钮**。
+            /// 因为手动记的 Todo 必须有期限，而「无期限」在 Todo 语境下是自相矛盾的 ——
+            /// 这是在给 Todo 选时间，不是在问「这是 Todo 还是 Wantdo」。
+            /// </summary>
+            public bool Manual;
         }
 
         readonly Payload _p;
@@ -61,6 +67,34 @@ namespace RemeberEr
             _daysBox = this.FindControl<TextBox>("DaysBox");
 
             if (p.Preview != null) _thumb.Source = p.Preview;
+
+            // 手动模式：藏掉 Wantdo 那一列，并把它的列宽和前面的间隔列一起收成 0，
+            // 剩下两个按钮自动撑满（和上游同样的做法）。
+            Program.Log(string.Format("  [归类窗] 收到 payload hash={0} Manual={1} PickWant={2} ThumbBox={3}",
+                p.GetHashCode(), p.Manual,
+                this.FindControl<Button>("PickWant") != null,
+                this.FindControl<Border>("ThumbBox") != null));
+            if (p.Manual)
+            {
+                var want = this.FindControl<Button>("PickWant");
+                var thumbBox = this.FindControl<Border>("ThumbBox");
+                var titleBox = this.FindControl<TextBox>("TitleBox");
+                if (want != null) want.IsVisible = false;
+                if (thumbBox != null) thumbBox.IsVisible = false;
+                // 标题框也藏掉：手动模式的标题就是输入框里刚打的那句话，
+                // 再问一次是重复的（上游同样是 !Manual 才 Focus/SelectAll）。
+                if (titleBox != null) titleBox.IsVisible = false;
+
+                // 列宽要从 Grid 的 ColumnDefinitions 里取 —— FindControl 只找控件，
+                // 找不到 ColumnDefinition（它不是 Control）。
+                var pickRow = this.FindControl<Grid>("PickRow");
+                if (pickRow != null && pickRow.ColumnDefinitions.Count >= 5)
+                {
+                    pickRow.ColumnDefinitions[1].Width = new GridLength(0);   // 间隔列
+                    pickRow.ColumnDefinitions[3].Width = new GridLength(0);   // 间隔列
+                    pickRow.ColumnDefinitions[4].Width = new GridLength(0);   // Wantdo 列
+                }
+            }
             BuildSourceLine(p.App, p.Title);
             _titleBox.Text = p.Title ?? "";
 
