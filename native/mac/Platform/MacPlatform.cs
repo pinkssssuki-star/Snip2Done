@@ -54,6 +54,45 @@ namespace RemeberEr
         [DllImport(SckLib, CharSet = CharSet.Ansi)]
         static extern IntPtr remeber_sck_error_text(int code);
 
+        // ---- 热键相关权限（桥接层，见 sck_bridge.m）----
+
+        [DllImport(SckLib)]
+        static extern int remeber_hotkey_listen_access();
+
+        [DllImport(SckLib)]
+        static extern int remeber_hotkey_request_listen_access();
+
+        [DllImport(SckLib)]
+        static extern int remeber_ax_trusted();
+
+        /// <summary>
+        /// 「输入监控」权限。NSEvent 的全局热键监听需要它。
+        ///
+        /// 为什么不能靠「装监听器有没有报错」判断：没有这个权限时
+        /// addGlobalMonitorForEvents 仍会返回一个非 nil 的 monitor 对象，
+        /// 但**事件永远不来** —— 「成功却无效」很有迷惑性，
+        /// 所以必须用官方的 preflight API 显式查一次。
+        /// </summary>
+        public bool HasInputMonitoringPermission()
+        {
+            try { return remeber_hotkey_listen_access() == 1; }
+            catch (Exception) { return false; }
+        }
+
+        /// <summary>申请「输入监控」权限（弹系统引导）。</summary>
+        public void RequestInputMonitoringPermission()
+        {
+            try { remeber_hotkey_request_listen_access(); }
+            catch (Exception ex) { Program.Log("!! 申请输入监控权限失败：" + ex.Message); }
+        }
+
+        /// <summary>辅助功能权限（Carbon 热键与读窗口标题都要它）。</summary>
+        public bool HasAccessibilityPermission()
+        {
+            try { return remeber_ax_trusted() == 1; }
+            catch (Exception) { return false; }
+        }
+
         static string SckErrorText(int code)
         {
             try
@@ -205,16 +244,6 @@ namespace RemeberEr
             catch (Exception ex)
             {
                 Program.Log("!! 触发屏幕录制授权失败：" + ex.Message);
-            }
-        }
-
-        public bool HasAccessibilityPermission()
-        {
-            try { return MacInterop.AXIsProcessTrusted(); }
-            catch (Exception ex)
-            {
-                Program.Log("!! AXIsProcessTrusted 调用失败：" + ex.Message);
-                return false;
             }
         }
 

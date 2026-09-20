@@ -280,3 +280,26 @@ void remeber_window_make_panel(void *nsWindow)
         w.level = NSFloatingWindowLevel;
     } @catch (NSException *e) { }
 }
+
+/* ------------------------------------------------------------------ 热键权限
+ *
+ * 这两个是「输入监控」的官方 preflight / request API（macOS 10.15+）。
+ * NSEvent 的全局监听需要它；没有它时 addGlobalMonitorForEvents 仍会返回一个
+ * 非 nil 的 monitor 对象，但**事件永远不来** —— 这个「成功却无效」的行为
+ * 很有迷惑性，所以必须显式查一次，而不是靠「装监听器有没有报错」来判断。
+ */
+int remeber_hotkey_listen_access(void)
+{
+    return CGPreflightListenEventAccess() ? 1 : 0;
+}
+
+int remeber_hotkey_request_listen_access(void)
+{
+    return CGRequestListenEventAccess() ? 1 : 0;
+}
+
+/* 辅助功能：Carbon 热键要它，读窗口标题也要它 */
+int remeber_ax_trusted(void)
+{
+    return AXIsProcessTrusted() ? 1 : 0;
+}

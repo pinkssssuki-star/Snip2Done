@@ -209,7 +209,29 @@ namespace RemeberEr
                     Platform.RequestScreenCapturePermission();
                     Log("  已触发。请在系统设置里勾选本程序，然后**重启本进程**。");
                 }
-                Log("  ⚠ 辅助功能权限的申请在 P3 实现（Accessibility API 尚未接入）。");
+                // 辅助功能与输入监控：这两个也是全局热键要用的，
+                // 缺了会表现为「热键注册成功但按下去没反应」
+                bool ax = Platform.HasAccessibilityPermission();
+                Log("  辅助功能（当前）=" + (ax ? "已授权" : "未授权"));
+                if (!ax)
+                {
+                    Log("  正在触发辅助功能授权弹窗…");
+                    Platform.RequestAccessibilityPermission();
+                }
+
+                bool im = HasInputMonitoring();
+                Log("  输入监控（当前）=" + (im ? "已授权" : "未授权"));
+                if (!im)
+                {
+                    Log("  正在触发输入监控授权弹窗…");
+                    var mp = Platform as MacPlatform;
+                    if (mp != null) mp.RequestInputMonitoringPermission();
+                }
+
+                Log("");
+                Log("  ⚠ 授权后**必须重启本进程**才生效（macOS 的既定行为）。");
+                Log("  ⚠ 全局热键需要「辅助功能」或「输入监控」其中至少一项：");
+                Log("       Carbon 后端要辅助功能；NSEvent 后端要输入监控。");
                 Log("=== 结束（本次不起窗口）===");
                 return;
             }
@@ -1663,6 +1685,18 @@ namespace RemeberEr
             // 否则日志看起来像「整个平台层都坏了」，排查时会被带偏。
             TryLog("屏幕录制权限", () => Platform.HasScreenCapturePermission() ? "已授权" : "未授权");
             TryLog("辅助功能权限", () => Platform.HasAccessibilityPermission() ? "已授权" : "未授权");
+            TryLog("输入监控权限", () => HasInputMonitoring() ? "已授权" : "未授权（全局热键需要它）");
+        }
+
+        /// <summary>输入监控权限。取不到就当没有（StubPlatform 上没有这个方法）。</summary>
+        public static bool HasInputMonitoring()
+        {
+            try
+            {
+                var mp = Platform as MacPlatform;
+                return mp != null && mp.HasInputMonitoringPermission();
+            }
+            catch (Exception) { return false; }
         }
 
         static void TryLog(string label, Func<string> f)
