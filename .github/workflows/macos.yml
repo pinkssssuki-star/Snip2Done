@@ -1,0 +1,83 @@
+name: macOS 版
+
+# 打包出可以直接运行的 记忆面板.app。
+#
+# 为什么要有这个：macOS 版的产物是自包含的 .app（112 MB），
+# 但 .app 不能进版本库（.gitignore 里排掉了，而且每次构建的二进制不该被跟踪）。
+# 没有 CI 的话，别人想用就必须自己装 .NET 10 SDK 再编译一遍 ——
+# 对「下载就能用」来说门槛太高。
+#
+# 有了它：推一次代码 → 这里自动构建 → 从 Actions 页下载 .app 压缩包即可。
+# 想发正式版本（Release）的话，打个 tag 就会自动挂上去。
+# 打 tag 时要把产物挂到 Release，需要仓库的写权限。
+# 默认 GITHUB_TOKEN 是只读的，不显式声明的话那一步会 403。
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [macos-port, main]
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'native/mac/**'
+      - '.github/workflows/macos.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 构建 记忆面板.app
+    # macos-15 是 Apple Silicon（M 系列），正好对上本项目的 osx-arm64 打包目标。
+    # build-app.sh 会按 uname -m 自动选 RID，所以在哪种 runner 上都能构建；
+    # 想同时产出 Intel 版的话，在这里加一个 matrix 即可。
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 编译并打包
+        working-directory: native/mac
+        run: |
+          chmod +x build.sh build-app.sh
+          ./build-app.sh
+
+      - name: 核对产物
+        working-directory: native/mac
+        run: |
+          APP="../../dist/记忆面板.app"
+          echo "=== 版本 ==="
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist"
+          echo "=== 架构 ==="
+          file "$APP/Contents/MacOS/RemeberEr.Mac"
+          echo "=== 桥接层符号 ==="
+          nm -gU "$APP/Contents/MacOS/libremeber_sck.dylib" | grep -c remeber_
+          echo "=== 体积 ==="
+          du -sh "$APP"
+
+      - name: 打成 zip（保留 .app 的可执行位与结构）
+        working-directory: native/mac
+        run: |
+          # 必须用 ditto 而不是 zip：zip 会丢掉 .app 里的符号链接与权限，
+          # 解压出来就是打不开的空壳。
+          ditto -c -k --keepParent "../../dist/记忆面板.app" 记忆面板-macos.zip
+          ls -lh 记忆面板-macos.zip
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: 记忆面板-macos
+          path: native/mac/记忆面板-macos.zip
+          if-no-files-found: error
+
+      - name: 打 tag 时顺便挂到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: native/mac/记忆面板-macos.zip
+          generate_release_notes: true
