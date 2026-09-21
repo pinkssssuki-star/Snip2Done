@@ -156,6 +156,21 @@
                             </StackPanel>
                         </Grid>
 
+                        <!--
+                          备注也要能在「写心得」这一屏看到 ——
+                          要回顾当初记了什么才好写总结。和回看模式共用同一套控件名，
+                          所以填充逻辑只有一处，不会两边走散。
+                        -->
+                        <StackPanel x:Name="WNoteSection" Margin="0,12,0,0" IsVisible="False">
+                            <TextBlock Text="备注" Classes="SecLbl" Margin="0,0,0,8"/>
+                            <Border CornerRadius="9" Padding="13,11,13,11"
+                                    BorderThickness="3,0,0,0" BorderBrush="#c4c4c9"
+                                    Background="#08000000">
+                                <TextBlock x:Name="WNoteText" FontSize="12.5" LineHeight="21.9"
+                                           Foreground="{StaticResource Tx2}" TextWrapping="Wrap"/>
+                            </Border>
+                        </StackPanel>
+
                         <Grid Margin="0,12,0,0">
                             <TextBlock Text="完成它之前，写点什么" Classes="SecLbl"/>
                             <Border Height="1" Background="{StaticResource Hair}" VerticalAlignment="Center"
@@ -214,6 +229,23 @@
                             <TextBlock x:Name="SummaryText" FontSize="12" LineHeight="20.4"
                                        Foreground="#3a3a3c" TextWrapping="Wrap"/>
                         </Border>
+
+                        <!--
+                          条目上写的备注。
+                          放在这里是因为「完成列表里点开」是回看这条的主入口 ——
+                          写过的字不该只能在列表里瞥到一眼、进来反而看不到。
+                          用的是和心得一样的引用块样式，但左边那条竖线是灰的：
+                          心得是完成时写的，备注是当时记的，来源不同。
+                        -->
+                        <StackPanel x:Name="NoteSection" Margin="0,12,0,0" IsVisible="False">
+                            <TextBlock Text="备注" Classes="SecLbl" Margin="0,0,0,8"/>
+                            <Border x:Name="NoteBox" CornerRadius="9" Padding="13,11,13,11"
+                                    BorderThickness="3,0,0,0" BorderBrush="#c4c4c9"
+                                    Background="#08000000">
+                                <TextBlock x:Name="NoteText" FontSize="12.5" LineHeight="21.9"
+                                           Foreground="{StaticResource Tx2}" TextWrapping="Wrap"/>
+                            </Border>
+                        </StackPanel>
 
                         <StackPanel x:Name="QuoteSection" Margin="0,12,0,0">
                             <TextBlock Text="心得" Classes="SecLbl" Margin="0,0,0,8"/>

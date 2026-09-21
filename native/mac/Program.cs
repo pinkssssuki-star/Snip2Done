@@ -119,6 +119,9 @@ namespace RemeberEr
         /// <summary>补截图自检：给第一条条目补一张图（需要屏幕录制权限）。</summary>
         public static bool AttachTest;
 
+        /// <summary>指定条目 id（各窗口自检用，不指定就取第一条）。</summary>
+        public static string ItemId;
+
         /// <summary>自动验收时给「两三天」那一档填的天数（0 = 不填，走 48~72 小时随机）。</summary>
         public static int AutoDays;
 
@@ -694,7 +697,7 @@ namespace RemeberEr
         static void RunShotDetail()
         {
             Log("=== 详情窗渲染自检 ===");
-            var id = FirstItemId();
+            var id = !string.IsNullOrEmpty(ItemId) ? ItemId : FirstItemId();
             if (id == null) { Log("!! 数据里没有条目，先用 --seed 造一份"); Environment.Exit(1); }
             Log("  用条目 id = " + id);
 
@@ -745,7 +748,8 @@ namespace RemeberEr
 
             Log("=== 完成记录窗渲染自检（模式 " + mode + "）===");
             // view 模式得用一条真的已完成的条目，否则渲染出来是空壳
-            var id = mode == "view" ? FindItemId("done") : FirstItemId();
+            var id = !string.IsNullOrEmpty(ItemId) ? ItemId
+                   : (mode == "view" ? FindItemId("done") : FirstItemId());
             if (id == null) { Log("!! 数据里没有合适的条目，先用 --seed 造一份"); Environment.Exit(1); }
             Log("  用条目 id = " + id);
 
@@ -1916,6 +1920,7 @@ namespace RemeberEr
                 else if (a == "--confirm-trash") ConfirmTrash = true;
                 else if (a == "--pos-test") PosTest = true;
                 else if (a == "--attach-test") AttachTest = true;
+                else if (a.StartsWith("--item=")) ItemId = a.Substring(7);
                 else if (a.StartsWith("--autodays=")) AutoDays = int.Parse(a.Substring(11));
                 else if (a == "--multi-window-test") MultiWindowTest = true;
                 else if (a.StartsWith("--demo-banner=")) DemoBanner = a.Substring(14);

@@ -37,14 +37,14 @@ namespace RemeberEr
 
         Border _roomTag;
         TextBlock _tagText, _ttlText, _footNote;
-        StackPanel _writePanel, _viewPanel, _writeFoot, _quoteSection;
+        StackPanel _writePanel, _viewPanel, _writeFoot, _quoteSection, _noteSection, _wNoteSection;
         Button _viewFoot;
         Image _wThumb, _vThumb;
         Border _wThumbPh, _vThumbPh;
         TextBlock _wThumbChar, _vThumbChar;
         TextBlock _wf1, _wf2, _wf3, _vf1, _vf2, _vf3;
         TextBox _reflectionBox;
-        TextBlock _summaryText, _quoteText;
+        TextBlock _summaryText, _quoteText, _noteText, _wNoteText;
         Border _quoteBox;
         ItemsControl _statsList;
 
@@ -69,6 +69,10 @@ namespace RemeberEr
             _viewPanel = this.FindControl<StackPanel>("ViewPanel");
             _writeFoot = this.FindControl<StackPanel>("WriteFoot");
             _quoteSection = this.FindControl<StackPanel>("QuoteSection");
+            _noteSection = this.FindControl<StackPanel>("NoteSection");
+            _noteText = this.FindControl<TextBlock>("NoteText");
+            _wNoteSection = this.FindControl<StackPanel>("WNoteSection");
+            _wNoteText = this.FindControl<TextBlock>("WNoteText");
             _viewFoot = this.FindControl<Button>("ViewFoot");
             _wThumb = this.FindControl<Image>("WThumb");
             _vThumb = this.FindControl<Image>("VThumb");
@@ -204,6 +208,7 @@ namespace RemeberEr
         void RenderWrite(Dictionary<string, object> it, double now)
         {
             _writePanel.IsVisible = true;
+            FillNote(it);
             _viewPanel.IsVisible = false;
             _writeFoot.IsVisible = true;
             _viewFoot.IsVisible = false;
@@ -224,6 +229,24 @@ namespace RemeberEr
             _footNote.Text = (_reflectionBox.Text ?? "").Trim().Length + " 字";
         }
 
+        /// <summary>
+        /// 把条目上写的备注填进当前这一屏（写心得 / 回看都有）。
+        ///
+        /// 和「心得」不是一回事：备注是记下这条时写的，心得是完成时写的。
+        /// 两种模式共用这一个填充点，免得两边各写一份、日后走散。
+        /// </summary>
+        void FillNote(Dictionary<string, object> it)
+        {
+            string note = J.Str(it, "note", "");
+            bool has = !string.IsNullOrWhiteSpace(note);
+
+            _noteSection.IsVisible = has && _viewPanel.IsVisible;
+            _noteText.Text = note;
+
+            _wNoteSection.IsVisible = has && _writePanel.IsVisible;
+            _wNoteText.Text = note;
+        }
+
         void RenderView(Dictionary<string, object> it, double now)
         {
             _writePanel.IsVisible = false;
@@ -242,6 +265,7 @@ namespace RemeberEr
             double elapsed = ElapsedMs(it, now);
             double days = elapsed / 86400000.0;
             string reflection = J.Str(it, "reflection", "");
+            FillNote(it);
             int touchCount = (int)J.Num(it, "touchCount", 0);
 
             // ---- 一句话总结（有加粗片段，所以用 Inlines 拼）----
