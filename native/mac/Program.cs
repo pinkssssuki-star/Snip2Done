@@ -138,6 +138,15 @@ namespace RemeberEr
         public static bool HotkeyRecvTest;
 
         /// <summary>
+        /// 框选层「真实抓屏」验收：把框选层显示出来，然后**从屏幕抓一张**。
+        ///
+        /// 为什么不能用 --overlay-test：那个是 RenderTargetBitmap 渲染视觉树，
+        /// 只画我们自己的窗口，**看不到菜单栏/Dock 有没有被盖住或隐藏** ——
+        /// 而那正是要验的东西。必须走真实抓屏。
+        /// </summary>
+        public static string OverlayScreenShot;
+
+        /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
         /// </summary>
@@ -280,6 +289,8 @@ namespace RemeberEr
             // 注意：--shot-chooser 这个分支在 --manual-chooser 之前，
             // 两者同时给的时候（用 --shot-chooser 指定输出路径 + --manual-chooser 切模式）
             // 必须在这里分流，否则下面那个独立分支永远轮不到（踩过）。
+            if (OverlayScreenShot != null) { RunOverlayScreenTest(); return; }
+
             if (HotkeyRecvTest) { RunHotkeyRecvTest(); return; }
 
             if (ManualAddTest) { RunManualAddTest(); return; }
@@ -1580,6 +1591,67 @@ namespace RemeberEr
         /// 框选层端到端自检（需要屏幕录制权限）。
         /// 自动画一个 900x560 的选区，把窗口自身渲染成 PNG 存下来。
         /// </summary>
+        /// <summary>
+        /// 把框选层显示出来，再从**真实屏幕**抓一张，看菜单栏/Dock 是否被盖住或隐藏。
+        /// </summary>
+        static void RunOverlayScreenTest()
+        {
+            var ds = Platform.GetDisplays();
+            if (ds.Count == 0) { Log("!! 没有可用显示器"); Environment.Exit(1); }
+            var d = ds[0];
+            foreach (var c in ds) if (c.IsPrimary) d = c;
+
+            Log("=== 框选层真实抓屏验收 ===");
+            var shot = Platform.CaptureDisplay(d);
+            if (shot == null) { Log("!! 抓屏失败"); Environment.Exit(1); }
+
+            AppBuilder.Configure<SelfTestApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .SetupWithoutStarting();
+
+            OverlayWindow overlay = null;
+            Dispatcher.UIThread.Invoke(() =>
+            {
+                overlay = new OverlayWindow(shot, d, false);
+                overlay.Show();
+                PumpUi(1500);      // 让框选层画好、系统 UI 也来得及隐藏
+
+                Log("  框选层已显示，现在从真实屏幕抓一张…");
+                var real = Platform.CaptureDisplay(d);
+                if (real == null) { Log("!! 真实抓屏失败"); Environment.Exit(1); }
+
+                bool ok = MacInterop.WritePng(OverlayScreenShot, real.Width, real.Height, real.Bgra);
+                Log((ok ? "  ✓ 已写出 " : "  !! 写出失败 ") + OverlayScreenShot);
+
+                // 检查顶部 30px 与底部 80px 区域是否还是「系统 UI 的样子」：
+                // 我们的框选层会把非选区压暗，所以若这两处没被压暗，说明没盖住。
+                Log(string.Format("  顶部一行抽样 : {0}", SampleRow(real, 10)));
+                Log(string.Format("  底部一行抽样 : {0}", SampleRow(real, real.Height - 20)));
+                Log(string.Format("  中部一行抽样 : {0}", SampleRow(real, real.Height / 2)));
+                Log("=== 结束 ===");
+            });
+
+            Environment.Exit(0);
+        }
+
+        /// <summary>取某一行上几个点的颜色，用于判断该区域是否被压暗。</summary>
+        static string SampleRow(Screenshot s, int y)
+        {
+            if (s == null || y < 0 || y >= s.Height) return "(越界)";
+            var sb = new System.Text.StringBuilder();
+            for (int i = 1; i <= 3; i++)
+            {
+                int x = s.Width * i / 4;
+                int o = (y * s.Width + x) * 4;
+                if (o + 2 >= s.Bgra.Length) continue;
+                sb.Append(string.Format("({0},{1})=#{2:X2}{3:X2}{4:X2} ",
+                    x, y, s.Bgra[o + 2], s.Bgra[o + 1], s.Bgra[o]));
+            }
+            return sb.ToString().Trim();
+        }
+
         static void RunOverlayTest()
         {
             var ds = Platform.GetDisplays();
@@ -1608,12 +1680,17 @@ namespace RemeberEr
             });
 
             // 等渲染完一帧，再设定选区并自检。
-            // 直接持有 overlay 引用，不去翻 lifetime.Windows —— Show() 返回时窗口
-            // 还没被登记进去，按索引取会在等待期间拿到空集合。
-            DispatcherTimer.RunOnce(() =>
+            //
+            // ⚠️ 这里必须用 PumpUi 而不是 DispatcherTimer：
+            // 没有消息循环时定时器的回调**永远不会触发**，进程就那么挂着
+            // （踩过：自检跑到「框选层已显示」就没下文了，看起来像渲染失败）。
+            // 直接持有 overlay 引用，不去翻 lifetime.Windows ——
+            // Show() 返回时窗口还没被登记进去，按索引取会拿到空集合。
+            Dispatcher.UIThread.Invoke(() =>
             {
                 try
                 {
+                    PumpUi(1200);
                     if (overlay == null) { Log("!! 框选层没建起来"); Environment.Exit(1); }
                     int w = 900, h = 560;
                     int x = Math.Max(0, (shot.Width - w) / 2);
@@ -1625,7 +1702,7 @@ namespace RemeberEr
                     Log("!! 框选层自检失败：" + ex.GetType().Name + " " + ex.Message);
                 }
                 Environment.Exit(0);
-            }, TimeSpan.FromMilliseconds(1200));
+            });
         }
 
         /// <summary>
@@ -1716,6 +1793,7 @@ namespace RemeberEr
                 else if (a == "--manual-chooser") ManualChooser = true;
                 else if (a == "--manual-add-test") ManualAddTest = true;
                 else if (a == "--hotkey-recv-test") HotkeyRecvTest = true;
+                else if (a.StartsWith("--overlay-screen=")) OverlayScreenShot = a.Substring(17);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

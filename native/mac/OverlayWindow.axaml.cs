@@ -7,6 +7,23 @@ using Avalonia.Media;
 
 namespace RemeberEr
 {
+    /// <summary>AppKit 桥接：把窗口钉成整屏尺寸并把层级提到菜单栏之上。</summary>
+    internal static class OverlayBridge
+    {
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_window_cover_screen(
+            IntPtr nsWindow, double x, double y, double w, double h);
+
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_window_restore_level(IntPtr nsWindow);
+
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_hide_system_ui();
+
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_show_system_ui();
+    }
+
     /// <summary>
     /// 框选层：铺一张整屏截图，把选区之外压暗，拖出一个框。
     ///
@@ -109,13 +126,36 @@ namespace RemeberEr
             _root.PointerWheelChanged += (_, e) => e.Handled = true;   // 别让滚轮穿透
             KeyDown += OnKeyDown;
             Program.Log(string.Format(
-                "  [框选层] 构造后：Width/Height 设为 {0}x{1}，Position={2}",
-                Width, Height, Position));
+                "  [框选层] 构造后：Width/Height 设为 {0}x{1}，Position={2}，"
+                + "ClientSize={3}x{4}，Bounds={5}x{6}",
+                Width, Height, Position,
+                ClientSize.Width, ClientSize.Height, Bounds.Width, Bounds.Height));
 
             Opened += (_, __) =>
             {
-                // 以窗口**实际**客户区为准，把底图和 Canvas 对齐上去。
-                // 这样「画出来的东西」和「坐标换算用的比例」永远一致。
+                // ① 先把窗口钉住整块屏。
+                //
+                // 必须在 Opened 里做：AppKit 是在窗口真正显示时才把它压进
+                // 「可见区域」的（实测设 2560x1440，实际得到 2560x1346 且被挪到 y=30），
+                // 所以在构造阶段设尺寸没用，得等它显示出来再钉。
+                //
+                // displayBounds 从 (0,0) 开始，正好等于 AppKit 的窗口原点，
+                // 两个坐标系在这里重合 —— 不需要翻转 y（其他地方要翻，这里不用）。
+                CoverWholeScreen();
+
+                // 光把窗口层级提到最高还盖不住菜单栏和 Dock —— 它们是系统级 UI，
+                // 仍在浮层之上（实测截图里两者都没被压暗）。
+                // 所以截图期间把它们临时隐藏掉（全屏应用的标准做法）。
+                try
+                {
+                    OverlayBridge.remeber_hide_system_ui();
+                    Program.Log("  [框选层] 已临时隐藏菜单栏与 Dock");
+                }
+                catch (Exception ex) { Program.Log("  !! 隐藏系统 UI 失败：" + ex.Message); }
+
+                // ② 再以窗口**实际**客户区为准，把底图和 Canvas 对齐上去。
+                // 钉完全屏之后这里应该就等于屏幕物理尺寸了；
+                // 万一系统仍然不肯给满，坐标换算也会跟着实际尺寸走、不会错位。
                 double cw = ClientSize.Width > 0 ? ClientSize.Width : Width;
                 double ch = ClientSize.Height > 0 ? ClientSize.Height : Height;
                 _root.Width = cw;
@@ -131,16 +171,58 @@ namespace RemeberEr
                 // 尺寸到底是设置值还是被系统改了？把两套口径都打出来。
                 // 不这么做就只能猜「窗口为什么比我设的矮了 120px」。
                 Program.Log(string.Format(
-                    "  [框选层] 实测：Bounds={0}x{1} 客户区={2}x{3} Canvas={4}x{5}",
+                    "  [框选层] 实测：Bounds={0}x{1} 客户区={2}x{3} Canvas={4}x{5} "
+                    + "设定={6}x{7} Position={8}",
                     Bounds.Width, Bounds.Height,
                     ClientSize.Width, ClientSize.Height,
-                    _root.Bounds.Width, _root.Bounds.Height));
+                    _root.Bounds.Width, _root.Bounds.Height,
+                    Width, Height, Position));
             };
+        }
+
+        /// <summary>
+        /// 把窗口钉成整块屏的尺寸，并把层级提到菜单栏/Dock 之上。
+        /// 失败只是「盖不住菜单栏」，不该影响框选本身，所以整体吞掉异常。
+        /// </summary>
+        void CoverWholeScreen()
+        {
+            try
+            {
+                var h = TryGetPlatformHandle();
+                if (h == null || h.Handle == IntPtr.Zero)
+                {
+                    Program.Log("  !! 框选层拿不到 NSWindow，无法钉全屏");
+                    return;
+                }
+                OverlayBridge.remeber_window_cover_screen(h.Handle, 0, 0, _mw, _mh);
+                Program.Log(string.Format("  [框选层] 已钉全屏 {0}x{1}（层级提到菜单栏之上）", _mw, _mh));
+            }
+            catch (Exception ex)
+            {
+                Program.Log("  !! 钉全屏失败（框选仍可用，但可能盖不住菜单栏）：" + ex.Message);
+            }
         }
 
         /// <summary>整块撤走：先 Hide 再 Close（原版注释里说分层窗口直接 Close 会「分段消失」）。</summary>
         public void Dismiss()
         {
+            // 恢复菜单栏与 Dock —— 必须成对，否则用户退出截图后它们会一直不见
+            try
+            {
+                OverlayBridge.remeber_show_system_ui();
+                Program.Log("  [框选层] 已恢复菜单栏与 Dock");
+            }
+            catch (Exception) { }
+
+            // 还原窗口层级
+            try
+            {
+                var h = TryGetPlatformHandle();
+                if (h != null && h.Handle != IntPtr.Zero)
+                    OverlayBridge.remeber_window_restore_level(h.Handle);
+            }
+            catch (Exception) { }
+
             try { Hide(); } catch (Exception) { }
             try { Close(); } catch (Exception) { }
         }

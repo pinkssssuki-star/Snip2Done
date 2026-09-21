@@ -322,3 +322,100 @@ void remeber_post_hotkey_a(void)
     CGEventPost(kCGHIDEventTap, up);
     CFRelease(up);
 }
+
+/* ------------------------------------------------------------------ 全屏浮层
+ *
+ * 框选层要把**整块屏**盖住，包括菜单栏和 Dock。
+ *
+ * 为什么不能只靠 Avalonia 的 Width/Height：macOS 会把普通窗口压进
+ * 「可见区域」（visible frame）—— 实测设 2560x1440，实际拿到 2560x1346、
+ * 而且被挪到 y=30（菜单栏下面）。这样框选层盖不住菜单栏/Dock，
+ * 底图还会被纵向压扁（1440 的图挤进 1346）。
+ *
+ * 所以显示之后用 AppKit 直接钉：
+ *   · setFrame:display: 按 displayBounds 设成整屏尺寸（displayBounds 从 (0,0) 开始，
+ *     正好是 AppKit 的窗口原点，两个坐标系在这里重合，不需要翻转 y）
+ *   · level 提到 screenSaver 级 —— 高于菜单栏与 Dock，也高于普通置顶窗口
+ *
+ * 退出框选时要还原层级，否则面板会一直压在菜单栏上面。
+ */
+void remeber_window_cover_screen(void *nsWindow, double x, double y, double w, double h)
+{
+    if (nsWindow == NULL) return;
+    @try {
+        NSWindow *win = (__bridge NSWindow *)nsWindow;
+        NSRect r = NSMakeRect(x, y, w, h);
+        [win setFrame:r display:YES];
+
+        /* 用「护屏」层级而不是 screenSaver 层级。
+         * CGShieldingWindowLevel() 是为「要盖住包括菜单栏、Dock 在内的一切」
+         * 设计的（屏保、锁屏就是这一级），比 menu bar / dock 的层级都高。
+         * 实测 kCGScreenSaverWindowLevel 仍然盖不住那两者。 */
+        win.level = CGShieldingWindowLevel();
+
+        /* 无边框窗口默认不能成为 key window，激活时可能不生效 */
+        [win setAcceptsMouseMovedEvents:YES];
+    } @catch (NSException *e) { }
+}
+
+/* 还原层级（框选结束/取消时调） */
+void remeber_window_restore_level(void *nsWindow)
+{
+    if (nsWindow == NULL) return;
+    @try {
+        NSWindow *win = (__bridge NSWindow *)nsWindow;
+        win.level = NSFloatingWindowLevel;
+    } @catch (NSException *e) { }
+}
+
+/* ------------------------------------------------------------------ 截图期间隐藏菜单栏与 Dock
+ *
+ * 只把窗口 level 提到 kCGScreenSaverWindowLevel **不够** ——
+ * 菜单栏和 Dock 是系统级 UI，仍在浮层之上（实测截图里两者都没被压暗）。
+ * 正确做法是在截图期间用 NSApplication 的 presentationOptions 把它们临时隐藏。
+ *
+ * 这是「全屏应用」的标准做法：
+ *   NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar
+ *
+ * ⚠️ 必须成对调用：show/hide 之后要恢复成 AutoHide，
+ * 否则用户退出截图后菜单栏和 Dock 会一直不见。
+ */
+static NSApplicationPresentationOptions g_savedOptions = 0;
+static int g_optionsSaved = 0;
+
+void remeber_hide_system_ui(void)
+{
+    @try {
+        NSApplication *app = [NSApplication sharedApplication];
+        if (app == nil) return;
+
+        if (!g_optionsSaved) {
+            g_savedOptions = app.presentationOptions;
+            g_optionsSaved = 1;
+        }
+
+        /* ⚠️ presentationOptions 只在**应用处于活动状态**时才被系统采纳。
+         * 实测：不激活的话这句会被完全忽略，菜单栏和 Dock 照旧显示。
+         * 所以这里先把应用激活（框选层本来就是全屏交互，本来就该拿到焦点）。 */
+        [app activateIgnoringOtherApps:YES];
+
+        app.presentationOptions = NSApplicationPresentationHideDock
+                                | NSApplicationPresentationHideMenuBar;
+    } @catch (NSException *e) { }
+}
+
+void remeber_show_system_ui(void)
+{
+    @try {
+        NSApplication *app = [NSApplication sharedApplication];
+        if (app == nil) return;
+
+        if (g_optionsSaved) {
+            app.presentationOptions = g_savedOptions;
+            g_optionsSaved = 0;
+        } else {
+            /* 没存过就恢复成常规行为，别留下 HideDock 这种状态 */
+            app.presentationOptions = NSApplicationPresentationDefault;
+        }
+    } @catch (NSException *e) { }
+}
