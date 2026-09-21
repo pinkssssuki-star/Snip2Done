@@ -523,8 +523,15 @@
                                   <TextBlock Text="{Binding Title}" FontSize="12"
                                              Foreground="{StaticResource Cx1}"
                                              TextTrimming="CharacterEllipsis"/>
+                                  <!-- 备注要延续到完成列表：写过的字不该在完成之后就看不见了 -->
+                                  <TextBlock Text="{Binding Note}" FontSize="10.5"
+                                             Foreground="{StaticResource Cx2}"
+                                             TextWrapping="Wrap" MaxHeight="30"
+                                             Margin="0,3,0,0"
+                                             IsVisible="{Binding HasNote}"/>
                                   <TextBlock Text="{Binding MetaText}" FontSize="9.5"
-                                             Foreground="{StaticResource TxFaint}"/>
+                                             Foreground="{StaticResource TxFaint}"
+                                             Margin="0,2,0,0"/>
                                 </StackPanel>
                               </Border>
                             </DataTemplate>
@@ -551,8 +558,15 @@
                                   <TextBlock Text="{Binding Title}" FontSize="12"
                                              Foreground="{StaticResource Cx1}"
                                              TextTrimming="CharacterEllipsis"/>
+                                  <!-- 备注要延续到完成列表：写过的字不该在完成之后就看不见了 -->
+                                  <TextBlock Text="{Binding Note}" FontSize="10.5"
+                                             Foreground="{StaticResource Cx2}"
+                                             TextWrapping="Wrap" MaxHeight="30"
+                                             Margin="0,3,0,0"
+                                             IsVisible="{Binding HasNote}"/>
                                   <TextBlock Text="{Binding MetaText}" FontSize="9.5"
-                                             Foreground="{StaticResource TxFaint}"/>
+                                             Foreground="{StaticResource TxFaint}"
+                                             Margin="0,2,0,0"/>
                                 </StackPanel>
                               </Border>
                             </DataTemplate>

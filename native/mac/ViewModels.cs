@@ -270,6 +270,17 @@ namespace RemeberEr
         public string RoomName { get; set; }
         public string ChipKind { get; set; }
         public string MetaText { get; set; }
+
+        /// <summary>
+        /// 条目上写的备注。
+        ///
+        /// 这个字段原来**漏了** —— 数据层一直保留着 note（Store.Done() 只加完成时间，
+        /// 不动 note），但 DoneVm 里没有它，所以完成之后界面上再也看不到自己写过的备注。
+        /// 用户报的「备注需要延续到 Done」就是这个缺口。
+        /// </summary>
+        public string Note { get; set; }
+        public bool HasNote { get { return !string.IsNullOrWhiteSpace(Note); } }
+
         Bitmap _thumb;
         public Bitmap Thumb
         {
@@ -1267,6 +1278,7 @@ namespace RemeberEr
                 RoomName = isWant ? "Wantdo" : "Todo",
                 ChipKind = isWant ? "want" : "todo",
                 MetaText = "用时 " + Fmt.Dur(J.Num(it, "elapsedMs", 0)) + " · " + hhmm + " 完成",
+                Note = J.Str(it, "note", ""),
                 Thumb = null,
                 ImagePath = ImgPath(it),
                 FirstChar = FirstCharOf(title.Length > 0 ? title : src),
