@@ -25,6 +25,10 @@ namespace RemeberEr
 
         [System.Runtime.InteropServices.DllImport("libremeber_sck")]
         internal static extern void remeber_window_make_panel(IntPtr nsWindow);
+
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_window_set_frame(
+            IntPtr nsWindow, double x, double yTop, double w, double h);
     }
 
     /// <summary>

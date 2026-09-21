@@ -438,3 +438,24 @@ void remeber_show_system_ui(void)
         }
     } @catch (NSException *e) { }
 }
+
+/* ------------------------------------------------------------------ 一次性设窗口 frame
+ *
+ * 缩放贴图时如果分两步（先改 Size 再改 Position），macOS 会在两次调用之间
+ * 重新布局并可能插一段动画，于是「以光标为锚点」的推算对不上实际状态，
+ * 表现就是缩放时图会漂、而且一卡一卡。
+ * setFrame: 一次把位置和尺寸都设好，中间没有可观察的中间态。
+ *
+ * AppKit 的窗口原点在左下角，而我们的坐标是「屏幕左上角为原点、y 向下」，
+ * 所以这里要把 y 翻过来：y_appkit = screenH - y_top - h。
+ */
+void remeber_window_set_frame(void *nsWindow, double x, double yTop, double w, double h)
+{
+    if (nsWindow == NULL) return;
+    @try {
+        NSWindow *win = (__bridge NSWindow *)nsWindow;
+        NSRect screen = [[win screen] frame];
+        NSRect r = NSMakeRect(x, screen.size.height - yTop - h, w, h);
+        [win setFrame:r display:YES];
+    } @catch (NSException *e) { }
+}
