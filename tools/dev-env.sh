@@ -42,19 +42,34 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-$_REPO_ROOT/.dev/local/share}"
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$_REPO_ROOT/.dev/local/config}"
 mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" 2>/dev/null
 
-# --- 代理（可选）---
-# 本机直连 GitHub/NuGet 会被阻断，需要走本地代理；但这只对**本机**成立，
-# 别人那里没有这个代理，无条件设上去反而会把正常的直连也弄坏。
-# 所以改成显式开关：
-#     export REMEBER_USE_PROXY=1 && source tools/dev-env.sh
-if [ "${REMEBER_USE_PROXY:-0}" = "1" ]; then
-  export HTTP_PROXY="${HTTP_PROXY:-http://127.0.0.1:7897}"
-  export HTTPS_PROXY="${HTTPS_PROXY:-http://127.0.0.1:7897}"
+# --- 代理（自动检测）---
+# 开发机直连 GitHub/NuGet 会被阻断，必须走本地代理；但这只对**开发机**成立。
+# 无条件设上去会把别人正常的直连也弄坏，所以这里**先探一下有没有本地代理**：
+#   · 探测到已知端口在听 → 用它（开发机就是这种）
+#   · 没探测到           → 什么都不设，直连（别人的机器）
+# 也支持显式覆盖：
+#   REMEBER_PROXY=http://别的地址:端口 source tools/dev-env.sh
+#   REMEBER_NO_PROXY=1                 source tools/dev-env.sh   # 强制直连
+_proxy_port="${REMEBER_PROXY_PORT:-7897}"
+_use_proxy=0
+if [ "${REMEBER_NO_PROXY:-0}" = "1" ]; then
+  _use_proxy=0
+elif [ -n "${REMEBER_PROXY:-}" ]; then
+  _use_proxy=1
+elif command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 "$_proxy_port" >/dev/null 2>&1; then
+  _use_proxy=1
+fi
+
+if [ "$_use_proxy" = "1" ]; then
+  _proxy_url="${REMEBER_PROXY:-http://127.0.0.1:$_proxy_port}"
+  export HTTP_PROXY="$_proxy_url"
+  export HTTPS_PROXY="$_proxy_url"
   export http_proxy="$HTTP_PROXY"
   export https_proxy="$HTTPS_PROXY"
-  export ALL_PROXY="${ALL_PROXY:-socks5://127.0.0.1:7897}"
+  export ALL_PROXY="${ALL_PROXY:-socks5://127.0.0.1:$_proxy_port}"
   export NO_PROXY="${NO_PROXY:-localhost,127.0.0.1,::1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,*.local}"
   export no_proxy="$NO_PROXY"
 fi
+unset _proxy_port _use_proxy _proxy_url 2>/dev/null || true
 
 set +a
