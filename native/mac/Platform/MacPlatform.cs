@@ -308,10 +308,13 @@ namespace RemeberEr
             try
             {
                 int w = 0, h = 0, err = -1;
+                var swSck = Stopwatch.StartNew();
                 img = remeber_sck_capture_display(displayId, out w, out h, out err);
+                swSck.Stop();
                 if (img == IntPtr.Zero)
                 {
-                    Program.Log("!! 抓屏失败：" + SckErrorText(err));
+                    Program.Log(string.Format("!! 抓屏失败（耗时 {0}ms）：{1}",
+                        swSck.ElapsedMilliseconds, SckErrorText(err)));
                     if (err == SckNoContent)
                     {
                         Program.Log("   这通常就是缺少「屏幕录制」权限 —— ");

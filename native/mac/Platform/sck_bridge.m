@@ -128,11 +128,30 @@ CGImageRef remeber_sck_capture_display(uint32_t displayID, int *outW, int *outH,
         return NULL;
     }
 
-    /* 用一个不含任何窗口的过滤器抓整块屏。
-       用 excludingWindows:@[] 而不是 includingWindows，是为了拿到「整屏」，
-       包含桌面与程序坞 —— 这是框选层需要的底图。 */
+    /* 抓整块屏（包含桌面与程序坞），但**把本进程自己的窗口排除掉**。
+     *
+     * 为什么要排除：截图里不该出现记忆面板自己 ——
+     * 用户按截图键时面板就在屏幕上，不排除的话它会被截进图里。
+     *
+     * 之前试过「抓屏前把面板藏起来」：Hide() 与移出屏幕都试过，
+     * 但那依赖改变窗口状态，而且（在测试环境里）会让 SCK 回调超时。
+     * 直接从过滤器里排除更干净：不动任何窗口状态，SCK 本身就是为此设计的。
+     *
+     * 做法：从可共享内容里挑出「属于本进程」的窗口，交给 excludingWindows。
+     * 本进程的窗口在 SCShareableContent.windows 里带 owningApplication，
+     * 用它和 runningApplication 比对即可。
+     */
+    NSRunningApplication *self = [NSRunningApplication currentApplication];
+    NSMutableArray<SCWindow *> *ownWindows = [NSMutableArray array];
+    for (SCWindow *w in content.windows) {
+        if (w.owningApplication != nil &&
+            w.owningApplication.processID == self.processIdentifier) {
+            [ownWindows addObject:w];
+        }
+    }
+
     SCContentFilter *filter =
-        [[SCContentFilter alloc] initWithDisplay:target excludingWindows:@[]];
+        [[SCContentFilter alloc] initWithDisplay:target excludingWindows:ownWindows];
 
     SCStreamConfiguration *cfg = [[SCStreamConfiguration alloc] init];
     /* 用屏自身的像素尺寸，不做缩放：上层按物理像素算坐标 */

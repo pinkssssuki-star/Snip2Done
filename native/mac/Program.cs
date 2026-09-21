@@ -147,6 +147,26 @@ namespace RemeberEr
         public static string OverlayScreenShot;
 
         /// <summary>
+        /// 在**真实事件循环**下走一次完整的 LiveCapture（含「抓屏前藏面板」）。
+        ///
+        /// 为什么单独做这一个：--flow=live 用的是 SetupWithoutStarting + 手动泵消息，
+        /// 那种模式下主线程被我自己的循环占着，ScreenCaptureKit 的回调拿不到 run loop
+        /// 而超时（实测 15001ms）—— 那是**测试模式的假象**，不是产品行为。
+        /// 这个入口用真正的 Start，给 SCK 一个正常的 run loop。
+        /// </summary>
+        public static bool LiveCaptureCheck;
+
+        /// <summary>
+        /// 最小对照：真实事件循环里直接抓一次屏（面板照常显示），
+        /// 落一张 PNG 供人眼确认「图里有没有我们自己的面板」。
+        /// 不经过控制器，所以它验的是抓屏与过滤器本身。
+        /// </summary>
+        public static bool SckCheck;
+
+        /// <summary>--sck-check 的输出 PNG 路径。</summary>
+        public static string SckCheckOut;
+
+        /// <summary>
         /// 基准模式。**注意**：实际测量不走这个开关（见 build-app.sh 末尾的说明），
         /// 这里保留只是因为命令行参数要与 Windows 版兼容、不至于报未知参数。
         /// </summary>
@@ -289,6 +309,10 @@ namespace RemeberEr
             // 注意：--shot-chooser 这个分支在 --manual-chooser 之前，
             // 两者同时给的时候（用 --shot-chooser 指定输出路径 + --manual-chooser 切模式）
             // 必须在这里分流，否则下面那个独立分支永远轮不到（踩过）。
+            if (SckCheck) { RunSckCheck(); return; }
+
+            if (LiveCaptureCheck) { RunLiveCaptureCheck(); return; }
+
             if (OverlayScreenShot != null) { RunOverlayScreenTest(); return; }
 
             if (HotkeyRecvTest) { RunHotkeyRecvTest(); return; }
@@ -1592,6 +1616,105 @@ namespace RemeberEr
         /// 自动画一个 900x560 的选区，把窗口自身渲染成 PNG 存下来。
         /// </summary>
         /// <summary>
+        /// 最小对照：真实事件循环里直接抓一次屏。
+        /// 目的：把「SCK 本身坏了吗」和「控制器/窗口状态影响的」彻底分开。
+        /// </summary>
+        static void RunSckCheck()
+        {
+            Log("=== SCK 最小对照（真实事件循环，不经过控制器）===");
+            AppBuilder.Configure<SckCheckApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .StartWithClassicDesktopLifetime(new string[0], ShutdownMode.OnMainWindowClose);
+        }
+
+        public class SckCheckApp : App
+        {
+            public override void OnFrameworkInitializationCompleted()
+            {
+                if (ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    var panel = new PanelWindow();
+                    desktop.MainWindow = panel;
+                    panel.Show();
+
+                    Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+                    {
+                        var ds = Program.Platform.GetDisplays();
+                        var d = ds.Count > 0 ? ds[0] : null;
+                        Log("  直接调 CaptureDisplay（面板显示着）…");
+                        var shot = Program.Platform.CaptureDisplay(d);
+                        Log(shot != null
+                            ? string.Format("  ✓ 成功 {0}x{1}（面板在屏幕上，应已被过滤器排除）",
+                                shot.Width, shot.Height)
+                            : "  ✗ 失败（见上面的原因）");
+
+                        // 落盘一张，便于人眼确认图里有没有我们的面板
+                        if (shot != null && Program.SckCheckOut != null)
+                        {
+                            MacInterop.WritePng(Program.SckCheckOut, shot.Width, shot.Height, shot.Bgra);
+                            Log("  已写出 " + Program.SckCheckOut);
+                        }
+                        desktop.Shutdown();
+                    }, TimeSpan.FromMilliseconds(900));
+                }
+            }
+        }
+
+        /// <summary>在真实事件循环下走一次 LiveCapture。</summary>
+        static void RunLiveCaptureCheck()
+        {
+            Log("=== LiveCapture 实机检查（真实事件循环）===");
+            if (AutoRegionW <= 0) { AutoRegionW = 400; AutoRegionH = 300; }
+            if (AutoChoose == null) AutoChoose = "today";
+
+            AppBuilder.Configure<LiveCheckApp>()
+                .UsePlatformDetect()
+                .WithInterFont()
+                .LogToTrace()
+                .StartWithClassicDesktopLifetime(new string[0], ShutdownMode.OnMainWindowClose);
+        }
+
+        /// <summary>跑完自动退出的应用：给 LiveCapture 一个真实的 run loop。</summary>
+        public class LiveCheckApp : App
+        {
+            public override void OnFrameworkInitializationCompleted()
+            {
+                if (ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    var panel = new PanelWindow();
+                    desktop.MainWindow = panel;
+                    panel.Show();
+
+                    // 等窗口真的显示出来，再走一次完整采集
+                    Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+                    {
+                        try
+                        {
+                            var store = new Store(Program.DataDir);
+                            var ctl = new CaptureController(store, panel);
+                            Program.Log("  [检查] 开始 LiveCapture（面板显示着）");
+                            ctl.LiveCapture("实机检查");
+                        }
+                        catch (Exception ex)
+                        {
+                            Program.Log("  !! LiveCapture 异常：" + ex.GetType().Name + " " + ex.Message);
+                        }
+                    }, TimeSpan.FromMilliseconds(800));
+
+                    // 给它足够时间走完抓屏 → 框选 → 归类 → 落盘
+                    Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+                    {
+                        Program.Log("  [检查] 结束，条目数 = " + new Store(Program.DataDir).Items.Count);
+                        desktop.Shutdown();
+                    }, TimeSpan.FromSeconds(8));
+                }
+                // 不调 base：base 会再建一个主窗口
+            }
+        }
+
+        /// <summary>
         /// 把框选层显示出来，再从**真实屏幕**抓一张，看菜单栏/Dock 是否被盖住或隐藏。
         /// </summary>
         static void RunOverlayScreenTest()
@@ -1794,6 +1917,9 @@ namespace RemeberEr
                 else if (a == "--manual-add-test") ManualAddTest = true;
                 else if (a == "--hotkey-recv-test") HotkeyRecvTest = true;
                 else if (a.StartsWith("--overlay-screen=")) OverlayScreenShot = a.Substring(17);
+                else if (a == "--live-capture-check") LiveCaptureCheck = true;
+                else if (a == "--sck-check") SckCheck = true;
+                else if (a.StartsWith("--sck-check-out=")) SckCheckOut = a.Substring(16);
                 else if (a == "--bench") BenchMode = true;
                 else if (a.StartsWith("--shot-record=")) ShotRecord = a.Substring(14);
                 else if (a == "--vm-selftest") VmSelfTest = true;

@@ -36,6 +36,8 @@ namespace RemeberEr
         /// </summary>
         string _attachToId;
 
+
+
         public CaptureController(Store store, PanelWindow panel)
         {
             _store = store;
@@ -108,16 +110,47 @@ namespace RemeberEr
         /// </summary>
         public void LiveCapture(string why)
         {
-            // ⚠️ 必须在浮层出现**之前**探测窗口，否则只会探到自己
+            // ⚠️ 探测「鼠标下的窗口」必须在自己的浮层出现**之前** ——
+            // 否则框选层一盖上去，探到的就只会是我们自己。
             var disp = PickDisplayUnderCursor();
             var fg = Program.Platform.ProbeForegroundWindow();
             Program.Log(string.Format("  [采集] 目标屏 = {0}；来源 = {1} / 标题 = {2}",
                 disp, fg.Source, fg.Title));
 
+            // 面板**不用藏** —— 抓屏时由 ScreenCaptureKit 的过滤器把本进程的窗口
+            // 排除掉（见 sck_bridge.m 里的 excludingWindows）。
+            //
+            // 为什么不用「藏起来再恢复」：那条路要改两次窗口状态，
+            // 而且实测在测试环境里会让 SCK 的回调超时（15s 不返回）。
+            // 从过滤器里排除不动任何窗口状态，SCK 本身就是为此设计的，更干净。
+            GrabAndOverlay(disp, fg, why);
+        }
+
+        /// <summary>真正抓屏并铺开框选层。面板已藏好之后才调。</summary>
+        void GrabAndOverlay(DisplayInfo disp, ForegroundInfo fg, string why)
+        {
             var shot = Program.Platform.CaptureDisplay(disp);
-            if (shot == null) { Program.Log("  [采集] 抓屏失败（见上面原因）"); return; }
+            if (shot == null)
+            {
+                Program.Log("  [采集] 抓屏失败（见上面原因）");
+                RestorePanel();
+                _busy = false;
+                return;
+            }
 
             RunFromScreenshot(shot, disp, fg, why);
+        }
+
+        /// <summary>
+        /// 采集结束时的收尾。
+        ///
+        /// 面板不藏也不移（靠过滤器排除），所以这里其实没有要恢复的东西 ——
+        /// 保留这个调用点是为了让「采集无论成败都要走收尾」这件事在代码里显式可见，
+        /// 以后真要在采集期间改窗口状态，接在这里就行。
+        /// </summary>
+        void RestorePanel()
+        {
+            _panel.Vm.Refresh();
         }
 
         /// <summary>光标所在的那块屏；取不到就用主屏。</summary>
@@ -212,6 +245,7 @@ namespace RemeberEr
                         _attachToId = null;
                         var cropAttach = CropBgra(shot, ix, iy, iw, ih);
                         AttachImage(to, EncodePng(cropAttach));
+                        RestorePanel();
                         _busy = false;
                         return;
                     }
@@ -230,6 +264,7 @@ namespace RemeberEr
                 Program.Log("  [采集] 已取消" + (_attachToId != null ? "（补图）" : ""));
                 _attachToId = null;
                 CloseOverlay();
+                RestorePanel();
                 _busy = false;
             };
 
@@ -332,8 +367,8 @@ namespace RemeberEr
                 id, room, bucket ?? "—", dueDays > 0 ? dueDays.ToString() : "—",
                 png != null ? (png.Length / 1024) + "KB" : "无"));
 
-            // 面板刷新（如果这次采集是 Wantdo，还顺手把它当作"被碰过"）
-            _panel.Vm.Refresh();
+            // 收尾（面板刷新等；面板本身没被藏过，见 RestorePanel 的说明）
+            RestorePanel();
         }
 
         // ============================================================ 位图工具
