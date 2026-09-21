@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemeberEr.PinWindow"
+        WindowDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        Title="贴图">
+
+  <!--
+    贴图窗口：把截下来的一块钉在屏幕上（对应 Snipaste 的贴图）。
+    不落库、不进 Todo/Wantdo —— 它只是一张摆在那儿的图。
+
+    交互（对着 Snipaste 的习惯做）：
+      · 拖动图片任意位置 = 移动
+      · 滚轮 / 双指 = 缩放
+      · 双击（或按 Esc）= 关掉
+      · 右键 = 关掉
+  -->
+  <Border CornerRadius="6" Background="#ffffff"
+          BorderBrush="#33000000" BorderThickness="1"
+          BoxShadow="0 8 28 0 #55000000">
+    <Image x:Name="Pic" Stretch="Fill"/>
+  </Border>
+</Window>

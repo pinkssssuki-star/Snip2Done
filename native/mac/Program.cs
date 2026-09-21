@@ -1785,7 +1785,13 @@ namespace RemeberEr
             Log("=== 框选层自检 ===");
             Log("  目标屏: " + d);
             var shot = Platform.CaptureDisplay(d);
-            if (shot == null) { Log("!! 抓屏失败，无法继续（先把屏幕录制权限搞定）"); Environment.Exit(1); }
+            if (shot == null)
+            {
+                // 抓屏不可用时退回合成底图 —— 框选层的**排版与几何**照样能验，
+                // 只有「底图是真实屏幕」这一点验不了。沙箱里 SCK 不可用时靠它。
+                Log("  !! 抓屏失败，退回合成底图（只能验排版与几何，画面是假的）");
+                shot = MakeSyntheticShot((int)d.W, (int)d.H);
+            }
             Log(string.Format("  底图 = {0}x{1}", shot.Width, shot.Height));
 
             var app = AppBuilder.Configure<SelfTestApp>()

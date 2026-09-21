@@ -22,6 +22,9 @@ namespace RemeberEr
 
         [System.Runtime.InteropServices.DllImport("libremeber_sck")]
         internal static extern void remeber_show_system_ui();
+
+        [System.Runtime.InteropServices.DllImport("libremeber_sck")]
+        internal static extern void remeber_window_make_panel(IntPtr nsWindow);
     }
 
     /// <summary>
@@ -62,7 +65,8 @@ namespace RemeberEr
         Rectangle _selRect, _h1, _h2, _h3, _h4;
         Border _sizeTag, _hint;
         TextBlock _sizeText;
-        Button _confirmBtn;
+        Button _confirmBtn, _pinBtn;
+        StackPanel _actions;
 
         Mode _mode = Mode.None;
         int _edge;                  // 位掩码 1=左 2=上 4=右 8=下
@@ -75,6 +79,12 @@ namespace RemeberEr
         /// <summary>选区定下来了：物理像素，相对本屏左上角。</summary>
         public event Action<int, int, int, int> Picked;
         public event Action Cancelled;
+
+        /// <summary>
+        /// 贴图：把选区钉在屏幕上。参数是物理像素矩形（相对本屏左上角）。
+        /// 走这条就不落库 —— 用户只是想「把这张图摆在那儿」，不是记一件事。
+        /// </summary>
+        public event Action<int, int, int, int> Pinned;
 
         public OverlayWindow(Screenshot shotImg, DisplayInfo display, bool quick)
         {
@@ -97,6 +107,9 @@ namespace RemeberEr
             _sizeTag = this.FindControl<Border>("SizeTag");
             _sizeText = this.FindControl<TextBlock>("SizeText");
             _confirmBtn = this.FindControl<Button>("ConfirmBtn");
+            _pinBtn = this.FindControl<Button>("PinBtn");
+            _actions = this.FindControl<StackPanel>("Actions");
+            _pinBtn.Click += (_, __) => Pin();
             _hint = this.FindControl<Border>("Hint");
 
             // 窗口几何：按物理像素摆，尺寸折成本窗口的布局单位。
@@ -258,9 +271,32 @@ namespace RemeberEr
             Program.Log(string.Format(
                 "  [自检] 换算比例 KX={0:0.####} KY={1:0.####}（窗口 {2:0.#}x{3:0.#} / 屏幕 {4}x{5}）",
                 KX, KY, Width, Height, _mw, _mh));
-            Program.Log(string.Format("  [自检] ✓ 可见={0} 位置=({1:0.#},{2:0.#})",
-                _confirmBtn.IsVisible,
-                Canvas.GetLeft(_confirmBtn), Canvas.GetTop(_confirmBtn)));
+            Program.Log(string.Format("  [自检] 动作键 可见={0} 位置=({1:0.#},{2:0.#})  ✓矩形={3}  📌矩形={4}",
+                _actions.IsVisible,
+                Canvas.GetLeft(_actions), Canvas.GetTop(_actions),
+                ConfirmRect(), PinRect()));
+            // 尺寸诊断：Canvas 子元素如果量到 0，就会「位置对但什么都画不出来」
+            Program.Log(string.Format("  [自检] Actions 实测={0:0.#}x{1:0.#} 期望={2:0.#}x{3:0.#}",
+                _actions.Bounds.Width, _actions.Bounds.Height,
+                _actions.DesiredSize.Width, _actions.DesiredSize.Height));
+            Program.Log(string.Format("  [自检] ✓ 实测={0:0.#}x{1:0.#} 可见={2} | 📌 实测={3:0.#}x{4:0.#} 可见={5}",
+                _confirmBtn.Bounds.Width, _confirmBtn.Bounds.Height, _confirmBtn.IsVisible,
+                _pinBtn.Bounds.Width, _pinBtn.Bounds.Height, _pinBtn.IsVisible));
+            Program.Log(string.Format("  [自检] Canvas={0:0.#}x{1:0.#} 窗口={2:0.#}x{3:0.#}",
+                _root.Bounds.Width, _root.Bounds.Height, Width, Height));
+
+            // 强制跑一次布局：Canvas 的子元素位置是代码设的，
+            // 之后必须有一次布局/渲染，否则它们没有 Bounds、也就画不出来。
+            try
+            {
+                InvalidateMeasure();
+                InvalidateArrange();
+                UpdateLayout();
+                Program.Log(string.Format("  [自检] 布局后 Actions 实测={0:0.#}x{1:0.#}，✓={2:0.#}x{3:0.#}",
+                    _actions.Bounds.Width, _actions.Bounds.Height,
+                    _confirmBtn.Bounds.Width, _confirmBtn.Bounds.Height));
+            }
+            catch (Exception ex) { Program.Log("  [自检] 强制布局失败：" + ex.Message); }
 
             if (!string.IsNullOrEmpty(verifyPngPath)) SaveSelfPng(verifyPngPath);
 
@@ -386,7 +422,10 @@ namespace RemeberEr
             _selBox.IsVisible = has;
             _sizeTag.IsVisible = has;
             // 快速模式不显示 ✓ —— 松手就定了，摆个按钮反而让人以为还要点
-            _confirmBtn.IsVisible = has && _settled && !_quick;
+            // 快速模式不显示（松手即定）；否则松手后给出「✓ 存起来 / 📌 贴图」两个选择
+            _actions.IsVisible = has && _settled && !_quick;
+            _confirmBtn.IsVisible = _actions.IsVisible;
+            _pinBtn.IsVisible = _actions.IsVisible;
             _hint.IsVisible = !has;
             if (!has) return;
 
@@ -409,7 +448,7 @@ namespace RemeberEr
             Canvas.SetLeft(_sizeTag, Math.Max(6, Math.Min(sel.X, Width - 96)));
             Canvas.SetTop(_sizeTag, above ? sel.Y - 24 : sel.Y + 8);
 
-            PlaceConfirm(sel);
+            PlaceActions(sel);
         }
 
         static void PlaceHandle(Rectangle h, double x, double y)
@@ -430,18 +469,27 @@ namespace RemeberEr
         /// ✓ 贴在「鼠标松手那个角」的**外侧**，不压住选区内容。
         /// 外侧放不下就沿同一条边平移，再不行才翻到对侧；极端情况才夹回可视范围。
         /// </summary>
-        void PlaceConfirm(Rect sel)
+        void PlaceActions(Rect sel)
         {
-            if (!_confirmBtn.IsVisible) return;
+            if (!_actions.IsVisible) return;
+
+            // ⚠️ Canvas 从不测量子元素，所以这里必须**主动量一次**，
+            // 否则容器尺寸是 0、位置算了也画不出来（实测：哈希与改动前完全一致，
+            // 图上根本看不到按钮）。提示条 PlaceHint 用的是同样的做法。
+            _actions.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double boxW = _actions.DesiredSize.Width > 0 ? _actions.DesiredSize.Width : (BOX * 2 + 6);
+            double boxH = _actions.DesiredSize.Height > 0 ? _actions.DesiredSize.Height : BOX;
+            _actions.Width = boxW;
+            _actions.Height = boxH;
 
             bool right = _last.X >= sel.Left + sel.Width / 2;
             bool bottom = _last.Y >= sel.Top + sel.Height / 2;
 
-            double bx = right ? sel.Right + GAP - PAD : sel.Left - BOX - GAP + PAD;
+            double bx = right ? sel.Right + GAP - PAD : sel.Left - boxW - GAP + PAD;
             double by = bottom ? sel.Bottom + GAP - PAD : sel.Top - BOX - GAP + PAD;
 
-            double maxX = Math.Max(0, Width - BOX);
-            double maxY = Math.Max(0, Height - BOX);
+            double maxX = Math.Max(0, Width - boxW);
+            double maxY = Math.Max(0, Height - boxH);
             double x = Math.Max(0, Math.Min(bx, maxX));
             double y = Math.Max(0, Math.Min(by, maxY));
 
@@ -449,10 +497,10 @@ namespace RemeberEr
             var cands = new[]
             {
                 new Point(bx, by),
-                new Point(bx, bottom ? by : sel.Top + GAP - PAD),
+                new Point(bx, bottom ? by : sel.Top - boxH - GAP + PAD),
                 new Point(right ? bx : sel.Left + GAP - PAD, by),
-                new Point(right ? sel.Right - BOX - GAP + PAD : bx, by),
-                new Point(bx, bottom ? sel.Bottom - BOX - GAP + PAD : by),
+                new Point(right ? sel.Right - boxW - GAP + PAD : bx, by),
+                new Point(bx, bottom ? sel.Bottom - boxH - GAP + PAD : by),
             };
 
             foreach (var c in cands)
@@ -460,8 +508,8 @@ namespace RemeberEr
                 if (c.X >= 0 && c.Y >= 0 && c.X <= maxX && c.Y <= maxY) { x = c.X; y = c.Y; break; }
             }
 
-            Canvas.SetLeft(_confirmBtn, x);
-            Canvas.SetTop(_confirmBtn, y);
+            Canvas.SetLeft(_actions, x);
+            Canvas.SetTop(_actions, y);
         }
 
         static Rect ToRect(Point a, Point b)
@@ -492,7 +540,14 @@ namespace RemeberEr
 
         Rect ConfirmRect()
         {
-            return new Rect(Canvas.GetLeft(_confirmBtn), Canvas.GetTop(_confirmBtn), BOX, BOX);
+            // ✓ 是容器里的第一个，所以它在容器左半边
+            return new Rect(Canvas.GetLeft(_actions), Canvas.GetTop(_actions), BOX, BOX);
+        }
+
+        /// <summary>📌 的命中矩形（容器右半边）。</summary>
+        Rect PinRect()
+        {
+            return new Rect(Canvas.GetLeft(_actions) + BOX + 6, Canvas.GetTop(_actions), BOX, BOX);
         }
 
         // ============================================================ 交互
@@ -500,6 +555,15 @@ namespace RemeberEr
         void OnPointerPressed(object sender, PointerPressedEventArgs e)
         {
             var props = e.GetCurrentPoint(_root).Properties;
+
+            // 右键 = 取消（和归类窗同一个约定，用户也期待这样）
+            if (props.IsRightButtonPressed)
+            {
+                e.Handled = true;
+                Cancel();
+                return;
+            }
+
             if (!props.IsLeftButtonPressed) return;
 
             var p = CursorInLayout();
@@ -508,9 +572,14 @@ namespace RemeberEr
             // ✓ 的命中判定自己做，不走框架的 HitTest ——
             // 混 DPI 下框架的输入坐标不一定和我们绘制用的布局坐标一致，
             // 靠它会出现「看得见点不着」（原版注释里的原话）。
-            if (_confirmBtn.IsVisible && ConfirmRect().Contains(p))
+            if (_actions.IsVisible && ConfirmRect().Contains(p))
             {
                 Confirm();
+                return;
+            }
+            if (_actions.IsVisible && PinRect().Contains(p))
+            {
+                Pin();
                 return;
             }
 
@@ -534,9 +603,11 @@ namespace RemeberEr
 
             if (_mode == Mode.None)
             {
-                bool onBtn = _confirmBtn.IsVisible && ConfirmRect().Contains(p);
-                _confirmBtn.Opacity = onBtn ? 0.85 : 1.0;
-                if (onBtn) { Cursor = new Cursor(StandardCursorType.Hand); return; }
+                bool onConfirm = _actions.IsVisible && ConfirmRect().Contains(p);
+                bool onPin = _actions.IsVisible && PinRect().Contains(p);
+                _confirmBtn.Opacity = onConfirm ? 0.85 : 1.0;
+                _pinBtn.Opacity = onPin ? 0.85 : 1.0;
+                if (onConfirm || onPin) { Cursor = new Cursor(StandardCursorType.Hand); return; }
                 UpdateCursor(p);
                 return;
             }
@@ -641,6 +712,24 @@ namespace RemeberEr
 
             var h = Picked;
             Program.Log("  [框选层] Confirm 通过，订阅数 = " + (h == null ? 0 : h.GetInvocationList().Length));
+            if (h != null) h(ix, iy, iw, ih);
+        }
+
+        /// <summary>
+        /// 贴图：把选区钉在屏幕上（不落库）。
+        ///
+        /// 单独一条出口而不是复用 Confirm —— 因为它后面接的是完全不同的两件事：
+        /// Confirm 会去问「Todo 还是 Wantdo」并存起来，Pin 直接摆一个窗口在屏幕上。
+        /// </summary>
+        void Pin()
+        {
+            if (!_settled || _sel.Width <= 0) return;
+
+            int ix, iy, iw, ih;
+            ToImagePixels(_sel, out ix, out iy, out iw, out ih);
+            if (iw < 6 || ih < 6) return;
+
+            var h = Pinned;
             if (h != null) h(ix, iy, iw, ih);
         }
 

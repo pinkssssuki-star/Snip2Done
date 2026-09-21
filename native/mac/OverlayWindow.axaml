@@ -57,13 +57,34 @@
       <TextBlock x:Name="SizeText" FontSize="11" Foreground="#FFF2EFF7" />
     </Border>
 
-    <!-- ✓ 确认键：黑底白勾，贴在选区外侧，注意别压住选区内容 -->
-    <Button x:Name="ConfirmBtn" IsVisible="False"
-            Width="34" Height="34" Padding="0"
-            Background="#E6000000" BorderThickness="0"
-            CornerRadius="6" Cursor="Hand">
-      <TextBlock Text="✓" FontSize="17" FontWeight="Bold" Foreground="#FFFFFFFF" />
-    </Button>
+    <!--
+      选区外侧的两个动作键：✓ 存起来（走 Todo/Wantdo）/ 📌 贴图（钉在屏幕上，不落库）。
+      放在同一个 StackPanel 里，所以贴到选区外侧的逻辑只需要算一次位置。
+    -->
+    <!--
+      ⚠️ 必须显式给 Width/Height：Canvas **从不测量子元素**，
+      它只按 Left/Top 摆放、并采用子元素自己报的尺寸。
+      不给的话 StackPanel 量到 0x0 —— 位置对、可见=True，但什么都画不出来
+      （实测：Actions 实测=0x0 期望=0x0，图上完全看不到两个按钮）。
+      宽度 = 两个 34 的按钮 + 中间 6 的间距。
+    -->
+    <StackPanel x:Name="Actions" Orientation="Horizontal" Spacing="6"
+                Width="74" Height="34" IsVisible="False">
+      <Button x:Name="ConfirmBtn"
+              Width="34" Height="34" Padding="0"
+              Background="#E6000000" BorderThickness="0"
+              CornerRadius="6" Cursor="Hand"
+              ToolTip.Tip="存起来（选 Todo / Wantdo）">
+        <TextBlock Text="✓" FontSize="17" FontWeight="Bold" Foreground="#FFFFFFFF" />
+      </Button>
+      <Button x:Name="PinBtn"
+              Width="34" Height="34" Padding="0"
+              Background="#E6000000" BorderThickness="0"
+              CornerRadius="6" Cursor="Hand"
+              ToolTip.Tip="贴图：把这张图钉在屏幕上（不记录）">
+        <TextBlock Text="📌" FontSize="15" Foreground="#FFFFFFFF" />
+      </Button>
+    </StackPanel>
 
     <!-- 还没框选时的提示条 -->
     <Border x:Name="Hint" Background="#B3000000" CornerRadius="8" Padding="14,8">

@@ -36,6 +36,10 @@ namespace RemeberEr
         /// </summary>
         string _attachToId;
 
+        /// <summary>当前钉在屏幕上的贴图。持着引用只是为了别让它们被 GC ——
+        /// 关掉之后元素自己会关窗，这里的列表只是记账。</summary>
+        readonly List<PinWindow> _pins = new List<PinWindow>();
+
 
 
         public CaptureController(Store store, PanelWindow panel)
@@ -259,6 +263,38 @@ namespace RemeberEr
                     _busy = false;
                 }
             };
+            _overlay.Pinned += (ix, iy, iw, ih) =>
+            {
+                // 贴图：钉在屏幕上，**不落库** —— 用户只是想「把这张图摆在那儿」，
+                // 不是记一件事。所以这里不碰 Store，也不弹归类窗。
+                try
+                {
+                    Program.Log(string.Format("  [采集] 贴图（物理像素，相对本屏）= ({0},{1}) {2}x{3}", ix, iy, iw, ih));
+                    var cropPin = CropBgra(shot, ix, iy, iw, ih);
+                    var bmp = BitmapUtil.ToBitmap(cropPin);
+                    if (bmp == null) { Program.Log("  !! 贴图失败：图片数据为空"); }
+                    else
+                    {
+                        // 贴图摆在选区原来的位置上（用户框在哪就钉在哪），
+                        // 所以要把「相对本屏的物理坐标」换算成**全局逻辑坐标**。
+                        double sc = disp.Scale > 0 ? disp.Scale : 1.0;
+                        double logicalX = (disp.X + ix) / sc;
+                        double logicalY = (disp.Y + iy) / sc;
+
+                        _pins.Add(new PinWindow(bmp, iw, ih, sc, logicalX, logicalY));
+                        _pins[_pins.Count - 1].Show();
+                        Program.Log("  贴图数 = " + _pins.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Program.Log("  !! 贴图失败：" + ex.GetType().Name + " " + ex.Message);
+                }
+                CloseOverlay();
+                RestorePanel();
+                _busy = false;
+            };
+
             _overlay.Cancelled += () =>
             {
                 Program.Log("  [采集] 已取消" + (_attachToId != null ? "（补图）" : ""));
