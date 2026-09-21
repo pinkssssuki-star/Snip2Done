@@ -8,10 +8,45 @@
 
 ---
 
+## macOS 版
+
+macOS 版在 **`macos-port` 分支**（当前主线 `main` 是 Windows 版）。
+代码放在 `native/mac/`，与 Windows 版 `native/src/` **完全隔离** ——
+两边各自构建、互不影响，改一边不会碰到另一边。
+
+```sh
+git clone -b macos-port https://github.com/pinkssssuki-star/remeber-er.git
+cd remeber-er/native/mac
+./build.sh              # 编译
+./build-app.sh          # 打包成 dist/记忆面板.app（自包含，约 112 MB）
+```
+
+**要求**：.NET 10 SDK、macOS 13+、Apple Silicon（`osx-arm64`）。
+
+**首次使用要授权三项**（系统设置 → 隐私与安全性）：
+
+| 权限 | 用途 | 不给会怎样 |
+|---|---|---|
+| 屏幕录制 | 抓屏 | 截图不可用 |
+| 辅助功能 | 读「鼠标下窗口标题」 | 归类窗标题预填为空（显示「（没有标题）」） |
+| 输入监控 | 全局热键 | `⌘⇧A` / `⌘⇧H` / `⌘⇧Q` 无反应 |
+
+热键：`⌘⇧A` 截图 · `⌘⇧H` 显示/隐藏面板 · `⌘⇧Q` 退出。
+框选层与归类窗都可以**右键取消**。
+
+> ⚠️ 权限是按「路径 + 签名」记录的：**`.app` 一旦挪位置或重新打包，
+> 三项授权都会失效，需要重新授权一次**。这是 macOS 的既定行为。
+
+详细的逐项说明、与 Windows 版的实现差异、踩过的坑，见
+[`CHANGELOG-macOS.md`](./CHANGELOG-macOS.md)。
+
+---
+
 ## 仓库结构
 
 ```
 native/      ← ★ 主版本。纯原生 WPF/XAML，开发都在这里
+native/mac/  ← macOS 版（在 macos-port 分支上）
 legacy/      ← 旧版本，留着存档，不再改动
 docs/        ← 设计稿、打包说明、给朋友的话、实测报告
 ```

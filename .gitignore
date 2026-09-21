@@ -24,9 +24,13 @@ native/refasm/
 native/mac/bin/
 native/mac/obj/
 
+# ---- macOS 版：dev-env.sh 的缓存目录 ----
+# tools/dev-env.sh 把 NuGet 缓存 / dotnet HOME 指到仓库内的 .dev/ 下
+# （放在仓库内是为了「克隆到哪都成立」，之前取的仓库上一级可能不可写）。
+# 这个目录有 1.3 GB，绝不能进版本库。
+
 # ---- dotnet 的 HOME / 缓存落到仓库时的兜底 ----
-# 正常情况下 tools/dev-env.sh 会把它们指到仓库外层的 .dev/，
-# 但若有人直接跑 dotnet（没 source dev-env.sh），它们会落在仓库根目录。
+# 若有人直接跑 dotnet（没 source dev-env.sh），它们会落在仓库根目录。
 .nuget/
 .dotnet/
 .local/
@@ -34,3 +38,4 @@ native/mac/obj/
 # ---- legacy：WebView2 SDK 是第三方解压产物 ----
 legacy/wpf-webview2/webview2/
 legacy/wpf-webview2/out/
+.dev/
