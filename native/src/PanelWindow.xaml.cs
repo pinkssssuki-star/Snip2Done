@@ -36,6 +36,8 @@ namespace RemeberEr
         readonly List<RecordWindow> _records = new List<RecordWindow>();
         /// <summary>不为 null 时，这次截图是「补图」，结果挂到这条上而不是弹归类窗。</summary>
         string _attachToId;
+        /// <summary>钉在屏幕上的那些贴图（关掉时要能一起收拾）。</summary>
+        readonly List<PinWindow> _pins = new List<PinWindow>();
         ChooserWindow _chooser;
         DispatcherTimer _hoverTimer;
         /// <summary>演示加速的节拍器（每秒一次，只在演示中真正干活）。</summary>
@@ -157,6 +159,47 @@ namespace RemeberEr
             else if (Program.Flow == "add") ScheduleFlowAdd();
             else if (Program.Flow == "theme") ScheduleFlowTheme();
             else if (Program.Flow == "manual") ScheduleFlowManual();
+            else if (Program.Flow == "pin") ScheduleFlowPin();
+        }
+
+        /// <summary>
+        /// 验收「钉住」：走一次真实框选，点的是图钉而不是勾。
+        /// 应该出现一张浮动贴图、**不弹归类窗、不落库**。
+        /// </summary>
+        void ScheduleFlowPin()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            int before = 0;
+
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                before = _store.Items.Count;
+                Program.Log("  截图前条目数 = " + before);
+                DoCapture("pin");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(3500, () =>
+            {
+                Program.Log(string.Format("  贴图数={0} · 条目数={1}（应还是 {2}，没落库）",
+                    _pins.Count, _store.Items.Count, before));
+                if (_pins.Count > 0)
+                {
+                    var p = _pins[0];
+                    Interop.RECT r;
+                    Interop.GetWindowRect(new WindowInteropHelper(p).Handle, out r);
+                    Program.Log(string.Format("  贴图窗口：物理 ({0},{1}) {2}x{3}  置顶={4}",
+                        r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top, p.Topmost));
+                    ShotWindow(p, "pin-pinned");
+                }
+                else Program.Log("  !! 没有贴图产生");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                Program.Log("  贴图流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>
@@ -1632,6 +1675,12 @@ namespace RemeberEr
                     DismissOverlays(ovs);
                     ChooseFor(src, mon, sc, x, y, w, h, app, title);
                 };
+                ov.Pinned += (x, y, w, h) =>
+                {
+                    DismissOverlays(ovs);
+                    PinRegion(src, mon, x, y, w, h);
+                    EndCapture();
+                };
                 ov.Cancelled += () => { DismissOverlays(ovs); EndCapture(); };
                 ovs.Add(ov);
             }
@@ -1727,6 +1776,32 @@ namespace RemeberEr
                 if (_chooser != null && _chooser.IsVisible) _chooser.AutoPick("want");
             };
             t.Start();
+        }
+
+        /// <summary>
+        /// 把框选那块裁出来钉在屏幕上（Snipaste 的贴图）。
+        ///
+        /// **不落库、不弹归类窗** —— 「钉住摆在眼前看」和「记进备忘」是两条路：
+        /// 想记下来就点旁边的勾，想临时摆在面前参考就点图钉。
+        /// </summary>
+        void PinRegion(BitmapSource full, Interop.RECT mon, int x, int y, int w, int h)
+        {
+            try
+            {
+                var crop = new CroppedBitmap(full, new Int32Rect(x, y, w, h));
+                crop.Freeze();
+                double sc = Interop.ScaleOf(mon);
+                var pin = new PinWindow(crop, mon.Left + x, mon.Top + y, sc);
+                _pins.Add(pin);
+                pin.Closed += (s, e) => { _pins.Remove(pin); };
+                pin.Show();
+                Program.Log(string.Format("  钉住一块图：{0}x{1} @ 屏幕 ({2},{3})",
+                    w, h, mon.Left + x, mon.Top + y));
+            }
+            catch (Exception ex)
+            {
+                Program.Log("  !! 钉住失败：" + ex.Message);
+            }
         }
 
         /// <summary>整条流程收尾：把面板放回来、刷新、清掉流程标记。</summary>

@@ -50,6 +50,8 @@ namespace RemeberEr
         public static int ShotPad = 80;
         /// <summary>验收用：强制打开快速模式（不等用户去设置里勾）</summary>
         public static bool ForceQuick;
+        /// <summary>验收用：自动流程点的那个按钮改成「钉住」而不是「确认」。</summary>
+        public static bool AutoPin;
         public static string LogPath;
         /// <summary>启动分段计时用。从 Main 第一行开始算。</summary>
         public static readonly System.Diagnostics.Stopwatch Boot = System.Diagnostics.Stopwatch.StartNew();
@@ -98,6 +100,7 @@ namespace RemeberEr
                 else if (a == "--dpidiag") DpiDiag = true;
                 else if (a.StartsWith("--shotpad=")) ShotPad = int.Parse(a.Substring(10));
                 else if (a == "--quick") ForceQuick = true;
+                else if (a == "--autopin") AutoPin = true;
                 else if (a == "--autostart") AutoStartSet = true;
                 else if (a == "--noautostart") AutoStartSet = false;
                 else if (a.StartsWith("--autochoose=")) AutoChoose = a.Substring(13);

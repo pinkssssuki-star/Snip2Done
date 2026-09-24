@@ -35,7 +35,8 @@ namespace RemeberEr
         enum Mode { None, Create, Move, Resize }
 
         const double HANDLE = 7;    // 边缘感知半径（布局 DIP）
-        const double BOX = 38;      // ✓ 容器尺寸（含投影留白）
+        const double BOX = 38;
+        const double BAR = BOX * 2;   // 图钉 + 勾，动作条总宽      // ✓ 容器尺寸（含投影留白）
         const double PAD = 5;       // 容器里板子四周的留白
         const double GAP = 6;       // ✓ 与选区之间的间距
 
@@ -64,6 +65,8 @@ namespace RemeberEr
         /// <summary>选区（截图像素，相对本屏左上角）。</summary>
         public event Action<int, int, int, int> Picked;
         public event Action Cancelled;
+        /// <summary>点了图钉：把这块图钉在屏幕上（和 Snipaste 的贴图一样，不落库）。</summary>
+        public event Action<int, int, int, int> Pinned;
 
         public OverlayWindow(BitmapSource shot, Interop.RECT monitor, double dpiScale, bool quick)
         {
@@ -185,10 +188,13 @@ namespace RemeberEr
                         Interop.GetWindowRect(new WindowInteropHelper(this).Handle, out r);
                         Capture.SaveRegion(Program.OverlayShot, r, 0);
                         Program.Log("  框选层已截图 -> " + Program.OverlayShot);
-                        Confirm();
+                        if (Program.AutoPin) Pin(); else Confirm();
                     };
                     t2.Start();
                 }
+                // --autopin 必须两条支路都管到：只写在有 --overlayshot 的那条里，
+                // 不传 overlayshot 时就会静默走成「确认」，测出来的是勾不是图钉。
+                else if (Program.AutoPin) Pin();
                 else Confirm();
             };
             t.Start();
@@ -232,8 +238,8 @@ namespace RemeberEr
                 Program.Log(string.Format("  拖完：布局={0}x{1} 换算比例={2:0.###} 选区像素=({3},{4}) {5}x{6}",
                     (int)ActualWidth, (int)ActualHeight, KR, ix, iy, iw, ih));
                 Program.Log(string.Format("  ✓ 状态: Visibility={0} Canvas=({1},{2}) 尺寸={3}x{4} settled={5}",
-                    ConfirmBtn.Visibility, Canvas.GetLeft(ConfirmBtn), Canvas.GetTop(ConfirmBtn),
-                    ConfirmBtn.ActualWidth, ConfirmBtn.ActualHeight, _settled));
+                    ActionBar.Visibility, Canvas.GetLeft(ActionBar), Canvas.GetTop(ActionBar),
+                    ActionBar.ActualWidth, ActionBar.ActualHeight, _settled));
 
                 if (Program.OverlayShot != null)
                 {
@@ -289,7 +295,7 @@ namespace RemeberEr
             Sel.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
             SizeTag.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
             // 快速模式不显示 ✓ —— 松手就定了，摆个按钮反而让人以为还要点
-            ConfirmBtn.Visibility = (has && _settled && !_quick) ? Visibility.Visible : Visibility.Collapsed;
+            ActionBar.Visibility = (has && _settled && !_quick) ? Visibility.Visible : Visibility.Collapsed;
             Hint.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
             if (!has) return;
 
@@ -309,18 +315,18 @@ namespace RemeberEr
         }
 
         /// <summary>
-        /// ✓ 贴在「鼠标松手那个角」的**外侧**，不压住选区内容。
+        /// 动作条（📌 + ✓）贴在「鼠标松手那个角」的**外侧**，不压住选区内容。
         /// 外侧放不下就沿同一条边平移，再不行才翻到对侧；极端情况才夹回可视范围。
         /// </summary>
         void PlaceConfirm(Rect sel)
         {
-            if (ConfirmBtn.Visibility != Visibility.Visible) return;
+            if (ActionBar.Visibility != Visibility.Visible) return;
 
             bool right = _last.X >= sel.Left + sel.Width / 2;
             bool bottom = _last.Y >= sel.Top + sel.Height / 2;
 
             // 容器 BOX 里板子 34、四周各留 PAD 给投影；按板子贴边，所以整体外扩回去
-            double bx = right ? sel.Right + GAP - PAD : sel.Left - BOX - GAP + PAD;
+            double bx = right ? sel.Right + GAP - PAD : sel.Left - BAR - GAP + PAD;
             double by = bottom ? sel.Bottom + GAP - PAD : sel.Top - BOX - GAP + PAD;
 
             // 候选顺序：先斜向外侧 → 沿上下让 → 沿左右让 → 翻到本侧另一头
@@ -329,11 +335,11 @@ namespace RemeberEr
                 new Point(bx, by),
                 new Point(bx, bottom ? by : sel.Top + GAP - PAD),
                 new Point(right ? bx : sel.Left + GAP - PAD, by),
-                new Point(right ? sel.Right - BOX - GAP + PAD : bx, by),
+                new Point(right ? sel.Right - BAR - GAP + PAD : bx, by),
                 new Point(bx, bottom ? sel.Bottom - BOX - GAP + PAD : by),
             };
 
-            double maxX = Math.Max(0, ActualWidth - BOX);
+            double maxX = Math.Max(0, ActualWidth - BAR);
             double maxY = Math.Max(0, ActualHeight - BOX);
             double x = bx, y = by;
             foreach (var c in cands)
@@ -344,8 +350,8 @@ namespace RemeberEr
                 y = Math.Max(0, Math.Min(by, maxY));
             }
 
-            Canvas.SetLeft(ConfirmBtn, x);
-            Canvas.SetTop(ConfirmBtn, y);
+            Canvas.SetLeft(ActionBar, x);
+            Canvas.SetTop(ActionBar, y);
         }
 
         static Rect ToRect(Point a, Point b)
@@ -386,10 +392,12 @@ namespace RemeberEr
             var p = CursorInLayout();
             _last = p;
 
-            // ✓ 的命中判定自己做，不走 WPF 的 HitTest —— 混 DPI 下 WPF 的输入坐标不一定和
-            // 我们绘制用的布局坐标一致，靠它会出现「看得见点不着」。
-            if (ConfirmBtn.Visibility == Visibility.Visible && ConfirmRect().Contains(p))
+            // ✓ / 📌 的命中判定自己做，不走 WPF 的 HitTest —— 混 DPI 下 WPF 的输入坐标
+            // 不一定和我们绘制用的布局坐标一致，靠它会出现「看得见点不着」。
+            if (ActionBar.Visibility == Visibility.Visible && ConfirmRect().Contains(p))
             {
+                var local = new Point(p.X - Canvas.GetLeft(ActionBar), p.Y - Canvas.GetTop(ActionBar));
+                if (local.X < BOX) { Pin(); return; }   // 左边那半是图钉
                 Confirm();
                 return;
             }
@@ -409,7 +417,7 @@ namespace RemeberEr
         /// <summary>✓ 按钮在布局坐标里的矩形（自己算，不依赖 WPF 的 HitTest）。</summary>
         Rect ConfirmRect()
         {
-            return new Rect(Canvas.GetLeft(ConfirmBtn), Canvas.GetTop(ConfirmBtn), BOX, BOX);
+            return new Rect(Canvas.GetLeft(ActionBar), Canvas.GetTop(ActionBar), BAR, BOX);
         }
 
         void OnMouseMove(object sender, MouseEventArgs e)
@@ -419,8 +427,8 @@ namespace RemeberEr
 
             if (_mode == Mode.None)
             {
-                bool onBtn = ConfirmBtn.Visibility == Visibility.Visible && ConfirmRect().Contains(p);
-                ConfirmBtn.Opacity = onBtn ? 0.85 : 1.0;
+                bool onBtn = ActionBar.Visibility == Visibility.Visible && ConfirmRect().Contains(p);
+                ActionBar.Opacity = onBtn ? 0.85 : 1.0;
                 if (onBtn) { Cursor = Cursors.Hand; return; }
                 UpdateCursor(p);
                 return;
@@ -510,6 +518,22 @@ namespace RemeberEr
             if (h != null) h(ix, iy, iw, ih);
         }
 
+        /// <summary>
+        /// 点图钉：把这块图钉在屏幕上。
+        /// 不走 Picked（那条路会弹归类窗、落库）——「钉住」和「记下来」是两条路。
+        /// </summary>
+        void Pin()
+        {
+            if (!_settled || _sel.Width <= 0) return;
+
+            int ix, iy, iw, ih;
+            ToImagePixels(_sel, out ix, out iy, out iw, out ih);
+            if (iw < 6 || ih < 6) return;
+
+            var h = Pinned;
+            if (h != null) h(ix, iy, iw, ih);
+        }
+
         void Cancel()
         {
             var c = Cancelled;
@@ -521,7 +545,9 @@ namespace RemeberEr
         void OnKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape) { e.Handled = true; Cancel(); return; }
-            if (e.Key == Key.Enter) { e.Handled = true; Confirm(); }
+            if (e.Key == Key.Enter) { e.Handled = true; Confirm(); return; }
+            // P = 钉在屏幕上（和 Snipaste 一个键位习惯）
+            if (e.Key == Key.P && _settled) { e.Handled = true; Pin(); }
         }
     }
 }
