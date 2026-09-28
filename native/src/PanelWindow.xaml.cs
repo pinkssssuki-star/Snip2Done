@@ -160,6 +160,47 @@ namespace RemeberEr
             else if (Program.Flow == "theme") ScheduleFlowTheme();
             else if (Program.Flow == "manual") ScheduleFlowManual();
             else if (Program.Flow == "pin") ScheduleFlowPin();
+            else if (Program.Flow == "search") ScheduleFlowSearch();
+        }
+
+        /// <summary>验收搜索 + 临期排序：不搜、搜一个词、搜不到、再清空。</summary>
+        void ScheduleFlowSearch()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                Program.Log(string.Format("  不搜：Todo {0} 条 · Wantdo {1} 条", _vm.Todos.Count, _vm.Wants.Count));
+                double minU = 1, maxU = 0;
+                foreach (var t in _vm.Todos) { minU = Math.Min(minU, t.Urgency); maxU = Math.Max(maxU, t.Urgency); }
+                Program.Log(string.Format("  临期度范围 {0:0.00} ~ {1:0.00}（0=刚建 1=已到期）", minU, maxU));
+                Shot("search-none");
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                _vm.SearchText = "微信";
+                Program.Log(string.Format("  搜「微信」：Todo {0} 条 · Wantdo {1} 条",
+                    _vm.Todos.Count, _vm.Wants.Count));
+                Shot("search-hit");
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                _vm.SearchText = "zzzz不可能有的词";
+                Program.Log(string.Format("  搜不存在的词：Todo {0} 条 · Wantdo {1} 条（应为 0/0）",
+                    _vm.Todos.Count, _vm.Wants.Count));
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                _vm.SearchText = "";
+                Program.Log(string.Format("  清空后：Todo {0} 条 · Wantdo {1} 条", _vm.Todos.Count, _vm.Wants.Count));
+                _vm.UrgentSort = false;
+                Program.Log("  关掉临期排序后第一条 = " + (_vm.Todos.Count > 0 ? _vm.Todos[0].Title : "-"));
+                _vm.UrgentSort = true;
+                Program.Log("  打开临期排序后第一条 = " + (_vm.Todos.Count > 0 ? _vm.Todos[0].Title : "-"));
+                Shot("search-main");
+                Program.Log("  搜索流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>
@@ -1491,6 +1532,19 @@ namespace RemeberEr
         void OnQuickAdd(object sender, RoutedEventArgs e)
         {
             StartManualAdd();
+        }
+
+        /// <summary>搜索框里按 Esc = 清空。</summary>
+        void OnSearchKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            _vm.SearchText = "";
+        }
+
+        void OnClearSearch(object sender, RoutedEventArgs e)
+        {
+            _vm.SearchText = "";
         }
 
         /// <summary>

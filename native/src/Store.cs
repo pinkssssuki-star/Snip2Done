@@ -124,6 +124,8 @@ namespace RemeberEr
                 { "hideCollapseButton", false },
                 // 面板背景色：white / gray / black
                 { "panelTheme", "white" },
+                // 临期优先：越临期越靠上，卡片越红
+                { "urgentSort", true },
             };
         }
 
@@ -542,6 +544,20 @@ namespace RemeberEr
                     outItem["overdue"] = dueAt is double ? (object)((double)dueAt < now) : dueAt;
                 else
                     outItem["overdue"] = false;
+
+                // 临期程度 0~1 —— 决定卡片「红到什么程度」。
+                // 按**相对时间**算：在自己「创建 → 到期」这一段里已经走掉了多少。
+                // 所以 1 天的任务走到 80%、和 10 天的任务走到 80%，红得一样多 ——
+                // 它衡量的是「这件事的余量还剩几成」，不是「还剩几小时」。
+                double urg = 0;
+                if (J.Str(it, "room", "") == "todo" && isActive && dueAt is double)
+                {
+                    double due = (double)dueAt;
+                    double created = J.Num(it, "createdAt", now);
+                    if (now >= due) urg = 1;
+                    else if (due > created) urg = Math.Max(0, Math.Min(1, (now - created) / (due - created)));
+                }
+                outItem["urgency"] = urg;
 
                 outItem["binMs"] = binMs;
                 outItem["binCount"] = J.Num(it, "binCount", 0);

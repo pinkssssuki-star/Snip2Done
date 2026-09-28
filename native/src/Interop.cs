@@ -90,6 +90,36 @@ namespace RemeberEr
             catch (Exception) { }
         }
 
+        public const int DWMWA_BORDER_COLOR = 34;
+        /// <summary>DWMWA_COLOR_NONE —— 让 DWM 不画那条 1px 细边。</summary>
+        public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
+
+        /// <summary>
+        /// 把窗口的四角**掰成直角**。
+        /// Win11 只要窗口有 WS_THICKFRAME（能拖边缩放）就默认给圆角，得显式关掉。
+        /// 钉住的贴图要的就是一张干干净净的直角图。
+        /// </summary>
+        public static void SetSquareCorners(IntPtr hwnd)
+        {
+            try
+            {
+                int c = DWMWCP_DONOTROUND;
+                DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref c, 4);
+            }
+            catch (Exception) { }
+        }
+
+        /// <summary>去掉 DWM 画的那条细边（Win11 上无边框窗口也会有一圈）。</summary>
+        public static void SetNoBorder(IntPtr hwnd)
+        {
+            try
+            {
+                int none = DWMWA_COLOR_NONE;
+                DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref none, 4);
+            }
+            catch (Exception) { }
+        }
+
         // ---- 显示器 / DPI / 精确摆窗（框选层要正好盖住一整块屏幕）----
 
         [StructLayout(LayoutKind.Sequential)]
@@ -162,6 +192,8 @@ namespace RemeberEr
         /// <summary>忽略 x/y。**只传 SWP_NOSIZE 是不够的** —— 位置还是会按传进去的坐标生效。</summary>
         public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOZORDER = 0x0004;
+        /// <summary>别拷贝上一帧的内容 —— 缩放时能少一次闪烁。</summary>
+        public const uint SWP_NOCOPYBITS = 0x0100;
 
         [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
 

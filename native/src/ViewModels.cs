@@ -199,6 +199,53 @@ namespace RemeberEr
         public string ImagePath { get; set; }
         public bool HasThumb { get { return Thumb != null; } }
         public bool CanDissolve { get { return IsDone; } }
+
+        /// <summary>
+        /// 临期程度 0~1（快照里的 urgency）。
+        /// 卡片**红到什么程度**看它 —— 越临期越红，红的是「余量还剩几成」。
+        /// </summary>
+        double _urgency;
+        public double Urgency
+        {
+            get { return _urgency; }
+            set
+            {
+                if (!Set(ref _urgency, value, "Urgency")) return;
+                Raise("CardBg"); Raise("CardBorder");
+            }
+        }
+
+        /// <summary>前段几乎不变色、后段才明显 —— 不然刚建出来就一片红，反而没信息量。</summary>
+        double Heat { get { return Math.Pow(Math.Max(0, Math.Min(1, _urgency)), 1.6); } }
+
+        static Color Mix(Color a, Color b, double t)
+        {
+            t = Math.Max(0, Math.Min(1, t));
+            return Color.FromRgb(
+                (byte)Math.Round(a.R + (b.R - a.R) * t),
+                (byte)Math.Round(a.G + (b.G - a.G) * t),
+                (byte)Math.Round(a.B + (b.B - a.B) * t));
+        }
+
+        /// <summary>卡片底：一直是白（可读性底线），只在很临期时透一层极淡的红。</summary>
+        public Brush CardBg
+        {
+            get
+            {
+                var c = Mix(Color.FromRgb(0xFF, 0xFF, 0xFF), Color.FromRgb(0xFF, 0xEC, 0xEC), Heat);
+                var b = new SolidColorBrush(c); b.Freeze(); return b;
+            }
+        }
+
+        /// <summary>卡片描边：从浅灰一路烧到红。</summary>
+        public Brush CardBorder
+        {
+            get
+            {
+                var c = Mix(Color.FromRgb(0xE8, 0xE8, 0xEA), Color.FromRgb(0xDC, 0x26, 0x26), Heat);
+                var b = new SolidColorBrush(c); b.Freeze(); return b;
+            }
+        }
     }
 
     public class WantVm : ObservableObject
@@ -319,6 +366,7 @@ namespace RemeberEr
             StopDemoCmd = new RelayCommand(StopDemo);
             DismissDemoCmd = new RelayCommand(DismissDemo);
             PickThemeCmd = new RelayCommand(p => PanelTheme = (string)p);
+            ClearSearchCmd = new RelayCommand(() => SearchText = "");
 
             ThemeOptions = new ObservableCollection<ThemeOptionVm>();
             foreach (var e in Palette.All)
@@ -682,6 +730,59 @@ namespace RemeberEr
         }
         public bool DockHintVisible { get { return !string.IsNullOrEmpty(_dockHint); } }
 
+        // ---------------- 搜索 ----------------
+
+        string _search = "";
+        public string SearchText
+        {
+            get { return _search; }
+            set
+            {
+                if (!Set(ref _search, value ?? "", "SearchText")) return;
+                Raise("HasSearch"); Raise("SearchHint");
+                Refresh();   // 边打边筛
+            }
+        }
+        public bool HasSearch { get { return !string.IsNullOrWhiteSpace(_search); } }
+        public string SearchHint
+        {
+            get
+            {
+                if (!HasSearch) return "";
+                return "匹配 " + Todos.Count + " 条 Todo · " + Wants.Count + " 条 Wantdo";
+            }
+        }
+        public RelayCommand ClearSearchCmd { get; private set; }
+
+        /// <summary>标题 / 来源 / 备注，任意一处含关键字就算命中（不区分大小写）。</summary>
+        bool MatchSearch(Dictionary<string, object> it)
+        {
+            if (!HasSearch) return true;
+            string q = _search.Trim().ToLowerInvariant();
+            string hay = (J.Str(it, "title", "") + "\n" + J.Str(it, "source", "") + "\n"
+                          + J.Str(it, "note", "")).ToLowerInvariant();
+            return hay.Contains(q);
+        }
+
+        // ---------------- 临期排序 ----------------
+
+        /// <summary>
+        /// 越临期越靠上（按绝对到期时刻升序，没期限的排最后）。
+        /// 关掉之后就回到「按 DDL 档位 + 创建时间」的老顺序 ——
+        /// 有人就是想一条条按顺序做完，不该逼他按紧急度看。
+        /// </summary>
+        bool _urgentSort = true;
+        public bool UrgentSort
+        {
+            get { return _urgentSort; }
+            set
+            {
+                if (!Set(ref _urgentSort, value, "UrgentSort")) return;
+                _store.SetSetting("urgentSort", value);
+                Refresh();
+            }
+        }
+
         // ---------------- 设置 ----------------
 
         double _panelAlpha = 0.8;
@@ -1016,6 +1117,8 @@ namespace RemeberEr
             if (aot != _alwaysOnTop) { _alwaysOnTop = aot; Raise("AlwaysOnTop"); }
             bool hcb = J.Bool(settings, "hideCollapseButton", false);
             if (hcb != _hideCollapseButton) { _hideCollapseButton = hcb; Raise("HideCollapseButton"); Raise("ShowCollapseButton"); }
+            bool us = J.Bool(settings, "urgentSort", true);
+            if (us != _urgentSort) { _urgentSort = us; Raise("UrgentSort"); }
             string th = J.Str(settings, "panelTheme", "white");
             if (th != _panelTheme || Palette.Current.Key != th)
             {
@@ -1055,6 +1158,7 @@ namespace RemeberEr
                 if (J.Str(it, "room", "") != "todo") continue;
                 if (J.Str(it, "state", "") == "binned") continue;
                 if (!J.IsNull(J.Get(it, "filedAt"))) continue;
+                if (!MatchSearch(it)) continue;      // 搜索：标题 / 来源 / 备注
                 todo.Add(it);
             }
             todo.Sort((a, b) =>
@@ -1062,6 +1166,18 @@ namespace RemeberEr
                 int sa = J.Str(a, "state", "") == "done" ? 1 : 0;
                 int sb = J.Str(b, "state", "") == "done" ? 1 : 0;
                 if (sa != sb) return sa - sb;
+
+                // 「越临期越靠上」：按**绝对时间**（到期时刻）升序。
+                // 没期限的排最后 —— 它们不欠任何人时间。
+                // 这个排序可以在设置里关掉（有人就是想一条条按顺序做完）。
+                if (_urgentSort)
+                {
+                    object da = J.Get(a, "dueAt"), db = J.Get(b, "dueAt");
+                    double va = da is double ? (double)da : double.MaxValue;
+                    double vb = db is double ? (double)db : double.MaxValue;
+                    if (va != vb) return va.CompareTo(vb);
+                }
+
                 int ra = Rank(a), rb = Rank(b);
                 if (ra != rb) return ra - rb;
                 return J.Num(a, "createdAt", 0).CompareTo(J.Num(b, "createdAt", 0));
@@ -1072,7 +1188,8 @@ namespace RemeberEr
             foreach (var o in items)
             {
                 var it = J.Obj(o);
-                if (J.Str(it, "room", "") == "want" && J.Str(it, "state", "") == "active") want.Add(it);
+                if (J.Str(it, "room", "") == "want" && J.Str(it, "state", "") == "active"
+                    && MatchSearch(it)) want.Add(it);
             }
             want.Sort((a, b) => J.Num(b, "lastTouchedAt", 0).CompareTo(J.Num(a, "lastTouchedAt", 0)));
 
@@ -1135,6 +1252,7 @@ namespace RemeberEr
 
             Raise("HasTodos"); Raise("HasWants"); Raise("HasBins");
             Raise("HasTodoBins"); Raise("HasWantBins"); Raise("HasDoneGroups");
+            Raise("SearchHint");
         }
 
         static int CountActive(List<Dictionary<string, object>> list)
@@ -1185,6 +1303,7 @@ namespace RemeberEr
                 MetaSource = J.Str(it, "source", ""),
                 MetaTime = Fmt.RelTime(J.Num(it, "createdAt", Store.Now())),
                 ImagePath = ImgPath(it),
+                Urgency = J.Num(it, "urgency", 0),
             };
             QueueThumb(vm, ImgPath(it), 120);
             return vm;

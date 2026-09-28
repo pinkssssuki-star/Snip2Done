@@ -7,45 +7,19 @@
         Topmost="True" SnapsToDevicePixels="True"
         UseLayoutRounding="True" Width="360" Height="240"
         MouseLeftButtonDown="OnDragArea" MouseDoubleClick="OnDoubleClick"
-        MouseWheel="OnWheel" KeyDown="OnKeyDown"
-        MouseEnter="OnHover" MouseLeave="OnHover">
+        MouseWheel="OnWheel" KeyDown="OnKeyDown">
 
     <!--
         钉在屏幕上的一张截图（类似 Snipaste 的「贴图」）。
-        · 刻意**不用** AllowsTransparency：分层窗口在 150% 那块副屏上挪动会分段重绘。
-          走不透明 + DWM 圆角/投影（和归类窗同一套路），好看且稳。
-        · ResizeMode=CanResize 是为了拿到 WS_THICKFRAME —— DWM 才给投影，
-          顺带也就支持拖边缩放。
+        · **就是一张图**：无边框、无圆角、无关闭键。双击关掉是常识，不用再摆个 ✕。
+        · 刻意**不用** AllowsTransparency：分层窗口在 150% 那块副屏上挪动会分段重绘
+          （归类窗上踩过这个坑）。走不透明，再让 DWM 把圆角和细边都关掉，
+          四周就是干净的直角。
+        · ResizeMode=CanResize 只为拿到 WS_THICKFRAME —— 这样还能拖边缩放，
+          但边框和圆角都关掉了，看不见。
+        · 默认按原图**物理像素 1:1** 摆，不做任何缩放，画质零损失。
     -->
     <Grid>
         <Image x:Name="Pic" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
-
-        <!-- 一圈细边，浅色截图贴在白底上才看得出边界 -->
-        <Border x:Name="Edge" BorderBrush="#33000000" BorderThickness="1" IsHitTestVisible="False"/>
-
-        <!-- 右上角的关闭键：平时不显形，鼠标进来才出现 -->
-        <Button x:Name="CloseBtn" Click="OnClose" Cursor="Hand"
-                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6,6,6,0"
-                Opacity="0" ToolTip="关掉（Esc 或双击也行）">
-            <Button.Template>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="cb" Width="22" Height="22" CornerRadius="11"
-                            Background="#CC101014" BorderBrush="#40FFFFFF" BorderThickness="1">
-                        <TextBlock Text="✕" FontSize="11" Foreground="#F2F2F4"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="cb" Property="Background" Value="#E6DC2626"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Button.Template>
-        </Button>
-
-        <!-- 右下角一个小角标：提示「这是钉住的，不是普通窗口」 -->
-        <TextBlock x:Name="PinHint" Text="📌 钉住 · 双击关掉" FontSize="9.5" Foreground="#E6F2F2F4"
-                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,6"
-                   Opacity="0" IsHitTestVisible="False"/>
     </Grid>
 </Window>

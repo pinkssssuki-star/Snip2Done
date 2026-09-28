@@ -41,8 +41,16 @@ const csSnap = JSON.parse(fs.readFileSync(csOut, 'utf8'));
 const diffs = [];
 const NUM_TOL = 1e-9;
 
+/*
+ * 原生版新加、Electron 版没有的**派生字段**。它们只给界面用，不写进 data.json，
+ * 所以不影响「两个实现指向同一份数据」这条不变量。
+ * 加新字段时往这里补一条，别去动 legacy（它已经封版了）。
+ */
+const NATIVE_ONLY = /\.(urgency)$/;
+
 function walk(a, b, p) {
   if (a === null || b === null || a === undefined || b === undefined) {
+    if (NATIVE_ONLY.test(p) && (a === undefined || b === undefined)) return;
     if (a !== b) diffs.push(`${p}: JS=${JSON.stringify(a)} CS=${JSON.stringify(b)}`);
     return;
   }

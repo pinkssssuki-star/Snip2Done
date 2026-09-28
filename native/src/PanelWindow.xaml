@@ -14,8 +14,9 @@
 
         <!-- ======================================================== Todo 卡片 -->
         <DataTemplate x:Key="TodoCardTpl">
-            <Border x:Name="card" CornerRadius="10" Background="#ffffff"
-                    BorderBrush="#12000000" BorderThickness="1"
+            <!-- 底色和描边跟着 Urgency 走：越临期越红（见 TodoVm.CardBg / CardBorder） -->
+            <Border x:Name="card" CornerRadius="10" Background="{Binding CardBg}"
+                    BorderBrush="{Binding CardBorder}" BorderThickness="1"
                     Padding="9,8,9,8" Margin="0,0,0,6"
                     Cursor="Hand" MouseLeftButtonUp="OnTodoCardClick"
                     MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave">
@@ -551,6 +552,8 @@
                 <!-- ============================================ 主视图 -->
                 <Grid Visibility="{Binding IsMainView, Converter={StaticResource BoolToVis}}">
                     <Grid.RowDefinitions>
+                        <!-- 搜索行：全宽，压在 TODO 上面 -->
+                        <RowDefinition Height="Auto"/>
                         <!-- 比例 = (Todo 露出行数 × 行高) : (Wantdo 露出行数 × 行高) = 208 : 120 -->
                         <RowDefinition Height="208*"/>
                         <RowDefinition Height="10"/>
@@ -558,8 +561,71 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
+                    <!-- ==== 搜索：标题 / 来源 / 备注，同时筛 Todo 和 Wantdo ==== -->
+                    <Border Grid.Row="0" CornerRadius="9" Background="{DynamicResource InputBg}"
+                            BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
+                            Padding="9,5,6,5" Margin="0,0,0,9">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="🔍" FontSize="11" Margin="0,0,7,0"
+                                       VerticalAlignment="Center" Foreground="{DynamicResource Tx5}"/>
+                            <Grid Grid.Column="1">
+                                <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0"
+                                         FontSize="11.5" VerticalContentAlignment="Center"
+                                         Foreground="{DynamicResource Tx1}"
+                                         CaretBrush="{DynamicResource Tx1}"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         KeyDown="OnSearchKeyDown"/>
+                                <!-- 空的时候显示提示语。没用 TextBox 自带的那个，颜色控不住 -->
+                                <TextBlock x:Name="SearchPlaceholder" IsHitTestVisible="False"
+                                           Text="搜标题、来源、备注…" FontSize="11.5"
+                                           Foreground="{DynamicResource Tx5}"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSearch}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                            <TextBlock Grid.Column="2" Text="{Binding SearchHint}" FontSize="9.5"
+                                       VerticalAlignment="Center" Margin="8,0,4,0"
+                                       Foreground="{DynamicResource Tx5}"
+                                       Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}"/>
+                            <Button Grid.Column="3" Content="✕" Click="OnClearSearch" Cursor="Hand"
+                                    ToolTip="清空（Esc）"
+                                    Visibility="{Binding HasSearch, Converter={StaticResource BoolToVis}}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="sb" Width="18" Height="18" CornerRadius="9"
+                                                Background="{DynamicResource ChipBg}">
+                                            <TextBlock Text="✕" FontSize="9" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Tx4}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="sb" Property="Background" Value="{DynamicResource HoverBg}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </Grid>
+                    </Border>
+
                     <!-- ==== Todo ==== -->
-                    <Grid Grid.Row="0">
+                    <Grid Grid.Row="1">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -601,7 +667,7 @@
                     </Grid>
 
                     <!-- ==== Wantdo ==== -->
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="3">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -649,7 +715,7 @@
                     </Grid>
 
                     <!-- ==== 演示加速横幅：只在演示中 / 刚演完时出现 ==== -->
-                    <Border Grid.Row="3" CornerRadius="9" Padding="10,9,10,9" Margin="0,8,0,0"
+                    <Border Grid.Row="4" CornerRadius="9" Padding="10,9,10,9" Margin="0,8,0,0"
                             BorderThickness="1"
                             Visibility="{Binding ShowDemoBanner, Converter={StaticResource BoolToVis}}">
                         <Border.Style>
@@ -1010,6 +1076,19 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+
+                        <Grid Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="临期优先排序" FontSize="11.5" FontWeight="Medium"
+                                           Foreground="{DynamicResource Tx2}"/>
+                                <TextBlock Text="越临期越靠上（按到期时刻排），卡片也会越临期越红。关掉就按原来的顺序一条条做。" FontSize="10"
+                                           Foreground="{DynamicResource HintTx}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="230"
+                                           HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <ToggleButton Style="{StaticResource SwitchToggle}" HorizontalAlignment="Right"
+                                          VerticalAlignment="Top" Margin="0,2,0,0"
+                                          IsChecked="{Binding UrgentSort, Mode=TwoWay}"/>
+                        </Grid>
 
                         <Grid Margin="0,0,0,12">
                             <StackPanel>
