@@ -583,7 +583,7 @@
                                          KeyDown="OnSearchKeyDown"/>
                                 <!-- 空的时候显示提示语。没用 TextBox 自带的那个，颜色控不住 -->
                                 <TextBlock x:Name="SearchPlaceholder" IsHitTestVisible="False"
-                                           Text="搜标题、来源、备注…" FontSize="11.5"
+                                           Text="Check" FontSize="11.5"
                                            Foreground="{DynamicResource Tx5}"
                                            VerticalAlignment="Center">
                                     <TextBlock.Style>

@@ -77,4 +77,4 @@ $z.Dispose()
 $totalKB = [math]::Round((Get-Item $zip).Length / 1KB, 1)
 Write-Host ''
 Write-Host "整个包 $totalKB KB —— 直接把这个 zip 发出去就行" -ForegroundColor Cyan
-Write-Host '朋友收到后：解压 -> 双击「使用说明.html」看一眼 -> 双击「记忆面板.exe」'
+Write-Host '朋友收到后：解压 -> 双击「使用说明.html」看一眼 -> 双击「Snip2Done.exe」'
