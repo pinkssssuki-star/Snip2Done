@@ -59,7 +59,7 @@ if (-not (Test-Path (Join-Path $refasm '.NETFramework\v4.8\mscorlib.dll'))) {
 $proj = Join-Path $here 'RemeberEr.Native.csproj'
 $out  = Join-Path $here 'out'
 
-Write-Host "编译 -> $out\RemeberEr.Native.exe"
+Write-Host "编译 -> $out\Snip2Done.exe"
 $msbuildArgs = @($proj, '/nologo', '/v:minimal', '/p:Configuration=Release',
                  "/p:TargetFrameworkRootPath=$refasm\")
 if ($tool.Kind -eq 'dotnet') {
@@ -72,7 +72,7 @@ $code = $LASTEXITCODE
 foreach ($line in $log) { Write-Host $line }
 if ($code -ne 0) { throw "编译失败，退出码 $code" }
 
-$exe = Join-Path $out 'RemeberEr.Native.exe'
+$exe = Join-Path $out 'Snip2Done.exe'
 if (-not (Test-Path $exe)) { throw "没生成 $exe" }
 
 Write-Host ''

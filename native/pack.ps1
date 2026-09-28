@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $root = (Resolve-Path (Join-Path $here '..')).Path
 $out  = Join-Path $here 'out'
-$exe  = Join-Path $out 'RemeberEr.Native.exe'
+$exe  = Join-Path $out 'Snip2Done.exe'
 $dist = Join-Path $root 'dist'
 $stage = Join-Path $root '.tmp\pack'
 
@@ -36,7 +36,7 @@ if (-not (Test-Path $exe)) { throw "没找到 $exe，先编译" }
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
-$name = '记忆面板.exe'
+$name = 'Snip2Done.exe'
 Copy-Item $exe (Join-Path $stage $name) -Force
 
 # 说明文档：HTML 是主文档（能带截图、排版好看），TXT 是纯文本兜底
@@ -45,7 +45,7 @@ foreach ($doc in @('使用说明.html', '使用说明.txt')) {
     if (-not (Test-Path $p)) {
         throw ("缺少 pack\$doc —— 先跑这三步生成：`n" +
                "  node native\tools\make-guide-data.js`n" +
-               "  native\out\RemeberEr.Native.exe --data=.tmp\guide-data --flow=ui --shotpad=0`n" +
+               "  native\out\Snip2Done.exe --data=.tmp\guide-data --flow=ui --shotpad=0`n" +
                "  node native\tools\make-guide.js")
     }
     Copy-Item $p $stage -Force
@@ -56,7 +56,7 @@ Write-Host "  $name  $exeKB KB" -ForegroundColor Green
 
 # --- 打 zip ---
 New-Item -ItemType Directory -Path $dist -Force | Out-Null
-$zip = Join-Path $dist "记忆面板-$ver-win64.zip"
+$zip = Join-Path $dist "Snip2Done-$ver-win64.zip"
 Remove-Item $zip -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
 

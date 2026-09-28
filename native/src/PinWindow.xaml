@@ -1,8 +1,8 @@
 <Window x:Class="RemeberEr.PinWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="钉住的截图"
-        WindowStyle="None" ResizeMode="CanResize" ShowInTaskbar="False"
+        Title="Snip2Done · 钉住的截图"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
         AllowsTransparency="False" Background="#FFFFFFFF"
         Topmost="True" SnapsToDevicePixels="True"
         UseLayoutRounding="True" Width="360" Height="240"
@@ -15,8 +15,10 @@
         · 刻意**不用** AllowsTransparency：分层窗口在 150% 那块副屏上挪动会分段重绘
           （归类窗上踩过这个坑）。走不透明，再让 DWM 把圆角和细边都关掉，
           四周就是干净的直角。
-        · ResizeMode=CanResize 只为拿到 WS_THICKFRAME —— 这样还能拖边缩放，
-          但边框和圆角都关掉了，看不见。
+        · ResizeMode=**NoResize** 是刻意的：CanResize 会带上 WS_THICKFRAME，
+          而 Win11 只要窗口有那个样式，DWM 就给它画一圈边框 —— 就是用户看到的「灰边」。
+          去掉之后连 SetNoBorder 都不用指望了，从源头没有边框。
+          缩放改由滚轮负责（SetWindowPos 直接改，不受 ResizeMode 影响）。
         · 默认按原图**物理像素 1:1** 摆，不做任何缩放，画质零损失。
     -->
     <Grid>

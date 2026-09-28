@@ -217,7 +217,7 @@ native/
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File native\pack.ps1
-# -> dist\记忆面板-<版本>-win64.zip   （约 110 KB：一个 exe + HTML 说明 + 纯文本说明）
+# -> dist\Snip2Done-<版本>-win64.zip   （约 110 KB：一个 exe + HTML 说明 + 纯文本说明）
 ```
 
 版本号在 `src/Program.cs` 的 `Version` 常量里，`pack.ps1` 从那里读，不会两处不一致。打包脚本最后会自动列出 zip 内容做自检。

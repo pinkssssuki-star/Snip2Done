@@ -482,6 +482,27 @@ TODO 上面一条全宽的搜索行：**标题 / 来源 / 备注**任意一处�
 白名单并写明理由 —— 比去动已经封版的 legacy 更合适。
 加完仍然是「41 个条目 × 全部衰减字段，逐字段完全一致」。
 
+### 20. 改名 Snip2Done + 钉住的灰边 · 自己
+
+**改名。** README 标题已由作者在 GitHub 上改成
+`# Snip is all you need ToDo（Snip2Done）`（我把本地提交 rebase 到了那两个提交之上）。
+这次把**用户看得见的地方**统一成 Snip2Done：
+
+- 顶栏标题、窗口标题
+- 编译产物 `RemeberEr.Native.exe` → **`Snip2Done.exe`**（改了 `<AssemblyName>`）
+- 打包出来的 exe 与 zip 名
+- 启动日志、README 正文、使用说明、给朋友的话
+
+**刻意没动的**（都是看不见的内部标识，改了有副作用）：
+命名空间 `RemeberEr`、单实例 mutex 名、开机自启的注册表键名、
+数据目录 `%APPDATA%\remeber-er`。最后两个尤其重要 ——
+改了会让已经设过自启的人多出一条废项，也会让朋友的旧数据「消失」。
+
+**钉住的灰边。** 根因是我上一版为了能拖边缩放用了 `ResizeMode="CanResize"`，
+它会带上 `WS_THICKFRAME`，而 **Win11 只要窗口有这个样式就给它画一圈边框** ——
+`DWMWA_BORDER_COLOR` 那套关不干净。改成 `NoResize`，从源头没有这个样式。
+缩放改由滚轮负责（`SetWindowPos` 直接改，不受 ResizeMode 影响）。
+
 ---
 
 ## v0.9.0

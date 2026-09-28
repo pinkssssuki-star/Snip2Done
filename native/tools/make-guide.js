@@ -40,7 +40,7 @@ const CONTENT = [
   {
     t: '怎么开始',
     blocks: [
-      ['p', '双击「记忆面板.exe」就行。不用安装，不用装任何东西。'],
+      ['p', '双击「Snip2Done.exe」就行。不用安装，不用装任何东西。'],
       ['p', '第一次打开是空的。想先看看它长什么样，点右上角 ⚙ → 「灌入演示数据」，会给你塞几条样例。然后点右上角的 ⚡（演示加速），等一两分钟，能看着 Wantdo 磁贴慢慢变淡、最后掉进纸篓 —— 真实节奏是 7 天 / 21 天，那个按钮只是把时间压缩了 6000 倍给你看。'],
       ['img', 'panel', '面板长这样。上面是 Todo（有 DDL 的），下面是 Wantdo（你的念想）。'],
     ],
@@ -163,7 +163,7 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, 
 function renderHtml() {
   const IMGS = {
     panel: imgPanel
-      ? `<figure><img src="data:image/jpeg;base64,${imgPanel}" alt="记忆面板"><figcaption>{cap}</figcaption></figure>`
+      ? `<figure><img src="data:image/jpeg;base64,${imgPanel}" alt="Snip2Done"><figcaption>{cap}</figcaption></figure>`
       : '',
     collapsed: imgCollapsed
       ? `<figure class="narrow"><img src="data:image/jpeg;base64,${imgCollapsed}" alt="折叠态"><figcaption>{cap}</figcaption></figure>`
@@ -198,7 +198,7 @@ function renderHtml() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>记忆面板 · 试用说明</title>
+<title>Snip2Done · 试用说明</title>
 <style>
   :root { --accent: #8b5cf6; --accent-deep: #7c3aed; --tx1: #1c1c1e; --tx2: #3a3a3c; --tx3: #86868c; }
   * { box-sizing: border-box; }
@@ -293,7 +293,7 @@ function renderHtml() {
 <body>
 <main>
   <header class="hero">
-    <div><span class="dot"></span><h1>记忆面板</h1></div>
+    <div><span class="dot"></span><h1>Snip2Done</h1></div>
     <div class="sub">
       一个常驻桌面角落的小面板。<br>
       看到以后要处理的东西，按 <code>Ctrl+Shift+A</code> 截下来，<br>
@@ -315,7 +315,7 @@ ${body}
 
 function renderTxt() {
   const out = [];
-  out.push('记忆面板 · 试用说明');
+  out.push('Snip2Done · 试用说明');
   out.push('='.repeat(40));
   out.push('');
   out.push('一个常驻桌面角落的小面板。');

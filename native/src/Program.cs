@@ -141,7 +141,7 @@ namespace RemeberEr
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
                 Log("!! 未处理异常：" + e.ExceptionObject);
 
-            Log("记忆面板 v" + Version + (Bench ? "（基准测试）" : ""));
+            Log("Snip2Done v" + Version + (Bench ? "（基准测试）" : ""));
             Log("  程序目录 = " + Root);
             Log("  数据目录 = " + DataDir);
 

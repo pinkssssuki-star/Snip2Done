@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 
 $here = $PSScriptRoot
 $root = (Resolve-Path (Join-Path $here '..')).Path
-$exe  = Join-Path $here 'out\RemeberEr.Native.exe'
+$exe  = Join-Path $here 'out\Snip2Done.exe'
 
 if ($Rebuild -or -not (Test-Path $exe)) {
   Write-Host '先跑一遍 build.ps1 …' -ForegroundColor Yellow
@@ -41,7 +41,7 @@ if ($Bench)     { $cliArgs += '--bench'; $cliArgs += '--benchdelay=3000' }
 if ($Primary)   { $cliArgs += '--primary' }
 if ($NoCapture) { $cliArgs += '--nocapture' }
 
-Write-Host '启动：RemeberEr.Native.exe（纯原生 WPF，1 进程、无 Chromium）' -ForegroundColor Cyan
+Write-Host '启动：Snip2Done.exe（纯原生 WPF，1 进程、无 Chromium）' -ForegroundColor Cyan
 Write-Host '  面板在屏幕右下角；热键 Ctrl+Shift+A 截图 / Ctrl+Shift+H 显示隐藏 / Ctrl+Shift+Q 退出'
 Write-Host ''
 
