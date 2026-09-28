@@ -1,4 +1,4 @@
-# Snip is all you need to do（Snip2Done）
+# Snip is all you need ToDo（Snip2Done）
 
 > 看到以后要处理的东西，按 `Ctrl+Shift+A` 截下来，做**一次**情感判断 —— 这是 **Todo** 还是 **Wantdo** —— 然后它就一直挂在你桌面上。
 >
