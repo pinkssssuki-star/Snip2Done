@@ -299,8 +299,8 @@
         视口 5 行、中间那格高亮；离中心越远的数字越小越淡，这是「圆柱」错觉的来源
         （WPF 没有真 3D，靠按距离插值 FontSize/Scale/Opacity 伪造）。
     -->
-    <Popup x:Name="DrumPop" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
-           PopupAnimation="Fade" HorizontalOffset="-22" VerticalOffset="2">
+    <Popup x:Name="DrumPop" Placement="Center" StaysOpen="False" AllowsTransparency="True"
+           PopupAnimation="Fade" HorizontalOffset="0" VerticalOffset="0">
         <Border Margin="10" Background="#FAFFFFFF" CornerRadius="11"
                 BorderBrush="#22000000" BorderThickness="1" Padding="8,5,8,5">
             <Border.Effect>

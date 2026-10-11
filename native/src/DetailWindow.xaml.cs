@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -277,14 +278,17 @@ namespace RemeberEr
             RebuildDrum();
         }
 
-        /// <summary>按当前值重画那几格。中心格的 FontSize / Scale / Opacity 按距离插值。</summary>
+        /// <summary>
+        /// 按当前值铺 7 行（中心 ±3）。铺得比视口高，才有东西可以滑进来。
+        /// 上大下小 —— 和真转轮一样，往上转是更大的数。
+        /// </summary>
         void RebuildDrum()
         {
             DrumStrip.Children.Clear();
             long v = _drumIsDay ? _ddlDays : _ddlHours;
             long max = _drumIsDay ? 999 : 23;
 
-            for (int off = -2; off <= 2; off++)
+            for (int off = 3; off >= -3; off--)
             {
                 long n = v + off;
                 if (n < 0) n = 0;
@@ -302,34 +306,85 @@ namespace RemeberEr
                     Foreground = new SolidColorBrush(off == 0
                         ? Color.FromRgb(0x1c, 0x1c, 0x1e)
                         : Color.FromRgb(0x86, 0x86, 0x8c)),
-                    Opacity = off == 0 ? 1.0 : (d == 1 ? 0.55 : 0.22),
+                    Opacity = off == 0 ? 1.0 : Math.Max(0.12, 0.62 - d * 0.18),
                 };
                 if (off != 0)
                 {
-                    double sx = d == 1 ? 0.80 : 0.62;
+                    double sx = Math.Max(0.5, 0.86 - d * 0.10);
                     t.RenderTransformOrigin = new Point(0.5, 0.5);
-                    t.RenderTransform = new ScaleTransform(sx, d == 1 ? 0.86 : 0.7);
+                    t.RenderTransform = new ScaleTransform(sx, sx);
                 }
                 DrumStrip.Children.Add(t);
             }
+            SetStripY(0);
         }
+
+        void SetStripY(double y)
+        {
+            var tt = DrumStrip.RenderTransform as TranslateTransform;
+            if (tt == null)
+            {
+                tt = new TranslateTransform(0, 0);
+                DrumStrip.RenderTransform = tt;
+            }
+            tt.Y = y;
+        }
+
+        // ---------------- 滚动动画 ----------------
+        //
+        // 不是"重画一下就跳到新位置"，而是**把条带整体平移一格**，逐帧走完再重居中。
+        // 重居中之后画面上完全一样（内容和偏移都复原了），所以能无限往下滑。
+        // 驱动用 CompositionTarget.Rendering —— 和贴边隐藏那套一个道理：
+        // DispatcherTimer 会被消息循环合并，看起来一格一格的。
+
+        Stopwatch _drumClock;
+        EventHandler _drumRender;
+        double _drumAnimTo;
 
         void Step(int delta)
         {
             if (delta == 0) return;
+            // **值要按整个 delta 走**（拖动时一次可能跨好几格，不能漏）。
+            // 动画只滑一格 —— 快速拖动时视觉上略微滞后，但数值永远准确，
+            // 比"动画走满、值却只动一格"要安全得多。
             if (_drumIsDay)
-            {
-                long v = _ddlDays + delta;
-                _ddlDays = Math.Max(0, Math.Min(999, v));
-            }
+                _ddlDays = Math.Max(0, Math.Min(999, _ddlDays + delta));
             else
-            {
-                long v = _ddlHours + delta;
-                _ddlHours = Math.Max(0, Math.Min(23, v));
-            }
-            RebuildDrum();
+                _ddlHours = Math.Max(0, Math.Min(23, _ddlHours + delta));
+
             ApplyDdl();
             RefreshDdlNums();
+            AnimateDrum(Math.Sign(delta));
+        }
+
+        /// <summary>
+        /// 值 +1 时中间那格要落到 v+1 上 —— 而 v+1 此刻在中心**上面**一格，
+        /// 所以条带要往下走（Y 变正）。
+        /// </summary>
+        void AnimateDrum(int delta)
+        {
+            StopDrumAnim();
+            _drumAnimTo = ROW_H * delta;
+            _drumClock = Stopwatch.StartNew();
+
+            _drumRender = (s, e) =>
+            {
+                double ms = _drumClock.Elapsed.TotalMilliseconds;
+                double t = Math.Min(1.0, ms / 130.0);
+                double k = 1 - Math.Pow(1 - t, 3);          // ease-out
+                SetStripY(_drumAnimTo * k);
+                if (t < 1.0) return;
+                StopDrumAnim();
+                RebuildDrum();                              // 滑完重居中，画面上看不出接缝
+            };
+            CompositionTarget.Rendering += _drumRender;
+        }
+
+        void StopDrumAnim()
+        {
+            if (_drumRender == null) return;
+            CompositionTarget.Rendering -= _drumRender;
+            _drumRender = null;
         }
 
         void OnDayHit(object sender, MouseButtonEventArgs e)
