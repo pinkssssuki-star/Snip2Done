@@ -11,6 +11,32 @@
         PreviewKeyDown="OnKeyDown">
 
     <Window.Resources>
+        <!-- 转轮上的上下小箭头 -->
+        <Style x:Key="SpinBtn" TargetType="Button">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="15"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="8"/>
+            <Setter Property="Foreground" Value="#7a7a80"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="sb" CornerRadius="4" Background="#f2f2f5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="sb" Property="Background" Value="#e4e4ea"/>
+                                <Setter Property="Foreground" Value="#3a3a3c"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="sb" Property="Background" Value="#d8d8e0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- 顶栏那个「平时隐形、悬停浅灰、聚焦变白带紫边」的标题框 -->
         <Style x:Key="TitleBoxStyle" TargetType="TextBox">
             <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
@@ -182,6 +208,60 @@
                     <TextBlock Text="生命值" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
                                Width="42" Margin="0,0,7,0"/>
                     <TextBlock x:Name="LifeText" FontSize="11" Foreground="#8a8a8e"/>
+                </StackPanel>
+
+                <!--
+                    DDL：显示态是一枚 `xx天 xx小时` 的胶囊，点一下摊成上下两个转轮，
+                    天 / 小时各以 1 为单位加减。只对 Todo 出现（Wantdo 没有期限）。
+                -->
+                <StackPanel x:Name="DdlRow" Orientation="Horizontal" Margin="0,4,0,0"
+                            Visibility="Collapsed">
+                    <TextBlock Text="DDL" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
+                               Width="42" Margin="0,0,7,0" VerticalAlignment="Center"/>
+
+                    <Border x:Name="DdlChip" CornerRadius="7" Background="#f2f2f5" Padding="8,2,8,2"
+                            Cursor="Hand" VerticalAlignment="Center"
+                            MouseLeftButtonUp="OnDdlChipClick" ToolTip="点一下改期限">
+                        <TextBlock x:Name="DdlText" FontSize="11" Foreground="#3a3a3c"/>
+                    </Border>
+
+                    <!-- 编辑态：两列转轮 -->
+                    <StackPanel x:Name="DdlSpin" Orientation="Horizontal" Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                        <StackPanel>
+                            <Button Style="{StaticResource SpinBtn}" Content="▲" Click="OnDayUp" Tag="d"/>
+                            <TextBlock x:Name="DayVal" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
+                                       HorizontalAlignment="Center" Margin="0,1,0,1"/>
+                            <Button Style="{StaticResource SpinBtn}" Content="▼" Click="OnDayDown" Tag="d"/>
+                        </StackPanel>
+                        <TextBlock Text="天" FontSize="10.5" Foreground="#8a8a8e" Margin="4,0,9,0"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel>
+                            <Button Style="{StaticResource SpinBtn}" Content="▲" Click="OnHourUp" Tag="h"/>
+                            <TextBlock x:Name="HourVal" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
+                                       HorizontalAlignment="Center" Margin="0,1,0,1"/>
+                            <Button Style="{StaticResource SpinBtn}" Content="▼" Click="OnHourDown" Tag="h"/>
+                        </StackPanel>
+                        <TextBlock Text="小时" FontSize="10.5" Foreground="#8a8a8e" Margin="4,0,10,0"
+                                   VerticalAlignment="Center"/>
+                        <Button x:Name="DdlDone" Content="好了" Click="OnDdlDone" Cursor="Hand"
+                                VerticalAlignment="Center">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="db" CornerRadius="7" Padding="10,3,10,3"
+                                            Background="#8b5cf6">
+                                        <TextBlock Text="好了" FontSize="10.5" FontWeight="SemiBold"
+                                                   Foreground="#ffffff"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="db" Property="Background" Value="#7c3aed"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
 

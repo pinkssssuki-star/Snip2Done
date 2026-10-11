@@ -141,6 +141,8 @@ namespace RemeberEr
                 LifeRow.Visibility = Visibility.Collapsed;
             }
 
+            LoadDdl(isWant);   // Todo 多一行可编辑的 DDL
+
             bool done = J.Str(_item, "state", "") == "done";
             GetDoneBtn.Visibility = done ? Visibility.Collapsed : Visibility.Visible;
             DoneHint.Text = done ? "这条已经完成了" : (isWant ? "完成时会让你写一句心得" : "");
@@ -220,6 +222,111 @@ namespace RemeberEr
         }
 
         void OnClose(object sender, RoutedEventArgs e) { SaveNow(); Close(); }
+
+        // ---------------- DDL 编辑 ----------------
+        //
+        // 显示 `xx天 xx小时`，点一下摊成上下两个转轮，天 / 小时各以 1 为步长。
+        // 想让一条已经建好的 Todo 改期限，不用再去截图重来。
+
+        long _ddlDays, _ddlHours;
+
+        void LoadDdl(bool isWant)
+        {
+            // Wantdo 没有期限，这一行不出现
+            DdlRow.Visibility = isWant ? Visibility.Collapsed : Visibility.Visible;
+            if (isWant) return;
+
+            object da = J.Get(_item, "dueAt");
+            long now = Store.Now();
+            long left = da is double ? (long)(double)da - now : 0;
+            if (left < 0) left = 0;
+            _ddlDays = left / 86400000L;
+            _ddlHours = (left % 86400000L) / 3600000L;
+
+            ShowDdlChip();
+        }
+
+        void ShowDdlChip()
+        {
+            DdlChip.Visibility = Visibility.Visible;
+            DdlSpin.Visibility = Visibility.Collapsed;
+            DdlText.Text = DdlPhrase();
+        }
+
+        void ShowDdlSpin()
+        {
+            DdlChip.Visibility = Visibility.Collapsed;
+            DdlSpin.Visibility = Visibility.Visible;
+            RefreshDdlSpin();
+        }
+
+        void RefreshDdlSpin()
+        {
+            DayVal.Text = _ddlDays.ToString();
+            HourVal.Text = _ddlHours.ToString();
+        }
+
+        string DdlPhrase()
+        {
+            object da = J.Get(_item, "dueAt");
+            if (!(da is double)) return "还没设期限 · 点一下加上";
+
+            // 逾期要说「已经逾期多久」—— 这时候 _ddlDays/_ddlHours 是 0
+            //（转轮从 0 起，只能往后推），不能拿它们来造句。
+            long diff = (long)(double)da - Store.Now();
+            if (diff < 0)
+            {
+                long od = -diff;
+                return "已逾期 " + (od / 86400000L) + " 天 " + ((od % 86400000L) / 3600000L) + " 小时";
+            }
+            if (_ddlDays <= 0) return _ddlHours + " 小时后";
+            return _ddlDays + " 天 " + _ddlHours + " 小时";
+        }
+
+        void OnDdlChipClick(object sender, MouseButtonEventArgs e)
+        {
+            if (e != null) e.Handled = true;   // 验收钩子会传 null
+            ShowDdlSpin();
+        }
+
+        void OnDdlDone(object sender, RoutedEventArgs e) { ShowDdlChip(); }
+
+        void OnDayUp(object sender, RoutedEventArgs e) { _ddlDays++; RefreshDdlSpin(); ApplyDdl(); }
+        void OnDayDown(object sender, RoutedEventArgs e) { if (_ddlDays > 0) _ddlDays--; RefreshDdlSpin(); ApplyDdl(); }
+        void OnHourUp(object sender, RoutedEventArgs e) { if (_ddlHours < 23) _ddlHours++; RefreshDdlSpin(); ApplyDdl(); }
+        void OnHourDown(object sender, RoutedEventArgs e) { if (_ddlHours > 0) _ddlHours--; RefreshDdlSpin(); ApplyDdl(); }
+
+        // 验收用的钩子：直接走一遍点击逻辑，不用真去点
+        public void SimDdlOpen() { OnDdlChipClick(null, null); }
+        public void SimDdlDone() { OnDdlDone(null, null); }
+        public void SimDay(int d) { for (int i = 0; i < Math.Abs(d); i++) { if (d > 0) OnDayUp(null, null); else OnDayDown(null, null); } }
+        public void SimHour(int d) { for (int i = 0; i < Math.Abs(d); i++) { if (d > 0) OnHourUp(null, null); else OnHourDown(null, null); } }
+        public string DdlState()
+        {
+            return string.Format("days={0} hours={1} chip=\"{2}\" spin可见={3}",
+                _ddlDays, _ddlHours, DdlText.Text, DdlSpin.Visibility == Visibility.Visible);
+        }
+
+        /// <summary>把「还剩 N 天 M 小时」落成绝对时间戳。</summary>
+        void ApplyDdl()
+        {
+            long due = Store.Now() + _ddlDays * 86400000L + _ddlHours * 3600000L;
+            var patch = new Dictionary<string, object>
+            {
+                { "dueAt", (double)due },
+                { "dueDays", (double)_ddlDays },
+            };
+            // 原来没设过期限的，给个档位，卡片上才会出药丸
+            string bucket = J.Str(_item, "dueBucket", null);
+            if (bucket == null) bucket = "soon";
+
+            _store.SetDue(_id, (double)due, (int)_ddlDays, bucket);
+            _item = _store.Get(_id);
+            DdlText.Text = DdlPhrase();
+            Program.Log(string.Format("  DDL 改成 {0} 天 {1} 小时 -> {2}",
+                _ddlDays, _ddlHours,
+                DateTimeOffset.FromUnixTimeMilliseconds(due).ToLocalTime().ToString("yyyy-MM-dd HH:mm")));
+        }
 
         void OnGetDone(object sender, RoutedEventArgs e)
         {

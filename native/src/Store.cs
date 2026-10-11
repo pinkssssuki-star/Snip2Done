@@ -308,6 +308,25 @@ namespace RemeberEr
             return it;
         }
 
+        /// <summary>
+        /// 改一条的期限。
+        ///
+        /// 单独开一个方法，而不是把 dueAt 加进 Update() 的白名单 —— Update 只放行
+        /// title / note / reflection 是**刻意**的（任何调用者都不该能写任意字段）。
+        /// 顺带记一笔：我第一次就是走 Update() 的，它把 dueAt 静默丢了还照样 Save，
+        /// 从日志上完全看不出问题，只有比对落库结果才发现。
+        /// </summary>
+        public Dictionary<string, object> SetDue(string id, double dueAt, int dueDays, string dueBucket)
+        {
+            var it = Get(id);
+            if (it == null) return null;
+            it["dueAt"] = dueAt;
+            it["dueDays"] = dueDays > 0 ? (object)(double)dueDays : null;
+            if (dueBucket != null) it["dueBucket"] = dueBucket;
+            Save();
+            return it;
+        }
+
         public Dictionary<string, object> Touch(string id)
         {
             var it = Get(id);

@@ -162,6 +162,63 @@ namespace RemeberEr
             else if (Program.Flow == "pin") ScheduleFlowPin();
             else if (Program.Flow == "search") ScheduleFlowSearch();
             else if (Program.Flow == "undo") ScheduleFlowUndo();
+            else if (Program.Flow == "ddl") ScheduleFlowDdl();
+        }
+
+        /// <summary>验收 DDL 转轮：打开一条 Todo 的详情，点开转轮，上下各调几下，看 dueAt 有没有跟着变。</summary>
+        void ScheduleFlowDdl()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            string id = null;
+
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                _vm.View = "main";
+                foreach (var t in _vm.Todos) { id = t.Id; break; }
+                if (id == null) { Program.Log("  !! 没有 Todo"); Close(); return; }
+                var it = _store.Get(id);
+                object da = J.Get(it, "dueAt");
+                Program.Log(string.Format("  拿第 1 条 Todo「{0}」 现有 dueAt={1}",
+                    J.Str(it, "title", ""),
+                    da is double ? DateTimeOffset.FromUnixTimeMilliseconds((long)(double)da).ToLocalTime().ToString("MM-dd HH:mm") : "无"));
+                OpenDetail(id);
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(1200, () =>
+            {
+                if (_details.Count == 0) { Program.Log("  !! 详情窗没开"); Close(); return; }
+                var w = _details[0];
+                Program.Log("  胶囊态：" + w.DdlState());
+                ShotWindow(w, "ddl-chip");
+                w.SimDdlOpen();
+                Program.Log("  点开后：" + w.DdlState());
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                var w = _details[0];
+                w.SimDay(3);                       // 天 +3
+                w.SimHour(2);                      // 小时 +2
+                Program.Log("  天+3 小时+2 后：" + w.DdlState());
+                ShotWindow(w, "ddl-spin");
+                w.SimDay(-1);                      // 再退一天，确认能减
+                Program.Log("  天-1 后：" + w.DdlState());
+                w.SimDdlDone();
+                Program.Log("  收成胶囊：" + w.DdlState());
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                var it = _store.Get(id);
+                object da = J.Get(it, "dueAt");
+                Program.Log(string.Format("  落库 dueAt={0}  dueDays={1}  dueBucket={2}",
+                    da is double ? DateTimeOffset.FromUnixTimeMilliseconds((long)(double)da).ToLocalTime().ToString("MM-dd HH:mm") : "无",
+                    J.Num(it, "dueDays", -1), J.Str(it, "dueBucket", "null")));
+                ShotWindow(_details[0], "ddl-after");
+                Program.Log("  DDL 流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>验收「误 Done 的后悔药」：打开一条已完成的 todo，点两下撤回，看它回到 todo 列表。</summary>
