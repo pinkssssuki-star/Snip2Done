@@ -317,7 +317,7 @@
                     </StackPanel>
                     <Border Grid.Row="0" Grid.RowSpan="2" x:Name="pick" Background="#eb7c3aed"
                             VerticalAlignment="Bottom" Padding="4" Opacity="0">
-                        <TextBlock Text="捡回来" FontSize="10" FontWeight="SemiBold" Foreground="#ffffff"
+                        <TextBlock Text="{Binding PickLabel}" FontSize="10" FontWeight="SemiBold" Foreground="#ffffff"
                                    HorizontalAlignment="Center"/>
                     </Border>
                 </Grid>
@@ -348,7 +348,8 @@
         <DataTemplate x:Key="DoneItemTpl">
             <Border x:Name="di" CornerRadius="9" Background="#ffffff"
                     BorderBrush="#0f000000" BorderThickness="1" Padding="6,6,8,6" Margin="0,0,0,4"
-                    Cursor="Hand" MouseLeftButtonUp="OnDoneItemClick">
+                    Cursor="Hand" MouseLeftButtonUp="OnDoneItemClick"
+                    MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

@@ -301,6 +301,8 @@ namespace RemeberEr
         /// 初心 Wantdo 可以，而且永远不会被删。
         /// </summary>
         public bool CanRestore { get; set; }
+        /// <summary>悬停时那块提示的文案。两个分区的说法不一样。</summary>
+        public string PickLabel { get; set; }
     }
 
     public class DoneVm : ObservableObject
@@ -1226,8 +1228,20 @@ namespace RemeberEr
                 var vm = MakeBin(it);
                 Bins.Add(vm);
                 // 按房间分到两个分区：使命 Todo 能全清但不能捡回，初心 Wantdo 能捡回但永不删
-                if (J.Str(it, "room", "") == "todo") { vm.CanRestore = false; TodoBins.Add(vm); }
-                else { vm.CanRestore = true; WantBins.Add(vm); }
+                if (J.Str(it, "room", "") == "todo")
+                {
+                    // 使命 Todo 也能撤回 —— 点了 ✕ 才发现点串了是常有的事。
+                    // 「倒垃圾」仍然是一次全清，但单条可以先捞回来。
+                    vm.CanRestore = true;
+                    vm.PickLabel = "撤回";
+                    TodoBins.Add(vm);
+                }
+                else
+                {
+                    vm.CanRestore = true;
+                    vm.PickLabel = "捡回来";
+                    WantBins.Add(vm);
+                }
             }
             long t3 = Program.Boot.ElapsedMilliseconds;
             Program.Log(string.Format("  [t={0}ms]   · Refresh: Snapshot={1}ms Todo={2}ms Want+Bin={3}ms",

@@ -635,6 +635,8 @@ namespace RemeberEr
                 _vm.BinTab = "todo";
                 Program.Log(string.Format("  倒垃圾前：使命 Todo {0} 条，初心 Wantdo {1} 条",
                     _vm.TodoBins.Count, _vm.WantBins.Count));
+                foreach (var b in _vm.TodoBins)
+                    Program.Log(string.Format("    使命 · {0}  可撤回={1} 文案=\"{2}\"", b.Caption, b.CanRestore, b.PickLabel));
                 Shot("bin-todo");
             }));
             steps.Add(Tuple.Create<int, Action>(450, () =>
@@ -1293,6 +1295,9 @@ namespace RemeberEr
             var t = dc as TodoVm; if (t != null) return t.ImagePath;
             var w = dc as WantVm; if (w != null) return w.ImagePath;
             var b = dc as BinVm; if (b != null) return b.ImagePath;
+            // Done 条目也要能悬停出大图 —— 之前漏了这一支，即便模板挂了 MouseEnter
+            // 也会在这里拿到 null 直接 return，悬停毫无反应。
+            var d = dc as DoneVm; if (d != null) return d.ImagePath;
             return null;
         }
 
