@@ -255,7 +255,45 @@
             <!-- ============================================ 底部 -->
             <Border Grid.Row="2" Padding="14,10,14,13" BorderBrush="#0f000000" BorderThickness="0,1,0,0">
                 <Grid>
-                    <TextBlock x:Name="FootNote" FontSize="10" Foreground="#b0b0b6" VerticalAlignment="Center"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="FootNote" Grid.Column="0" FontSize="10" Foreground="#b0b0b6"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,8,0"/>
+
+                    <!--
+                        误 Done 的后悔药。两步走是刻意的：
+                        点第一下只把按钮变成红的「撤回」，点第二下才真退回去 ——
+                        按钮本身就在「已完成」这句话旁边，误点的概率不低。
+                    -->
+                    <Button x:Name="UndoBtn" Grid.Column="1" Click="OnUndoClick" Cursor="Hand"
+                            VerticalAlignment="Center" Visibility="Collapsed"
+                            ToolTip="点两下：第一下变成「撤回」，第二下真的退回 Todo 列表">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ub" CornerRadius="7" Padding="9,4,9,4"
+                                        Background="#ffffff" BorderBrush="#1c000000" BorderThickness="1">
+                                    <TextBlock x:Name="ut" Text="其实还没有QAQ" FontSize="10.5"
+                                               FontWeight="Medium" Foreground="#3a3a3c"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ub" Property="BorderBrush" Value="#8c8b5cf6"/>
+                                    </Trigger>
+                                    <!-- Tag=confirm：第一下点过了，现在这一下才会真撤回 -->
+                                    <Trigger Property="Tag" Value="confirm">
+                                        <Setter TargetName="ub" Property="Background" Value="#dc2626"/>
+                                        <Setter TargetName="ub" Property="BorderBrush" Value="#dc2626"/>
+                                        <Setter TargetName="ut" Property="Text" Value="撤回"/>
+                                        <Setter TargetName="ut" Property="Foreground" Value="#ffffff"/>
+                                        <Setter TargetName="ut" Property="FontWeight" Value="SemiBold"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
 
                     <StackPanel x:Name="WriteFoot" Orientation="Horizontal" HorizontalAlignment="Right"
                                 Visibility="Collapsed">

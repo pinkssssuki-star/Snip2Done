@@ -163,6 +163,11 @@ namespace RemeberEr
             WriteFoot.Visibility = Visibility.Collapsed;
             ViewFoot.Visibility = Visibility.Visible;
             FootNote.Text = J.Str(it, "room", "") == "want" ? "这是你曾经想要的东西" : "这件事已经了结";
+            // 撤回按钮：只有 Todo 才给。Wantdo 的「完成」是它自己的终局，
+            // 而 Todo 误勾一下是常有的事。
+            UndoBtn.Visibility = J.Str(it, "room", "") == "todo"
+                ? Visibility.Visible : Visibility.Collapsed;
+            UndoBtn.Tag = null;      // 每次打开都从「其实还没有QAQ」那一步开始
 
             SetThumb(VThumb, VThumbPh, VThumbChar, it);
             VF1.Text = J.Str(it, "source", "") is string s && s.Length > 0 ? s : "未知";
@@ -287,6 +292,28 @@ namespace RemeberEr
 
         void OnClose(object sender, RoutedEventArgs e) { Close(); }
         void OnCancel(object sender, RoutedEventArgs e) { Close(); }
+
+        /// <summary>验收用：直接走一遍点击逻辑（不用真的去点）。</summary>
+        public void SimulateUndoClick() { OnUndoClick(null, null); }
+
+        /// <summary>点了第二次「撤回」—— 交给 PanelWindow 去真正退回 Todo 列表。</summary>
+        public event Action<string> UndoRequested;
+
+        /// <summary>
+        /// 「其实还没有QAQ」→「撤回」→ 真的退回去。
+        /// 两步是刻意的：这按钮就在「这件事已经了结」旁边，误点的概率不低。
+        /// </summary>
+        void OnUndoClick(object sender, RoutedEventArgs e)
+        {
+            if (!object.Equals(UndoBtn.Tag, "confirm"))
+            {
+                UndoBtn.Tag = "confirm";   // 第一下：只把按钮变成红的「撤回」
+                return;
+            }
+            var h = UndoRequested;
+            if (h != null) h(_id);
+            Close();
+        }
 
         void OnCommit(object sender, RoutedEventArgs e)
         {

@@ -161,6 +161,62 @@ namespace RemeberEr
             else if (Program.Flow == "manual") ScheduleFlowManual();
             else if (Program.Flow == "pin") ScheduleFlowPin();
             else if (Program.Flow == "search") ScheduleFlowSearch();
+            else if (Program.Flow == "undo") ScheduleFlowUndo();
+        }
+
+        /// <summary>验收「误 Done 的后悔药」：打开一条已完成的 todo，点两下撤回，看它回到 todo 列表。</summary>
+        void ScheduleFlowUndo()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            string id = null;
+            int todoBefore = 0;
+
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                _vm.View = "done"; _vm.DoneTab = "todo";
+                todoBefore = _vm.TodoDoneGroups.Count;
+                foreach (var g in _vm.TodoDoneGroups)
+                    foreach (var d in g.Items) { id = d.Id; break; }
+                if (id == null) { Program.Log("  !! 没有已完成的 todo 可撤回"); Close(); return; }
+                Program.Log(string.Format("  Done(todo) 分组 {0} 组，拿第 1 条 {1}", todoBefore, id.Substring(0, 8)));
+                var it = _store.Get(id);
+                Program.Log(string.Format("  撤回前：state={0} filedAt={1}",
+                    J.Str(it, "state", ""), J.IsNull(J.Get(it, "filedAt")) ? "null" : "有值"));
+                OpenRecord(id, "view");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(1200, () =>
+            {
+                if (_records.Count == 0) { Program.Log("  !! 记录窗没开"); Close(); return; }
+                ShotWindow(_records[0], "undo-step1");
+                Program.Log("  打开记录窗（按钮应是白色的「其实还没有QAQ」）");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                var w = _records[0];
+                w.SimulateUndoClick();      // 第 1 下：只变红
+                Program.Log("  点了第 1 下（按钮应已变红「撤回」）");
+                ShotWindow(w, "undo-step2");
+                w.SimulateUndoClick();      // 第 2 下：真撤回
+                Program.Log("  点了第 2 下 -> 撤回");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(900, () =>
+            {
+                var it = _store.Get(id);
+                Program.Log(string.Format("  撤回后：state={0} filedAt={1} doneAt={2}",
+                    J.Str(it, "state", ""),
+                    J.IsNull(J.Get(it, "filedAt")) ? "null" : "有值",
+                    J.IsNull(J.Get(it, "doneAt")) ? "null" : "有值"));
+                _vm.Refresh();
+                bool back = false;
+                foreach (var t in _vm.Todos) if (t.Id == id) back = true;
+                Program.Log("  回到 Todo 列表了吗 = " + back + "（应为 True）");
+                Program.Log("  记录窗流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>验收搜索 + 临期排序：不搜、搜一个词、搜不到、再清空。</summary>
@@ -1490,6 +1546,7 @@ namespace RemeberEr
                 _vm.Refresh();
             };
             r.Closed += (s, e) => { _records.Remove(r); _vm.Refresh(); };
+            r.UndoRequested += rid => { _store.UnDone(rid); _vm.Refresh(); };
             _records.Add(r);
             r.Show();
             Cascade(r, _records.Count - 1);

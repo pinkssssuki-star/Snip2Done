@@ -340,6 +340,29 @@ namespace RemeberEr
             return n;
         }
 
+        /// <summary>
+        /// 把一条已完成的条目撤回成未完成（回到它原来的房间列表）。
+        ///
+        /// 和 Done() 里那个「再点一次撤销」不同：那个只在**还没收走**时有效；
+        /// Done 列表里看到的是已经 filedAt 的，必须把 filedAt 一起清掉。
+        /// 这是给「误 Done 了」准备的后悔药。
+        /// </summary>
+        public Dictionary<string, object> UnDone(string id)
+        {
+            var it = Get(id);
+            if (it == null) return null;
+            if (J.Str(it, "state", "") != "done") return it;
+
+            it["state"] = "active";
+            it["doneAt"] = null;
+            it["filedAt"] = null;
+            // 撤回之后它重新"活着"：对 Wantdo 来说，保质期从这一刻重新开始
+            it["lastTouchedAt"] = (double)Now();
+            Save();
+            Program.Log("  撤回完成：" + J.Str(it, "title", "") + " -> room=" + J.Str(it, "room", ""));
+            return it;
+        }
+
         public Dictionary<string, object> Done(string id, bool hasReflection, string reflection, bool file)
         {
             var it = Get(id);
