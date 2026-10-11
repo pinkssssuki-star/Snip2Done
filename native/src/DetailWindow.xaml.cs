@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -248,63 +249,140 @@ namespace RemeberEr
 
         void ShowDdlChip()
         {
-            DdlChip.Visibility = Visibility.Visible;
-            DdlSpin.Visibility = Visibility.Collapsed;
-            DdlText.Text = DdlPhrase();
+            RefreshDdlNums();
         }
 
-        void ShowDdlSpin()
+        void RefreshDdlNums()
         {
-            DdlChip.Visibility = Visibility.Collapsed;
-            DdlSpin.Visibility = Visibility.Visible;
-            RefreshDdlSpin();
+            DayNum.Text = _ddlDays.ToString();
+            HourNum.Text = _ddlHours.ToString();
         }
 
-        void RefreshDdlSpin()
+        // ---------------- 转轮 ----------------
+        //
+        // 点数字 → 在**上层**弹一个 Popup（不参与布局，所以详情窗不会顶出两行）。
+        // 滚轮或上下拖都能转，一格一格吸附；离中心越远的数字越小越淡。
+
+        bool _drumIsDay;
+        bool _drumDragging;
+        double _drumLastY;
+        const double ROW_H = 28;      // 一格的高度
+        const int DRUM_ROWS = 5;      // 中心 ±2
+
+        void OpenDrum(FrameworkElement anchor, bool isDay)
         {
-            DayVal.Text = _ddlDays.ToString();
-            HourVal.Text = _ddlHours.ToString();
+            _drumIsDay = isDay;
+            DrumPop.PlacementTarget = anchor;
+            DrumPop.IsOpen = true;
+            RebuildDrum();
         }
 
-        string DdlPhrase()
+        /// <summary>按当前值重画那几格。中心格的 FontSize / Scale / Opacity 按距离插值。</summary>
+        void RebuildDrum()
         {
-            object da = J.Get(_item, "dueAt");
-            if (!(da is double)) return "还没设期限 · 点一下加上";
+            DrumStrip.Children.Clear();
+            long v = _drumIsDay ? _ddlDays : _ddlHours;
+            long max = _drumIsDay ? 999 : 23;
 
-            // 逾期要说「已经逾期多久」—— 这时候 _ddlDays/_ddlHours 是 0
-            //（转轮从 0 起，只能往后推），不能拿它们来造句。
-            long diff = (long)(double)da - Store.Now();
-            if (diff < 0)
+            for (int off = -2; off <= 2; off++)
             {
-                long od = -diff;
-                return "已逾期 " + (od / 86400000L) + " 天 " + ((od % 86400000L) / 3600000L) + " 小时";
+                long n = v + off;
+                if (n < 0) n = 0;
+                if (n > max) n = max;
+                double d = Math.Abs(off);
+
+                var t = new TextBlock
+                {
+                    Text = n.ToString(),
+                    Height = ROW_H,
+                    LineHeight = ROW_H,
+                    TextAlignment = TextAlignment.Center,
+                    FontSize = off == 0 ? 17 : 13,
+                    FontWeight = off == 0 ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = new SolidColorBrush(off == 0
+                        ? Color.FromRgb(0x1c, 0x1c, 0x1e)
+                        : Color.FromRgb(0x86, 0x86, 0x8c)),
+                    Opacity = off == 0 ? 1.0 : (d == 1 ? 0.55 : 0.22),
+                };
+                if (off != 0)
+                {
+                    double sx = d == 1 ? 0.80 : 0.62;
+                    t.RenderTransformOrigin = new Point(0.5, 0.5);
+                    t.RenderTransform = new ScaleTransform(sx, d == 1 ? 0.86 : 0.7);
+                }
+                DrumStrip.Children.Add(t);
             }
-            if (_ddlDays <= 0) return _ddlHours + " 小时后";
-            return _ddlDays + " 天 " + _ddlHours + " 小时";
         }
 
-        void OnDdlChipClick(object sender, MouseButtonEventArgs e)
+        void Step(int delta)
         {
-            if (e != null) e.Handled = true;   // 验收钩子会传 null
-            ShowDdlSpin();
+            if (delta == 0) return;
+            if (_drumIsDay)
+            {
+                long v = _ddlDays + delta;
+                _ddlDays = Math.Max(0, Math.Min(999, v));
+            }
+            else
+            {
+                long v = _ddlHours + delta;
+                _ddlHours = Math.Max(0, Math.Min(23, v));
+            }
+            RebuildDrum();
+            ApplyDdl();
+            RefreshDdlNums();
         }
 
-        void OnDdlDone(object sender, RoutedEventArgs e) { ShowDdlChip(); }
+        void OnDayHit(object sender, MouseButtonEventArgs e)
+        {
+            if (e != null) e.Handled = true;
+            OpenDrum(DayHit, true);
+        }
 
-        void OnDayUp(object sender, RoutedEventArgs e) { _ddlDays++; RefreshDdlSpin(); ApplyDdl(); }
-        void OnDayDown(object sender, RoutedEventArgs e) { if (_ddlDays > 0) _ddlDays--; RefreshDdlSpin(); ApplyDdl(); }
-        void OnHourUp(object sender, RoutedEventArgs e) { if (_ddlHours < 23) _ddlHours++; RefreshDdlSpin(); ApplyDdl(); }
-        void OnHourDown(object sender, RoutedEventArgs e) { if (_ddlHours > 0) _ddlHours--; RefreshDdlSpin(); ApplyDdl(); }
+        void OnHourHit(object sender, MouseButtonEventArgs e)
+        {
+            if (e != null) e.Handled = true;
+            OpenDrum(HourHit, false);
+        }
 
-        // 验收用的钩子：直接走一遍点击逻辑，不用真去点
-        public void SimDdlOpen() { OnDdlChipClick(null, null); }
-        public void SimDdlDone() { OnDdlDone(null, null); }
-        public void SimDay(int d) { for (int i = 0; i < Math.Abs(d); i++) { if (d > 0) OnDayUp(null, null); else OnDayDown(null, null); } }
-        public void SimHour(int d) { for (int i = 0; i < Math.Abs(d); i++) { if (d > 0) OnHourUp(null, null); else OnHourDown(null, null); } }
+        void OnDrumWheel(object sender, MouseWheelEventArgs e)
+        {
+            e.Handled = true;
+            Step(e.Delta > 0 ? 1 : -1);
+        }
+
+        void OnDrumDown(object sender, MouseButtonEventArgs e)
+        {
+            _drumDragging = true;
+            _drumLastY = e.GetPosition(this).Y;
+            DrumBox.CaptureMouse();
+        }
+
+        /// <summary>往上拖 = 数值变大（和转轮往上滚一致）。每 ~20px 走一格。</summary>
+        void OnDrumMove(object sender, MouseEventArgs e)
+        {
+            if (!_drumDragging) return;
+            double y = e.GetPosition(this).Y;
+            int steps = (int)Math.Truncate((_drumLastY - y) / 20.0);
+            if (steps == 0) return;
+            _drumLastY -= steps * 20.0;
+            Step(steps);
+        }
+
+        void OnDrumUp(object sender, MouseEventArgs e)
+        {
+            if (!_drumDragging) return;
+            _drumDragging = false;
+            try { DrumBox.ReleaseMouseCapture(); } catch (Exception) { }
+        }
+
+        // 验收用的钩子
+        public void SimOpenDay() { OpenDrum(DayHit, true); }
+        public void SimOpenHour() { OpenDrum(HourHit, false); }
+        public void SimStep(int d) { Step(d); }
         public string DdlState()
         {
-            return string.Format("days={0} hours={1} chip=\"{2}\" spin可见={3}",
-                _ddlDays, _ddlHours, DdlText.Text, DdlSpin.Visibility == Visibility.Visible);
+            return string.Format("days={0} hours={1} 显示=\"{2}天 {3}小时\" 转轮开着={4}",
+                _ddlDays, _ddlHours, DayNum.Text, HourNum.Text, DrumPop.IsOpen);
         }
 
         /// <summary>把「还剩 N 天 M 小时」落成绝对时间戳。</summary>
@@ -322,7 +400,7 @@ namespace RemeberEr
 
             _store.SetDue(_id, (double)due, (int)_ddlDays, bucket);
             _item = _store.Get(_id);
-            DdlText.Text = DdlPhrase();
+            RefreshDdlNums();
             Program.Log(string.Format("  DDL 改成 {0} 天 {1} 小时 -> {2}",
                 _ddlDays, _ddlHours,
                 DateTimeOffset.FromUnixTimeMilliseconds(due).ToLocalTime().ToString("yyyy-MM-dd HH:mm")));

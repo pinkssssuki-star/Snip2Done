@@ -94,6 +94,20 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- 行内那个可点的数字（点它弹转轮） -->
+        <Style x:Key="DdlNum" TargetType="Border">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="#f2f2f5"/>
+            <Setter Property="Padding" Value="7,1,7,1"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#e6e1fb"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Border CornerRadius="14" Background="#faffffff" BorderBrush="#17000000" BorderThickness="1"
@@ -211,57 +225,27 @@
                 </StackPanel>
 
                 <!--
-                    DDL：显示态是一枚 `xx天 xx小时` 的胶囊，点一下摊成上下两个转轮，
-                    天 / 小时各以 1 为单位加减。只对 Todo 出现（Wantdo 没有期限）。
+                    DDL：一行「还有 xx天 xx小时」。**布局始终是这一行**，
+                    两个 xx 可以直接点 —— 点了在**上层**弹一个转轮，不占布局、不顶出两行。
                 -->
                 <StackPanel x:Name="DdlRow" Orientation="Horizontal" Margin="0,4,0,0"
                             Visibility="Collapsed">
                     <TextBlock Text="DDL" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
                                Width="42" Margin="0,0,7,0" VerticalAlignment="Center"/>
-
-                    <Border x:Name="DdlChip" CornerRadius="7" Background="#f2f2f5" Padding="8,2,8,2"
-                            Cursor="Hand" VerticalAlignment="Center"
-                            MouseLeftButtonUp="OnDdlChipClick" ToolTip="点一下改期限">
-                        <TextBlock x:Name="DdlText" FontSize="11" Foreground="#3a3a3c"/>
+                    <TextBlock Text="还有" FontSize="11" Foreground="#8a8a8e" VerticalAlignment="Center"
+                               Margin="0,0,4,0"/>
+                    <Border x:Name="DayHit" Style="{StaticResource DdlNum}" MouseLeftButtonUp="OnDayHit"
+                            ToolTip="点这里改天数">
+                        <TextBlock x:Name="DayNum" Text="0"/>
                     </Border>
-
-                    <!-- 编辑态：两列转轮 -->
-                    <StackPanel x:Name="DdlSpin" Orientation="Horizontal" Visibility="Collapsed"
-                                VerticalAlignment="Center">
-                        <StackPanel>
-                            <Button Style="{StaticResource SpinBtn}" Content="▲" Click="OnDayUp" Tag="d"/>
-                            <TextBlock x:Name="DayVal" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
-                                       HorizontalAlignment="Center" Margin="0,1,0,1"/>
-                            <Button Style="{StaticResource SpinBtn}" Content="▼" Click="OnDayDown" Tag="d"/>
-                        </StackPanel>
-                        <TextBlock Text="天" FontSize="10.5" Foreground="#8a8a8e" Margin="4,0,9,0"
-                                   VerticalAlignment="Center"/>
-                        <StackPanel>
-                            <Button Style="{StaticResource SpinBtn}" Content="▲" Click="OnHourUp" Tag="h"/>
-                            <TextBlock x:Name="HourVal" FontSize="11" FontWeight="SemiBold" Foreground="#3a3a3c"
-                                       HorizontalAlignment="Center" Margin="0,1,0,1"/>
-                            <Button Style="{StaticResource SpinBtn}" Content="▼" Click="OnHourDown" Tag="h"/>
-                        </StackPanel>
-                        <TextBlock Text="小时" FontSize="10.5" Foreground="#8a8a8e" Margin="4,0,10,0"
-                                   VerticalAlignment="Center"/>
-                        <Button x:Name="DdlDone" Content="好了" Click="OnDdlDone" Cursor="Hand"
-                                VerticalAlignment="Center">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="db" CornerRadius="7" Padding="10,3,10,3"
-                                            Background="#8b5cf6">
-                                        <TextBlock Text="好了" FontSize="10.5" FontWeight="SemiBold"
-                                                   Foreground="#ffffff"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="db" Property="Background" Value="#7c3aed"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </StackPanel>
+                    <TextBlock Text="天" FontSize="11" Foreground="#8a8a8e" VerticalAlignment="Center"
+                               Margin="4,0,8,0"/>
+                    <Border x:Name="HourHit" Style="{StaticResource DdlNum}" MouseLeftButtonUp="OnHourHit"
+                            ToolTip="点这里改小时">
+                        <TextBlock x:Name="HourNum" Text="0"/>
+                    </Border>
+                    <TextBlock Text="小时" FontSize="11" Foreground="#8a8a8e" VerticalAlignment="Center"
+                               Margin="4,0,0,0"/>
                 </StackPanel>
             </StackPanel>
 
@@ -308,6 +292,33 @@
                     <TextBlock Text="✓ Get Done" FontSize="12" FontWeight="Bold" Foreground="#ffffff"/>
                 </Button>
             </Grid>
+
+    <!--
+        DDL 转轮。Popup 放在根 Grid 里 —— 它画在自己的顶层窗口，
+        既不参与详情窗的布局（点开不会把下面顶出两行），也能盖住任何内容。
+        视口 5 行、中间那格高亮；离中心越远的数字越小越淡，这是「圆柱」错觉的来源
+        （WPF 没有真 3D，靠按距离插值 FontSize/Scale/Opacity 伪造）。
+    -->
+    <Popup x:Name="DrumPop" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+           PopupAnimation="Fade" HorizontalOffset="-22" VerticalOffset="2">
+        <Border Margin="10" Background="#FAFFFFFF" CornerRadius="11"
+                BorderBrush="#22000000" BorderThickness="1" Padding="8,5,8,5">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270"
+                                  Opacity="0.32" Color="#000000"/>
+            </Border.Effect>
+            <Grid x:Name="DrumBox" Width="46" Height="84" ClipToBounds="True"
+                  Background="Transparent" Cursor="SizeNS"
+                  MouseWheel="OnDrumWheel" MouseLeftButtonDown="OnDrumDown"
+                  MouseMove="OnDrumMove" MouseLeftButtonUp="OnDrumUp"
+                  MouseLeave="OnDrumUp">
+                <StackPanel x:Name="DrumStrip" VerticalAlignment="Center"/>
+                <!-- 中心那一格的高亮框 -->
+                <Border Height="28" VerticalAlignment="Center" CornerRadius="6"
+                        Background="#1A8B5CF6" IsHitTestVisible="False"/>
+            </Grid>
+        </Border>
+    </Popup>
         </Grid>
     </Border>
 </Window>

@@ -190,20 +190,20 @@ namespace RemeberEr
                 var w = _details[0];
                 Program.Log("  胶囊态：" + w.DdlState());
                 ShotWindow(w, "ddl-chip");
-                w.SimDdlOpen();
+                w.SimOpenDay();
                 Program.Log("  点开后：" + w.DdlState());
             }));
 
             steps.Add(Tuple.Create<int, Action>(500, () =>
             {
                 var w = _details[0];
-                w.SimDay(3);                       // 天 +3
-                w.SimHour(2);                      // 小时 +2
+                w.SimStep(3);                      // 天 +3
+                w.SimOpenHour(); w.SimStep(2);     // 切到小时鼓再 +2
                 Program.Log("  天+3 小时+2 后：" + w.DdlState());
                 ShotWindow(w, "ddl-spin");
-                w.SimDay(-1);                      // 再退一天，确认能减
+                w.SimStep(-1);                     // 再退一格，确认能减
                 Program.Log("  天-1 后：" + w.DdlState());
-                w.SimDdlDone();
+                
                 Program.Log("  收成胶囊：" + w.DdlState());
             }));
 
