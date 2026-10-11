@@ -63,9 +63,15 @@
     </ControlTemplate>
 
     <!-- ============================================================ 细滚动条 -->
+    <!-- MinWidth/MinHeight 必须显式归零：ThemeStyle（Aero）的 setter 优先级虽然低于
+         本 Style，但没被覆盖时依然生效，而 Aero 给 ScrollBar 设了
+         MinWidth=SystemParameters.VerticalScrollBarWidth（125% 缩放下约 16.8 DIP）。
+         不归零的话，这里的 Width 无论写多小都会被那个下限顶回去。 -->
     <Style TargetType="ScrollBar">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Width" Value="6"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
@@ -75,7 +81,7 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border x:Name="tb" Background="#29000000" CornerRadius="3" Margin="1,0"/>
+                                            <Border x:Name="tb" Background="#29000000" CornerRadius="3" Margin="0.5"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="tb" Property="Background" Value="#42000000"/>
