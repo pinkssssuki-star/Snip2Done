@@ -130,11 +130,9 @@ namespace RemeberEr
             HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
             Program.Log("  [t=" + Program.Boot.ElapsedMilliseconds + "ms] 窗口句柄就绪");
 
-            int mods = Interop.MOD_CONTROL | Interop.MOD_SHIFT | Interop.MOD_NOREPEAT;
-            Program.Log(string.Format("  热键 Ctrl+Shift+A={0} Ctrl+Shift+H={1} Ctrl+Shift+Q={2}",
-                Interop.RegisterHotKey(_hwnd, HK_CAPTURE, mods, 0x41),
-                Interop.RegisterHotKey(_hwnd, HK_TOGGLE, mods, 0x48),
-                Interop.RegisterHotKey(_hwnd, HK_QUIT, mods, 0x51)));
+            // 热键从设置里读（用户可以自定义）。窗口句柄就绪之后才能注册
+            _vm.HotkeysChanged += ApplyHotkeys;
+            ApplyHotkeys();
         }
 
         void OnContentRendered(object sender, EventArgs e)
@@ -143,9 +141,14 @@ namespace RemeberEr
             _firstPaintMs = _life.ElapsedMilliseconds;
             Program.Log("  ★ 面板首帧渲染完成 @ " + _firstPaintMs + "ms（无 WebView2）");
 
+            // 首次启动（或 --onboard）时把新人引导打开。跑验收流程时不打扰
+            if (Program.Flow == null || Program.Flow == "onboard") _vm.MaybeStartOnboarding();
+
             if (Program.Bench) ScheduleBench();
             if (Program.ShotPath != null && Program.Flow == null) ScheduleShot();
             if (Program.Flow == "demo") ScheduleFlowDemo();
+            else if (Program.Flow == "onboard") ScheduleFlowOnboard();
+            else if (Program.Flow == "hotkey") ScheduleFlowHotkey();
             else if (Program.Flow == "detail") ScheduleFlowDetail();
             else if (Program.Flow == "recordview") ScheduleFlowRecord("view");
             else if (Program.Flow == "recordwrite") ScheduleFlowRecord("write");
@@ -163,6 +166,138 @@ namespace RemeberEr
             else if (Program.Flow == "search") ScheduleFlowSearch();
             else if (Program.Flow == "undo") ScheduleFlowUndo();
             else if (Program.Flow == "ddl") ScheduleFlowDdl();
+        }
+
+        /// <summary>验收快捷键改绑：改一个、试一个冲突、再恢复默认。</summary>
+        void ScheduleFlowHotkey()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                _vm.View = "set";
+                SetScroll.ScrollToEnd();
+                BeginHotkeyEdit(HK_CAPTURE);
+                Program.Log("  改绑：进入编辑态，提示=" + HotkeyPrompt.Visibility
+                            + " 文案=" + HotkeyPrompt.Text);
+                Shot("hotkey-edit");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                CommitHotkey("Ctrl+Alt+S");
+                Program.Log("  改绑后：截图=" + _vm.HotkeyCapture
+                            + " 错误=\"" + _vm.HotkeyError + "\"");
+                Shot("hotkey-changed");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                // 故意撞「显示 / 隐藏」现有的键，应该被拒
+                BeginHotkeyEdit(HK_QUIT);
+                CommitHotkey(_vm.HotkeyToggle);
+                Program.Log("  冲突测试：错误=\"" + _vm.HotkeyError
+                            + "\"  退出仍是=" + _vm.HotkeyQuit
+                            + "  仍在编辑=" + (_hotkeyEditing != 0));
+                EndHotkeyEdit();
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                _vm.ResetHotkeysCmd.Execute(null);
+                Program.Log("  恢复默认：" + _vm.HotkeyCapture + " / " + _vm.HotkeyToggle + " / " + _vm.HotkeyQuit);
+                Shot("hotkey-reset");
+                Program.Log("  快捷键流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
+        }
+
+        /// <summary>验收新人引导：三步各截一张，最后一步要落到设置页并应用推荐配置。</summary>
+        void ScheduleFlowOnboard()
+        {
+            var steps = new List<Tuple<int, Action>>();
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                Program.Log("  引导：打开=" + _vm.IsOnboarding + " " + _vm.OnboardStepText
+                            + " 键帽=" + _vm.OnboardHotkeyText);
+                Shot("onboard-1");
+                BeginOnboardHotkeyEdit();          // 点第一页那个键帽
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                Program.Log("  引导改键：编辑中=" + _vm.OnboardEditingHotkey
+                            + " 键帽=" + _vm.OnboardHotkeyText
+                            + " 提示=" + _vm.OnboardHotkeyHint);
+                Shot("onboard-1-edit");
+                CommitHotkey("Ctrl+Alt+S");
+            }));
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                Program.Log("  引导改键后：截图热键=" + _vm.HotkeyCapture
+                            + " 键帽=" + _vm.OnboardHotkeyText
+                            + " 编辑中=" + _vm.OnboardEditingHotkey);
+                Shot("onboard-1-changed");
+                _vm.OnboardNextCmd.Execute(null);
+            }));
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Program.Log("  引导：" + _vm.OnboardStepText + " step2=" + _vm.OnboardStep2);
+                Shot("onboard-2");
+                _vm.OnboardNextCmd.Execute(null);
+            }));
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                Program.Log("  引导：" + _vm.OnboardStepText + " step3=" + _vm.OnboardStep3);
+                Shot("onboard-3");
+                _vm.OnboardNextCmd.Execute(null);      // 最后一步 = 去设置看看
+            }));
+            steps.Add(Tuple.Create<int, Action>(900, () =>
+            {
+                Program.Log("  引导结束：仍在引导=" + _vm.IsOnboarding + " 当前页=" + _vm.View
+                            + " 推荐=" + _vm.RecommendedSummary
+                            + " 推荐卡在=" + _vm.ShowRecommended + "（第一次进来应为 True）");
+                Shot("onboard-settings");
+                _vm.ApplyRecommendedCmd.Execute(null);
+            }));
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                Program.Log("  应用推荐后：推荐=" + _vm.RecommendedSummary
+                            + " 透明度=" + _vm.OpacityPercent + "%"
+                            + " 临期排序=" + _vm.UrgentSort
+                            + " 快速模式=" + _vm.QuickCapture
+                            + " 开机自启=" + _vm.AutoStartOn
+                            + " 隐藏折叠=" + _vm.HideCollapseButton);
+                Shot("onboard-applied");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                // 滚到底看快捷键那一段
+                SetScroll.ScrollToEnd();
+            }));
+            steps.Add(Tuple.Create<int, Action>(700, () =>
+            {
+                Program.Log("  快捷键区：截图=" + _vm.HotkeyCapture
+                            + " 显示隐藏=" + _vm.HotkeyToggle
+                            + " 退出=" + _vm.HotkeyQuit);
+                Shot("onboard-hotkeys");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                // 设置页底部那个「重新看一遍」—— 用户唯一点得到的入口
+                _vm.ReplayOnboardCmd.Execute(null);
+                Program.Log("  重看引导：打开=" + _vm.IsOnboarding
+                            + " " + _vm.OnboardStepText + " 当前页=" + _vm.View);
+                Shot("onboard-replay");
+            }));
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                // 离开一次设置页再回来：推荐卡应该已经退场
+                _vm.FinishOnboarding();
+                _vm.View = "main";
+                _vm.View = "set";
+                Program.Log("  再次进设置：推荐卡还在=" + _vm.ShowRecommended + "（应为 False）");
+                Shot("onboard-settings-2");
+                Program.Log("  新人引导流程结束");
+                Close();
+            }));
+            RunSteps(steps, 0);
         }
 
         /// <summary>验收 DDL 转轮：打开一条 Todo 的详情，点开转轮，上下各调几下，看 dueAt 有没有跟着变。</summary>
@@ -205,6 +340,33 @@ namespace RemeberEr
                 Program.Log("  天-1 后：" + w.DdlState());
                 
                 Program.Log("  收成胶囊：" + w.DdlState());
+            }));
+
+            // 边界验收：0 下面不该再排 0，23 上面不该再排 23。
+            // 注意「步进」和「截图」必须分两步 —— ShotWindow 里会 Thread.Sleep，
+            // 那是阻塞 UI 线程的，动画（CompositionTarget.Rendering）会一起被冻住。
+            steps.Add(Tuple.Create<int, Action>(600, () =>
+            {
+                var w = _details[0];
+                w.SimOpenDay(); w.SimStep(-999);
+                Program.Log("  转轮下限（天）：" + w.DdlState());
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                ShotWindow(_details[0], "ddl-min");
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(400, () =>
+            {
+                var w = _details[0];
+                w.SimOpenHour(); w.SimStep(+999);
+                Program.Log("  转轮上限（小时）：" + w.DdlState());
+            }));
+
+            steps.Add(Tuple.Create<int, Action>(500, () =>
+            {
+                ShotWindow(_details[0], "ddl-max");
             }));
 
             steps.Add(Tuple.Create<int, Action>(700, () =>
@@ -1085,6 +1247,217 @@ namespace RemeberEr
             var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
             t.Tick += (s, e) => { t.Stop(); DoCapture("flow"); };
             t.Start();
+        }
+
+        // ------------------------------------------------------------ 热键
+
+        bool _applyingHotkeys;
+
+        /// <summary>
+        /// 按当前设置重新注册三个全局热键。
+        /// 顺序固定：先把三个全注销，再依次注册 —— 否则「A 改成 B、B 改成 A」这种
+        /// 互换会撞上「已经被占用」。
+        /// </summary>
+        void ApplyHotkeys()
+        {
+            if (_hwnd == IntPtr.Zero) return;
+            if (_applyingHotkeys) return;
+            _applyingHotkeys = true;
+            try
+            {
+                Interop.UnregisterHotKey(_hwnd, HK_CAPTURE);
+                Interop.UnregisterHotKey(_hwnd, HK_TOGGLE);
+                Interop.UnregisterHotKey(_hwnd, HK_QUIT);
+
+                string err = "";
+
+                string e;
+                if (!TryRegister(HK_CAPTURE, _vm.HotkeyCapture, "截图", out e))
+                {
+                    // 注册失败就退回默认键再试一次：宁可覆盖用户的设置，
+                    // 也不能让「截图」这个主入口没有键可用。
+                    if (_vm.HotkeyCapture != Hotkey.DefaultCapture)
+                    {
+                        _vm.HotkeyCapture = Hotkey.DefaultCapture;
+                        TryRegister(HK_CAPTURE, Hotkey.DefaultCapture, "截图", out e);
+                    }
+                    err = e;
+                }
+
+                if (!TryRegister(HK_TOGGLE, _vm.HotkeyToggle, "显示 / 隐藏", out e))
+                {
+                    if (_vm.HotkeyToggle != Hotkey.DefaultToggle)
+                    {
+                        _vm.HotkeyToggle = Hotkey.DefaultToggle;
+                        TryRegister(HK_TOGGLE, Hotkey.DefaultToggle, "显示 / 隐藏", out e);
+                    }
+                    if (err.Length == 0) err = e;
+                }
+
+                if (!TryRegister(HK_QUIT, _vm.HotkeyQuit, "退出", out e))
+                {
+                    if (_vm.HotkeyQuit != Hotkey.DefaultQuit)
+                    {
+                        _vm.HotkeyQuit = Hotkey.DefaultQuit;
+                        TryRegister(HK_QUIT, Hotkey.DefaultQuit, "退出", out e);
+                    }
+                    if (err.Length == 0) err = e;
+                }
+
+                _vm.HotkeyError = err;
+                Program.Log(string.Format("  热键 -> {0} / {1} / {2}{3}",
+                    _vm.HotkeyCapture, _vm.HotkeyToggle, _vm.HotkeyQuit,
+                    err.Length > 0 ? ("   失败：" + err) : ""));
+            }
+            finally { _applyingHotkeys = false; }
+        }
+
+        bool TryRegister(int id, string spec, string label, out string error)
+        {
+            error = "";
+            int mods, vk;
+            if (!Hotkey.TryParse(spec, out mods, out vk))
+            {
+                error = "「" + label + "」的 " + spec + " 不是合法组合：至少要带一个修饰键";
+                return false;
+            }
+            if (!Interop.RegisterHotKey(_hwnd, id, mods | Hotkey.MOD_NOREPEAT, vk))
+            {
+                error = "「" + label + "」的 " + spec + " 注册失败 —— 可能被别的程序占用了";
+                return false;
+            }
+            return true;
+        }
+
+        // ------------------------------------------------------------ 改热键
+
+        int _hotkeyEditing;          // 0 = 没在改；其余是 HK_CAPTURE / HK_TOGGLE / HK_QUIT
+        string _hotkeyEditingLabel;
+
+        void OnHotkeyEditClick(object sender, RoutedEventArgs e)
+        {
+            var fe = sender as FrameworkElement;
+            string tag = fe != null ? fe.Tag as string : null;
+            int id = tag == "toggle" ? HK_TOGGLE : (tag == "quit" ? HK_QUIT : HK_CAPTURE);
+            BeginHotkeyEdit(id);
+        }
+
+        void BeginHotkeyEdit(int id)
+        {
+            _hotkeyEditing = id;
+            _hotkeyEditingLabel = id == HK_CAPTURE ? "截图" : (id == HK_TOGGLE ? "显示 / 隐藏" : "退出");
+
+            // 编辑期间先把三个热键全撤掉。不撤的话，用户按下现有的
+            // Ctrl+Shift+Q 会直接把程序关掉 —— 那正是他要改的那个键。
+            if (_hwnd != IntPtr.Zero)
+            {
+                Interop.UnregisterHotKey(_hwnd, HK_CAPTURE);
+                Interop.UnregisterHotKey(_hwnd, HK_TOGGLE);
+                Interop.UnregisterHotKey(_hwnd, HK_QUIT);
+            }
+
+            _vm.HotkeyError = "";
+            HotkeyPrompt.Text = "正在设置「" + _hotkeyEditingLabel + "」：按下新的组合键…（Esc 取消）";
+            HotkeyPrompt.Visibility = Visibility.Visible;
+            Activate();
+            Program.Log("  改热键：开始设置「" + _hotkeyEditingLabel + "」");
+        }
+
+        void EndHotkeyEdit()
+        {
+            _vm.OnboardEditingHotkey = false;
+            if (_hotkeyEditing == 0) return;
+            _hotkeyEditing = 0;
+            HotkeyPrompt.Visibility = Visibility.Collapsed;
+            ApplyHotkeys();
+        }
+
+        protected override void OnPreviewKeyDown(KeyEventArgs e)
+        {
+            if (_hotkeyEditing != 0)
+            {
+                e.Handled = true;
+                if (e.Key == Key.Escape) { EndHotkeyEdit(); return; }
+
+                Key k = e.Key == Key.System ? e.SystemKey : e.Key;
+                string combo = Hotkey.FromKeyEvent(k, Keyboard.Modifiers);
+                if (combo == null) return;      // 还只按了修饰键，继续等
+
+                CommitHotkey(combo);
+                return;
+            }
+            base.OnPreviewKeyDown(e);
+        }
+
+        void CommitHotkey(string combo)
+        {
+            int id = _hotkeyEditing;
+
+            // 三条不能撞：撞了 Windows 也只会让后注册的那个失败，不如当场说清楚
+            string a = id == HK_CAPTURE ? combo : _vm.HotkeyCapture;
+            string b = id == HK_TOGGLE ? combo : _vm.HotkeyToggle;
+            string c = id == HK_QUIT ? combo : _vm.HotkeyQuit;
+            if (SameKey(a, b) || SameKey(a, c) || SameKey(b, c))
+            {
+                _vm.HotkeyError = combo + " 已经被另一个功能占用了，换一个吧";
+                Program.Log("  改热键：冲突 " + combo);
+                return;                          // 留在编辑态，让用户再按一次
+            }
+
+            _hotkeyEditing = 0;
+            _vm.OnboardEditingHotkey = false;
+            HotkeyPrompt.Visibility = Visibility.Collapsed;
+            _vm.HotkeyError = "";
+
+            if (id == HK_CAPTURE) _vm.HotkeyCapture = combo;
+            else if (id == HK_TOGGLE) _vm.HotkeyToggle = combo;
+            else _vm.HotkeyQuit = combo;
+
+            // 值没变时上面的 setter 不会发事件，这里补一次，保证一定回到「已注册」状态
+            ApplyHotkeys();
+            Program.Log("  改热键：设为 " + combo);
+        }
+
+        static bool SameKey(string x, string y)
+        {
+            return string.Equals(x, y, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ---- 引导第一页那个键帽：点了就能当场改 ----
+
+        void OnOnboardKeycapClick(object sender, RoutedEventArgs e) { BeginOnboardHotkeyEdit(); }
+
+        void BeginOnboardHotkeyEdit()
+        {
+            if (_hotkeyEditing != 0) return;
+            _hotkeyEditing = HK_CAPTURE;
+            _hotkeyEditingLabel = "截图";
+            _vm.OnboardEditingHotkey = true;
+            _vm.HotkeyError = "";
+
+            // 设置页那条提示在引导层下面，看不见；这里靠键帽自己的文案变化
+            HotkeyPrompt.Visibility = Visibility.Collapsed;
+
+            if (_hwnd != IntPtr.Zero)
+            {
+                Interop.UnregisterHotKey(_hwnd, HK_CAPTURE);
+                Interop.UnregisterHotKey(_hwnd, HK_TOGGLE);
+                Interop.UnregisterHotKey(_hwnd, HK_QUIT);
+            }
+            Activate();
+            Program.Log("  引导：点键帽开始改热键");
+        }
+
+        void OnOnboardNextClick(object sender, RoutedEventArgs e)
+        {
+            EndHotkeyEdit();                 // 正在改键就先收尾，别带着「热键已注销」进入下一步
+            _vm.OnboardNextCmd.Execute(null);
+        }
+
+        void OnOnboardSkipClick(object sender, RoutedEventArgs e)
+        {
+            EndHotkeyEdit();
+            _vm.FinishOnboarding();
         }
 
         void OnClosed(object sender, EventArgs e)

@@ -491,6 +491,7 @@ namespace RemeberEr
                 if (!Set(ref _view, value, "View")) return;
                 ConfirmingEmpty = false;   // 离开这一页，「确定清空？」就作废
                 AutoPickTab();
+                if (_view == "set") EnterSettings(); else ExitSettings();
                 Raise("IsMainView"); Raise("IsBinView"); Raise("IsDoneView"); Raise("IsSetView");
                 Raise("SettingsOn");
             }
@@ -501,6 +502,31 @@ namespace RemeberEr
         public bool IsDoneView { get { return _view == "done"; } }
         public bool IsSetView { get { return _view == "set"; } }
         public bool SettingsOn { get { return _view == "set"; } }
+
+        // ---- 「创作者推荐设置」只出现一次 ----
+        //
+        // 它是给第一次进来的人看的，不是常驻广告。看过一次之后再摆着就是碍眼。
+        // 判断放在「进/出设置页」这两个时刻：这次进来它还在，走开之后就永久退场。
+
+        bool _showRecommended = true;
+        bool _recInit;
+        bool _recMarked;
+
+        public bool ShowRecommended { get { return _showRecommended; } }
+
+        void EnterSettings()
+        {
+            if (!_showRecommended || _recMarked) return;
+            _recMarked = true;
+            _store.SetSetting("recSeen", true);
+        }
+
+        void ExitSettings()
+        {
+            if (!_showRecommended || !_recMarked) return;
+            _showRecommended = false;
+            Raise("ShowRecommended");
+        }
 
         bool _collapsed;
         public bool Collapsed
@@ -527,6 +553,7 @@ namespace RemeberEr
                 if (!Set(ref _hideCollapseButton, value, "HideCollapseButton")) return;
                 _store.SetSetting("hideCollapseButton", value);
                 Raise("ShowCollapseButton");
+                Raise("RecommendedSummary");
             }
         }
         public bool ShowCollapseButton { get { return !_hideCollapseButton || _collapsed; } }
@@ -662,6 +689,7 @@ namespace RemeberEr
             {
                 if (!Set(ref _quickCapture, value, "QuickCapture")) return;
                 _store.SetSetting("quickCapture", value);
+                Raise("RecommendedSummary");
             }
         }
 
@@ -699,12 +727,14 @@ namespace RemeberEr
                 if (value == AutoStart.IsEnabled)
                 {
                     Raise("AutoStartOn");
+                    Raise("RecommendedSummary");
                     return;
                 }
                 bool ok = AutoStart.Set(value);
                 Program.Log(string.Format("  开机自启 -> {0}（{1}）exe={2}",
                     value ? "开" : "关", ok ? "成功" : "失败", AutoStart.ExePath));
                 Raise("AutoStartOn");
+                Raise("RecommendedSummary");
             }
         }
 
@@ -785,6 +815,233 @@ namespace RemeberEr
             }
         }
 
+        // ---------------- 快捷键 ----------------
+
+        /// <summary>
+        /// 三个全局热键，存 "Ctrl+Shift+A" 这种字符串。
+        /// 真正的 RegisterHotKey 在 PanelWindow 里（那需要窗口句柄），
+        /// 所以这里改完只负责持久化 + 发个通知，由窗口去重新注册。
+        /// </summary>
+        public event Action HotkeysChanged;
+
+        string _hkCapture = Hotkey.DefaultCapture;
+        public string HotkeyCapture
+        {
+            get { return _hkCapture; }
+            set { if (SetHotkey(ref _hkCapture, value, "hkCapture", "HotkeyCapture")) FireHotkeys(); }
+        }
+
+        string _hkToggle = Hotkey.DefaultToggle;
+        public string HotkeyToggle
+        {
+            get { return _hkToggle; }
+            set { if (SetHotkey(ref _hkToggle, value, "hkToggle", "HotkeyToggle")) FireHotkeys(); }
+        }
+
+        string _hkQuit = Hotkey.DefaultQuit;
+        public string HotkeyQuit
+        {
+            get { return _hkQuit; }
+            set { if (SetHotkey(ref _hkQuit, value, "hkQuit", "HotkeyQuit")) FireHotkeys(); }
+        }
+
+        bool SetHotkey(ref string field, string value, string key, string prop)
+        {
+            if (string.Equals(field, value ?? "", StringComparison.Ordinal)) return false;
+            field = value ?? "";
+            Raise(prop);
+            Raise("OnboardHotkeyText");   // 引导第一页那个键帽也跟着变
+            _store.SetSetting(key, field);
+            return true;
+        }
+
+        void FireHotkeys() { if (HotkeysChanged != null) HotkeysChanged(); }
+
+        string _hotkeyError;
+        public string HotkeyError
+        {
+            get { return _hotkeyError ?? ""; }
+            set
+            {
+                if (!Set(ref _hotkeyError, value ?? "", "HotkeyError")) return;
+                Raise("HasHotkeyError");
+            }
+        }
+        public bool HasHotkeyError { get { return !string.IsNullOrEmpty(_hotkeyError); } }
+
+        RelayCommand _resetHotkeysCmd;
+        public RelayCommand ResetHotkeysCmd
+        {
+            get
+            {
+                return _resetHotkeysCmd ?? (_resetHotkeysCmd = new RelayCommand(() =>
+                {
+                    HotkeyError = "";
+                    HotkeyCapture = Hotkey.DefaultCapture;
+                    HotkeyToggle = Hotkey.DefaultToggle;
+                    HotkeyQuit = Hotkey.DefaultQuit;
+                }));
+            }
+        }
+
+        // ---------------- 新人引导 & 创作者推荐 ----------------
+
+        /// <summary>推荐配置里那条透明度。作者自己用的就是 40%。</summary>
+        public const double RecommendedOpacity = 0.40;
+
+        int _onboardStep;          // 0 = 不在引导里；1..3 = 第几步
+        bool _onboardChecked;      // 本次启动问过没有
+
+        public bool IsOnboarding { get { return _onboardStep > 0; } }
+        public bool OnboardStep1 { get { return _onboardStep == 1; } }
+        public bool OnboardStep2 { get { return _onboardStep == 2; } }
+        public bool OnboardStep3 { get { return _onboardStep == 3; } }
+        public string OnboardNextText { get { return _onboardStep >= 3 ? "去设置看看" : "下一步"; } }
+        public string OnboardStepText { get { return "第 " + _onboardStep + " / 3 步"; } }
+
+        /// <summary>
+        /// 引导第一页那个键帽是可以直接点的 —— 当场就能换成自己的组合键。
+        /// 「第一次打开就得先去设置里改」这个动线太长了。
+        /// </summary>
+        bool _onboardEditingHotkey;
+        public bool OnboardEditingHotkey
+        {
+            get { return _onboardEditingHotkey; }
+            set
+            {
+                if (!Set(ref _onboardEditingHotkey, value, "OnboardEditingHotkey")) return;
+                Raise("OnboardHotkeyText");
+                Raise("OnboardHotkeyHint");
+            }
+        }
+
+        public string OnboardHotkeyText
+        {
+            get { return _onboardEditingHotkey ? "按下新的组合键…" : _hkCapture; }
+        }
+
+        public string OnboardHotkeyHint
+        {
+            get
+            {
+                if (_onboardEditingHotkey) return "按 Esc 取消";
+                return "点一下，直接换成你自己的组合键";
+            }
+        }
+
+        void RaiseOnboard()
+        {
+            Raise("IsOnboarding"); Raise("OnboardStep1"); Raise("OnboardStep2");
+            Raise("OnboardStep3"); Raise("OnboardNextText"); Raise("OnboardStepText");
+        }
+
+        /// <summary>首次启动（settings.onboarded 还是 false）时把引导打开。每次启动只判断一次。</summary>
+        public void MaybeStartOnboarding()
+        {
+            if (_onboardChecked) return;
+            _onboardChecked = true;
+
+            if (Program.ForceOnboard) { _onboardStep = 1; RaiseOnboard(); return; }
+            if (J.Bool(_store.Settings, "onboarded", false)) return;
+
+            // 库里已经有东西的人显然不是第一次打开 —— 别拿引导打断他们。
+            // （老版本的 data.json 没有 onboarded 这个键，不加这条的话升级上来的人全会被弹一次）
+            if (_store.Items.Count > 0)
+            {
+                _store.SetSetting("onboarded", true);
+                return;
+            }
+
+            _onboardStep = 1;
+            RaiseOnboard();
+        }
+
+        public void FinishOnboarding()
+        {
+            _onboardStep = 0;
+            _store.SetSetting("onboarded", true);
+            RaiseOnboard();
+        }
+
+        RelayCommand _onboardNextCmd;
+        public RelayCommand OnboardNextCmd
+        {
+            get
+            {
+                return _onboardNextCmd ?? (_onboardNextCmd = new RelayCommand(() =>
+                {
+                    if (_onboardStep <= 0) return;
+                    if (_onboardStep >= 3)
+                    {
+                        FinishOnboarding();
+                        View = "set";     // 最后一步直接把人带到设置页
+                    }
+                    else
+                    {
+                        _onboardStep++;
+                        RaiseOnboard();
+                    }
+                }));
+            }
+        }
+
+        RelayCommand _onboardSkipCmd;
+        public RelayCommand OnboardSkipCmd
+        {
+            get { return _onboardSkipCmd ?? (_onboardSkipCmd = new RelayCommand(() => FinishOnboarding())); }
+        }
+
+        /// <summary>
+        /// 设置页底部那个「重新看一遍」。引导不只给首次启动用 ——
+        /// 想再看一眼、或者想确认自己开对了没有，都得有个点得到的地方。
+        /// </summary>
+        RelayCommand _replayOnboardCmd;
+        public RelayCommand ReplayOnboardCmd
+        {
+            get
+            {
+                return _replayOnboardCmd ?? (_replayOnboardCmd = new RelayCommand(() =>
+                {
+                    View = "main";          // 回主视图再盖引导，不然第 3 步又从设置页出发
+                    _onboardStep = 1;
+                    RaiseOnboard();
+                }));
+            }
+        }
+
+        /// <summary>五条推荐配置里符合了几条。设置页那句「x / 5 项符合推荐」用它。</summary>
+        public string RecommendedSummary
+        {
+            get
+            {
+                int n = 0;
+                if (_urgentSort) n++;
+                if (_quickCapture) n++;
+                if (AutoStart.IsEnabled) n++;
+                if (_hideCollapseButton) n++;
+                if (Math.Abs(_panelAlpha - RecommendedOpacity) < 0.02) n++;
+                return n == 5 ? "已经是推荐配置 ✓" : (n + " / 5 项符合推荐");
+            }
+        }
+
+        RelayCommand _applyRecommendedCmd;
+        public RelayCommand ApplyRecommendedCmd
+        {
+            get
+            {
+                return _applyRecommendedCmd ?? (_applyRecommendedCmd = new RelayCommand(() =>
+                {
+                    UrgentSort = true;
+                    QuickCapture = true;
+                    AutoStartOn = true;
+                    HideCollapseButton = true;
+                    OpacityPercent = 40;
+                    SaveOpacity();
+                    Raise("RecommendedSummary");
+                }));
+            }
+        }
+
         // ---------------- 设置 ----------------
 
         double _panelAlpha = 0.8;
@@ -796,6 +1053,7 @@ namespace RemeberEr
                 if (!Set(ref _panelAlpha, value, "PanelAlpha")) return;
                 Raise("PanelBackground");
                 Raise("OpacityText");
+                Raise("RecommendedSummary");
             }
         }
         public double? OpacityPreview { get; set; }
@@ -1121,6 +1379,23 @@ namespace RemeberEr
             if (hcb != _hideCollapseButton) { _hideCollapseButton = hcb; Raise("HideCollapseButton"); Raise("ShowCollapseButton"); }
             bool us = J.Bool(settings, "urgentSort", true);
             if (us != _urgentSort) { _urgentSort = us; Raise("UrgentSort"); }
+
+            // 热键只读回字段用于显示。真正的重新注册由用户改设置时触发，
+            // 不在 Refresh 里做 —— 否则每次刷新都可能把热键注销再注册一遍。
+            string hc = J.Str(settings, "hkCapture", Hotkey.DefaultCapture);
+            if (hc != _hkCapture) { _hkCapture = hc; Raise("HotkeyCapture"); }
+            string ht = J.Str(settings, "hkToggle", Hotkey.DefaultToggle);
+            if (ht != _hkToggle) { _hkToggle = ht; Raise("HotkeyToggle"); }
+            string hq = J.Str(settings, "hkQuit", Hotkey.DefaultQuit);
+            if (hq != _hkQuit) { _hkQuit = hq; Raise("HotkeyQuit"); }
+
+            // 只读一次：一旦这次会话里把它关掉了，后续 Refresh 不该又把它放出来
+            if (!_recInit)
+            {
+                _recInit = true;
+                _showRecommended = !J.Bool(settings, "recSeen", false);
+                Raise("ShowRecommended");
+            }
             string th = J.Str(settings, "panelTheme", "white");
             if (th != _panelTheme || Palette.Current.Key != th)
             {
@@ -1136,6 +1411,7 @@ namespace RemeberEr
                 double a = J.Num(settings, "panelOpacity", 0.8);
                 if (Math.Abs(a - _panelAlpha) > 0.0001) { _panelAlpha = a; settingsDirty = true; }
             }
+            Raise("RecommendedSummary");
             var cfg = J.Obj(J.Get(snap, "decayCfg"));
             if (cfg != null)
             {

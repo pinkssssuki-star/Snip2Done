@@ -126,6 +126,14 @@ namespace RemeberEr
                 { "panelTheme", "white" },
                 // 临期优先：越临期越靠上，卡片越红
                 { "urgentSort", true },
+                // 全局热键。存字符串而不是裸键码，用户手改 data.json 也看得懂
+                { "hkCapture", "Ctrl+Shift+A" },
+                { "hkToggle", "Ctrl+Shift+H" },
+                { "hkQuit", "Ctrl+Shift+Q" },
+                // 新人引导走完（或跳过）之后置 true，往后不再打扰
+                { "onboarded", false },
+                // 「创作者推荐设置」那块卡看过一次就够了，看过之后不再显示
+                { "recSeen", false },
             };
         }
 

@@ -1015,7 +1015,7 @@
                       · 顶栏（在设置页外面，本来就跟着 PanelBackground）
                       · 「面板透明度」那一行（见下面那个 Background="Transparent"）
                 -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                <ScrollViewer x:Name="SetScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding IsSetView, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
                         <Grid Margin="1,0,1,10">
@@ -1028,6 +1028,36 @@
                         <Border Background="{DynamicResource SurfaceBg}" Padding="12,12,12,2"
                                 CornerRadius="11" Margin="0,0,0,0">
                         <StackPanel>
+
+                        <!-- ==== 创作者推荐设置（只给第一次进来的人看一次）==== -->
+                        <Border CornerRadius="10" BorderThickness="1" Padding="12,10,12,10" Margin="0,0,0,14"
+                                Background="#0F8B5CF6" BorderBrush="#338B5CF6"
+                                Visibility="{Binding ShowRecommended, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock Text="创作者推荐设置" FontSize="11.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentDeep}"/>
+                                    <TextBlock Text="{Binding RecommendedSummary}" FontSize="9.5"
+                                               Foreground="{DynamicResource Tx4}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock FontSize="10" LineHeight="16.5" Foreground="{DynamicResource HintTx}"
+                                           TextWrapping="Wrap" Margin="0,5,0,9">
+                                    四个开关全开，透明度 40% —— 这是我自己天天在用的配置。<LineBreak/>
+                                    置顶、贴边、框完即定，全开着才顺手。
+                                </TextBlock>
+                                <Button HorizontalAlignment="Left" Command="{Binding ApplyRecommendedCmd}"
+                                        Content="一键应用推荐设置">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                            <Setter Property="FontSize" Value="10.5"/>
+                                            <Setter Property="Padding" Value="11,5,11,5"/>
+                                            <Setter Property="Foreground" Value="{StaticResource AccentDeep}"/>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Border>
 
                         <!-- ==== 背景颜色 ==== -->
                         <StackPanel Margin="0,0,0,14">
@@ -1130,6 +1160,86 @@
                                           IsChecked="{Binding HideCollapseButton, Mode=TwoWay}"/>
                         </Grid>
 
+                        <!-- ==== 快捷键（可自定义）==== -->
+                        <StackPanel Margin="0,0,0,14">
+                            <TextBlock Text="快捷键" FontSize="11.5" FontWeight="Medium"
+                                       Foreground="{DynamicResource Tx2}"/>
+                            <TextBlock Text="点「修改」，然后直接按下想用的组合键。至少要带一个修饰键（Ctrl / Alt / Shift / Win）。"
+                                       FontSize="10" Foreground="{DynamicResource HintTx}" Margin="0,4,0,9"
+                                       TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Left"/>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="截图" FontSize="10.5" Foreground="{DynamicResource Tx3}"
+                                           VerticalAlignment="Center"/>
+                                <Border Grid.Column="1" Background="{DynamicResource InputBg}"
+                                        BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
+                                        CornerRadius="6" Padding="8,3,8,3">
+                                    <TextBlock Text="{Binding HotkeyCapture}" FontSize="10"
+                                               FontFamily="Consolas, Microsoft YaHei UI"
+                                               Foreground="{DynamicResource Tx2}"/>
+                                </Border>
+                                <Button Grid.Column="2" Content="修改" Tag="capture" Click="OnHotkeyEditClick"
+                                        Style="{StaticResource GhostBtn}" FontSize="10" Padding="8,3,8,3"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="显示 / 隐藏" FontSize="10.5" Foreground="{DynamicResource Tx3}"
+                                           VerticalAlignment="Center"/>
+                                <Border Grid.Column="1" Background="{DynamicResource InputBg}"
+                                        BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
+                                        CornerRadius="6" Padding="8,3,8,3">
+                                    <TextBlock Text="{Binding HotkeyToggle}" FontSize="10"
+                                               FontFamily="Consolas, Microsoft YaHei UI"
+                                               Foreground="{DynamicResource Tx2}"/>
+                                </Border>
+                                <Button Grid.Column="2" Content="修改" Tag="toggle" Click="OnHotkeyEditClick"
+                                        Style="{StaticResource GhostBtn}" FontSize="10" Padding="8,3,8,3"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="退出" FontSize="10.5" Foreground="{DynamicResource Tx3}"
+                                           VerticalAlignment="Center"/>
+                                <Border Grid.Column="1" Background="{DynamicResource InputBg}"
+                                        BorderBrush="{DynamicResource BtnBorder}" BorderThickness="1"
+                                        CornerRadius="6" Padding="8,3,8,3">
+                                    <TextBlock Text="{Binding HotkeyQuit}" FontSize="10"
+                                               FontFamily="Consolas, Microsoft YaHei UI"
+                                               Foreground="{DynamicResource Tx2}"/>
+                                </Border>
+                                <Button Grid.Column="2" Content="修改" Tag="quit" Click="OnHotkeyEditClick"
+                                        Style="{StaticResource GhostBtn}" FontSize="10" Padding="8,3,8,3"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+
+                            <TextBlock x:Name="HotkeyPrompt" Visibility="Collapsed" TextWrapping="Wrap"
+                                       FontSize="10" Foreground="{StaticResource AccentDeep}" Margin="0,2,0,6"/>
+
+                            <TextBlock Text="{Binding HotkeyError}" FontSize="10" Foreground="#C81E1E"
+                                       TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Visibility="{Binding HasHotkeyError, Converter={StaticResource BoolToVis}}"/>
+
+                            <Button Style="{StaticResource GhostBtn}" HorizontalAlignment="Left"
+                                    Padding="10,5,10,5" FontSize="10" Content="恢复默认"
+                                    Command="{Binding ResetHotkeysCmd}"/>
+                        </StackPanel>
+
                         <StackPanel Margin="0,0,0,12">
                             <TextBlock Text="演示加速" FontSize="11.5" FontWeight="Medium"
                                        Foreground="{DynamicResource Tx2}"/>
@@ -1211,6 +1321,17 @@
                                 只在还没有任何条目时出现。想先看看它长什么样、衰减怎么跑，点这个最快。
                             </TextBlock>
                         </StackPanel>
+
+                        <!-- 新手引导可以反复看 —— 既是给新人的，也是给「想再看一眼」的人 -->
+                        <StackPanel Margin="0,12,0,10">
+                            <Button Style="{StaticResource GhostBtn}" Content="重新看一遍新手引导"
+                                    HorizontalAlignment="Left" Padding="12,6,12,6"
+                                    Command="{Binding ReplayOnboardCmd}"/>
+                            <TextBlock FontSize="10" LineHeight="16.5" Foreground="{DynamicResource HintTx}" TextWrapping="Wrap"
+                                       Margin="0,6,0,0">
+                                就是第一次打开时那三步：怎么截图 → 两个房间 → 该开哪些设置。随时能再看，不动你的数据。
+                            </TextBlock>
+                        </StackPanel>
                         </StackPanel>
                         </Border>
                     </StackPanel>
@@ -1241,6 +1362,118 @@
             <Border.Effect>
                 <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.7" Color="#8b5cf6"/>
             </Border.Effect>
+        </Border>
+
+        <!--
+            新人引导：首次启动（settings.onboarded 还是 false）时盖住整个面板。
+            整块用不透明 SurfaceBg + 14 圆角，和外壳对齐，所以不会露出方角。
+        -->
+        <Border x:Name="OnboardLayer" CornerRadius="14" Background="{DynamicResource SurfaceBg}"
+                Visibility="{Binding IsOnboarding, Converter={StaticResource BoolToVis}}">
+            <Border Margin="18" Padding="18,16,18,14" CornerRadius="12" VerticalAlignment="Center"
+                    Background="#0F8B5CF6" BorderBrush="#338B5CF6" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="{Binding OnboardStepText}" FontSize="9.5"
+                               Foreground="{DynamicResource Tx5}"/>
+
+                    <!-- ==== 第 1 步：怎么截图 ==== -->
+                    <StackPanel Visibility="{Binding OnboardStep1, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="先认识一件事" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Tx1}" Margin="0,6,0,9"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="18"
+                                   Foreground="{DynamicResource Tx3}">
+                            这不是又一个待办清单。<LineBreak/>
+                            看到一样以后要处理的东西，按下面这个键，框住它，做一次判断就够了。
+                        </TextBlock>
+                        <Button Click="OnOnboardKeycapClick" Cursor="Hand" Focusable="False"
+                                Margin="0,12,0,0" Background="Transparent" BorderThickness="0" Padding="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="kb" Background="{DynamicResource InputBg}" CornerRadius="9"
+                                            Padding="12,10,12,10" BorderBrush="{DynamicResource BtnBorder}"
+                                            BorderThickness="1">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="kb" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="kb" Property="Background" Value="#0F8B5CF6"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <TextBlock Text="{Binding OnboardHotkeyText}" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentDeep}"
+                                       FontFamily="Consolas, Microsoft YaHei UI"/>
+                        </Button>
+                        <TextBlock Text="{Binding OnboardHotkeyHint}" FontSize="9.5" Margin="0,7,0,0"
+                                   Foreground="{DynamicResource Tx5}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="截图不是待办，是记忆钩子。" FontSize="9.5" Margin="0,10,0,0"
+                                   Foreground="{DynamicResource Tx5}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- ==== 第 2 步：两个房间 ==== -->
+                    <StackPanel Visibility="{Binding OnboardStep2, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="两个房间，两种脾气" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Tx1}" Margin="0,6,0,9"/>
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Todo" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Tx2}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="10.5" LineHeight="17"
+                                       Foreground="{DynamicResource Tx3}" Margin="0,2,0,0">
+                                有期限的事。被 DDL 催着走，越拖越红 —— 但它永远不会因为你不看它就消失。
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Wantdo" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Tx2}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="10.5" LineHeight="17"
+                                       Foreground="{DynamicResource Tx3}" Margin="0,2,0,0">
+                                没期限的念想。你不碰它就慢慢变淡、滑进纸篓 —— 但永远能捞回来。
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock Text="左边的东西在催你，右边的东西在等你。" FontSize="9.5" Margin="0,12,0,0"
+                                   Foreground="{DynamicResource Tx5}"/>
+                    </StackPanel>
+
+                    <!-- ==== 第 3 步：去看设置 ==== -->
+                    <StackPanel Visibility="{Binding OnboardStep3, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="最后，看一眼设置" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Tx1}" Margin="0,6,0,9"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="18"
+                                   Foreground="{DynamicResource Tx3}">
+                            设置里有块「<Run FontWeight="SemiBold">创作者推荐设置</Run>」：四个开关全开、透明度 40%。<LineBreak/><LineBreak/>
+                            那是我自己天天在用的配置，点一下就能应用。之后随时可以点顶栏的 ⚙ 改。
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- ==== 按钮 ==== -->
+                    <Grid Margin="0,16,0,0">
+                        <Button HorizontalAlignment="Left" Content="跳过" Click="OnOnboardSkipClick">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                    <Setter Property="FontSize" Value="10.5"/>
+                                    <Setter Property="Padding" Value="12,6,12,6"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource Tx4}"/>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button HorizontalAlignment="Right" Content="{Binding OnboardNextText}"
+                                Click="OnOnboardNextClick">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource GhostBtn}">
+                                    <Setter Property="FontSize" Value="10.5"/>
+                                    <Setter Property="Padding" Value="14,6,14,6"/>
+                                    <Setter Property="Foreground" Value="{StaticResource AccentDeep}"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </Window>

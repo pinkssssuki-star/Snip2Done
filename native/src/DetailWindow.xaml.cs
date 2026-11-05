@@ -291,13 +291,15 @@ namespace RemeberEr
             for (int off = 3; off >= -3; off--)
             {
                 long n = v + off;
-                if (n < 0) n = 0;
-                if (n > max) n = max;
+                // 越界的格子**留空**，不要钳到边界值。
+                // 钳的话：0 上面会再排出一串 0，23 下面会再排出一串 23 ——
+                // 看着像还能继续转，其实已经到底了。
+                bool inRange = n >= 0 && n <= max;
                 double d = Math.Abs(off);
 
                 var t = new TextBlock
                 {
-                    Text = n.ToString(),
+                    Text = inRange ? n.ToString() : "",
                     Height = ROW_H,
                     LineHeight = ROW_H,
                     TextAlignment = TextAlignment.Center,
@@ -347,14 +349,21 @@ namespace RemeberEr
             // **值要按整个 delta 走**（拖动时一次可能跨好几格，不能漏）。
             // 动画只滑一格 —— 快速拖动时视觉上略微滞后，但数值永远准确，
             // 比"动画走满、值却只动一格"要安全得多。
+            long before = _drumIsDay ? _ddlDays : _ddlHours;
+
             if (_drumIsDay)
                 _ddlDays = Math.Max(0, Math.Min(999, _ddlDays + delta));
             else
                 _ddlHours = Math.Max(0, Math.Min(23, _ddlHours + delta));
 
+            // 已经顶到上下限了：值没动就别播动画。
+            // 不然轮子照样滑一格再弹回来，数字却不动 —— 看着像坏了。
+            long moved = (_drumIsDay ? _ddlDays : _ddlHours) - before;
+            if (moved == 0) return;
+
             ApplyDdl();
             RefreshDdlNums();
-            AnimateDrum(Math.Sign(delta));
+            AnimateDrum(Math.Sign(moved));
         }
 
         /// <summary>

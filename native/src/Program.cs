@@ -14,7 +14,7 @@ namespace RemeberEr
     public static class Program
     {
         /// <summary>发布版本号。pack.ps1 会从这里读，别在两处各写一份。</summary>
-        public const string Version = "0.9.3";
+        public const string Version = "0.9.4";
 
         public static string Root;
         public static string DataDir;
@@ -52,6 +52,8 @@ namespace RemeberEr
         public static bool ForceQuick;
         /// <summary>验收用：自动流程点的那个按钮改成「钉住」而不是「确认」。</summary>
         public static bool AutoPin;
+        /// <summary>验收用：不管 settings.onboarded，强制走一遍新人引导。</summary>
+        public static bool ForceOnboard;
         public static string LogPath;
         /// <summary>启动分段计时用。从 Main 第一行开始算。</summary>
         public static readonly System.Diagnostics.Stopwatch Boot = System.Diagnostics.Stopwatch.StartNew();
@@ -101,6 +103,7 @@ namespace RemeberEr
                 else if (a.StartsWith("--shotpad=")) ShotPad = int.Parse(a.Substring(10));
                 else if (a == "--quick") ForceQuick = true;
                 else if (a == "--autopin") AutoPin = true;
+                else if (a == "--onboard") ForceOnboard = true;
                 else if (a == "--autostart") AutoStartSet = true;
                 else if (a == "--noautostart") AutoStartSet = false;
                 else if (a.StartsWith("--autochoose=")) AutoChoose = a.Substring(13);
